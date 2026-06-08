@@ -360,3 +360,21 @@
 2026-06-09T01:30:04.297+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 1ms
 2026-06-09T01:31:02.941+08:00  INFO 24388 --- [wms-discovery] [hresholdUpdater] c.n.e.r.PeerAwareInstanceRegistryImpl    : Current renewal threshold is : 0
 2026-06-09T01:31:04.311+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 14ms
+2026-06-09T01:32:04.314+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 2ms
+2026-06-09T01:33:04.317+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 3ms
+2026-06-09T01:34:04.322+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 6ms
+2026-06-09T01:35:04.325+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 2ms
+2026-06-09T01:36:04.332+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 7ms
+2026-06-09T01:37:04.335+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 4ms
+2026-06-09T01:38:04.348+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 12ms
+2026-06-09T01:39:04.348+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 0ms
+2026-06-09T01:40:04.351+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 3ms
+2026-06-09T01:41:04.354+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 3ms
+2026-06-09T01:42:04.369+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 14ms
+2026-06-09T01:43:04.373+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 4ms
+2026-06-09T01:44:04.377+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 3ms
+2026-06-09T01:45:04.377+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 0ms
+2026-06-09T01:46:02.964+08:00  INFO 24388 --- [wms-discovery] [hresholdUpdater] c.n.e.r.PeerAwareInstanceRegistryImpl    : Current renewal threshold is : 0
+2026-06-09T01:46:04.384+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 7ms
+2026-06-09T01:47:04.393+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 9ms
+2026-06-09T01:48:04.399+08:00  INFO 24388 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 6ms
