@@ -106,6 +106,8 @@ SSH 登录云服务器
 -> 等待 6 个 Deployment rollout 完成
 ```
 
+Helm 部署使用 `--server-side true --force-conflicts`，用于接管曾经被 `kubectl set image` 修改过的镜像字段，避免后续升级时出现 field manager 冲突。SSH action 同时开启 `script_stop`，部署脚本任一步失败都会立即停止。
+
 服务器需要提前安装并配置好：
 
 ```text
