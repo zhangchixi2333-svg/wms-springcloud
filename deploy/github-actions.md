@@ -100,6 +100,7 @@ SSH 登录云服务器
 -> 清理 /opt/wms-springcloud/deploy/helm/wms
 -> 上传 deploy/helm/wms
 -> helm upgrade --install wms
+-> 等待 mysql StatefulSet 和 mysql-0 Ready
 -> 等待 6 个 Deployment rollout 完成
 ```
 

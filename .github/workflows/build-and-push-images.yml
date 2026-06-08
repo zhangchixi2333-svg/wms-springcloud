@@ -145,6 +145,9 @@ jobs:
               --set "image.tag=${{ steps.version.outputs.tag }}" \
               --set "image.pullSecrets[0].name=aliyun-acr"
 
+            kubectl rollout status statefulset/mysql -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+            kubectl wait --for=condition=Ready pod/mysql-0 -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+
             kubectl rollout status deployment/wms-discovery -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
             kubectl rollout status deployment/wms-gateway -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
             kubectl rollout status deployment/wms-system-service -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
