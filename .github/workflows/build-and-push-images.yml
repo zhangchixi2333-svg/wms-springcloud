@@ -114,6 +114,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             rm -rf ${{ env.DEPLOY_PATH }}/deploy/helm/wms
             mkdir -p ${{ env.DEPLOY_PATH }}/deploy/helm
 
@@ -136,6 +137,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             helm upgrade --install ${{ env.DEPLOY_RELEASE }} ${{ env.DEPLOY_PATH }}/deploy/helm/wms \
               -n ${{ env.DEPLOY_NAMESPACE }} \
               --create-namespace \

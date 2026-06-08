@@ -111,6 +111,12 @@ helm
 可用的 Kubernetes 集群，例如 k3s
 ```
 
+如果使用 k3s，workflow 默认读取：
+
+```text
+/etc/rancher/k3s/k3s.yaml
+```
+
 首次部署前，需要在服务器 Kubernetes 集群里创建命名空间和阿里云 ACR 拉取密钥：
 
 ```bash
