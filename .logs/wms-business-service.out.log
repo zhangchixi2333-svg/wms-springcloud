@@ -104,3 +104,5 @@
 2026-06-08T22:01:15.351+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
 2026-06-08T22:06:15.358+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
 2026-06-08T22:11:15.376+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:16:15.391+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:21:15.398+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
