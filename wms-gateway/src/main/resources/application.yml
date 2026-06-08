@@ -26,15 +26,15 @@ spring:
                   - '*'
           routes:
             - id: wms-system-service
-              uri: lb://wms-system-service
+              uri: ${WMS_SYSTEM_SERVICE_URI:lb://wms-system-service}
               predicates:
                 - Path=/api/auth/**,/api/menus/**,/api/users/**,/api/roles/**,/api/config-items/**
             - id: wms-masterdata-service
-              uri: lb://wms-masterdata-service
+              uri: ${WMS_MASTERDATA_SERVICE_URI:lb://wms-masterdata-service}
               predicates:
                 - Path=/api/suppliers/**,/api/customers/**,/api/equipment/**,/api/parts/**,/api/locations/**
             - id: wms-business-service
-              uri: lb://wms-business-service
+              uri: ${WMS_BUSINESS_SERVICE_URI:lb://wms-business-service}
               predicates:
                 - Path=/api/inbound-orders/**,/api/outbound-orders/**,/api/kanbans/**,/api/inventory/**,/api/mobile/scan/**
 

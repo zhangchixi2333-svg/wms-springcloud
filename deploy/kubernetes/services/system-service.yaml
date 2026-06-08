@@ -58,6 +58,10 @@ spec:
                   key: password
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: http://wms-discovery:8761/eureka/
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: wms-system-service
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "false"
           ports:
             - name: http
               containerPort: 8082

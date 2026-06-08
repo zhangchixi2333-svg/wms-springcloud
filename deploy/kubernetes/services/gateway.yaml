@@ -35,6 +35,16 @@ spec:
           env:
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: http://wms-discovery:8761/eureka/
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: wms-gateway
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "false"
+            - name: WMS_SYSTEM_SERVICE_URI
+              value: http://wms-system-service:8082
+            - name: WMS_MASTERDATA_SERVICE_URI
+              value: http://wms-masterdata-service:8083
+            - name: WMS_BUSINESS_SERVICE_URI
+              value: http://wms-business-service:8084
           ports:
             - name: http
               containerPort: 8080
