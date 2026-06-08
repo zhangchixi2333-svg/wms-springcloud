@@ -94,3 +94,4 @@
 2026-06-08T22:11:17.259+08:00  INFO 11956 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
 2026-06-08T22:16:17.276+08:00  INFO 11956 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
 2026-06-08T22:21:17.286+08:00  INFO 11956 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:26:17.290+08:00  INFO 11956 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
