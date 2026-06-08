@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch:
 
 env:
   IMAGE_REPOSITORY: ${{ secrets.ACR_IMAGE_REPOSITORY }}
+  DEPLOY_NAMESPACE: wms
+  DEPLOY_RELEASE: wms
+  DEPLOY_PATH: /opt/wms-springcloud
 
 jobs:
   build-and-push:
@@ -59,10 +61,10 @@ jobs:
         id: meta
         shell: bash
         run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          SAFE_REF="$(echo "${GITHUB_REF_NAME}" | tr '/' '-')"
-          echo "sha_tag=${{ matrix.image_name }}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "branch_tag=${{ matrix.image_name }}-${SAFE_REF}" >> "$GITHUB_OUTPUT"
+          VERSION="v${GITHUB_RUN_NUMBER}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_tag=${{ matrix.image_name }}-${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "branch_tag=${{ matrix.image_name }}-master" >> "$GITHUB_OUTPUT"
 
       - name: Login to Aliyun Container Registry
         uses: docker/login-action@v3
@@ -82,7 +84,68 @@ jobs:
           push: true
           build-args: ${{ matrix.build_args }}
           tags: |
-            ${{ env.IMAGE_REPOSITORY }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.IMAGE_REPOSITORY }}:${{ steps.meta.outputs.version_tag }}
             ${{ env.IMAGE_REPOSITORY }}:${{ steps.meta.outputs.branch_tag }}
           cache-from: type=gha,scope=${{ matrix.image_name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image_name }}
+
+  deploy:
+    name: Deploy to cloud server
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set deploy version
+        id: version
+        shell: bash
+        run: |
+          echo "tag=v${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare remote deploy directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            rm -rf ${{ env.DEPLOY_PATH }}/deploy/helm/wms
+            mkdir -p ${{ env.DEPLOY_PATH }}/deploy/helm
+
+      - name: Upload Helm chart
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "deploy/helm/wms"
+          target: "${{ env.DEPLOY_PATH }}"
+          overwrite: true
+
+      - name: Deploy by Helm
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            helm upgrade --install ${{ env.DEPLOY_RELEASE }} ${{ env.DEPLOY_PATH }}/deploy/helm/wms \
+              -n ${{ env.DEPLOY_NAMESPACE }} \
+              --create-namespace \
+              --set "image.repository=${{ env.IMAGE_REPOSITORY }}" \
+              --set "image.tag=${{ steps.version.outputs.tag }}" \
+              --set "image.pullSecrets[0].name=aliyun-acr"
+
+            kubectl rollout status deployment/wms-discovery -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+            kubectl rollout status deployment/wms-gateway -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+            kubectl rollout status deployment/wms-system-service -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+            kubectl rollout status deployment/wms-masterdata-service -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+            kubectl rollout status deployment/wms-business-service -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+            kubectl rollout status deployment/wms-frontend -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s

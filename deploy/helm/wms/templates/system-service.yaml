@@ -26,6 +26,7 @@ spec:
       labels:
         app: wms-system-service
     spec:
+{{ include "wms.imagePullSecrets" . | indent 6 }}
       initContainers:
         - name: wait-for-mysql
           image: {{ .Values.mysql.image | quote }}

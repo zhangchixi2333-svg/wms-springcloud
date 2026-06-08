@@ -205,8 +205,8 @@ helm install wms deploy/helm/wms -n wms
 
 ```powershell
 helm install wms deploy/helm/wms -n wms `
-  --set image.repositoryPrefix=registry.example.com/wms `
-  --set image.tag=0.0.1
+  --set image.repository=registry.example.com/wms-cloud `
+  --set image.tag=v1
 ```
 
 查看状态：

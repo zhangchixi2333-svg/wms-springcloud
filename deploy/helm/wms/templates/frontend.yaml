@@ -28,6 +28,7 @@ spec:
       labels:
         app: wms-frontend
     spec:
+{{ include "wms.imagePullSecrets" . | indent 6 }}
       containers:
         - name: wms-frontend
           image: {{ include "wms.image" (dict "root" . "imageName" .Values.frontend.imageName) | quote }}

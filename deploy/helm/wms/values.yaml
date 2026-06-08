@@ -1,9 +1,10 @@
 namespaceOverride: ""
 
 image:
-  repositoryPrefix: wms
+  repository: crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud
   tag: "0.0.1"
   pullPolicy: IfNotPresent
+  pullSecrets: []
 
 mysql:
   image: mysql:8.4

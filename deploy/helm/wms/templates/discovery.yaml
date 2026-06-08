@@ -26,6 +26,7 @@ spec:
       labels:
         app: wms-discovery
     spec:
+{{ include "wms.imagePullSecrets" . | indent 6 }}
       containers:
         - name: wms-discovery
           image: {{ include "wms.image" (dict "root" . "imageName" .Values.services.discovery.imageName) | quote }}

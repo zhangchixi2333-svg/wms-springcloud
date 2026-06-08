@@ -7,7 +7,14 @@
 {{- end -}}
 
 {{- define "wms.image" -}}
-{{- printf "%s/%s:%s" .root.Values.image.repositoryPrefix .imageName .root.Values.image.tag -}}
+{{- printf "%s:%s-%s" .root.Values.image.repository .imageName .root.Values.image.tag -}}
+{{- end -}}
+
+{{- define "wms.imagePullSecrets" -}}
+{{- with .Values.image.pullSecrets }}
+imagePullSecrets:
+{{- toYaml . | nindent 2 }}
+{{- end }}
 {{- end -}}
 
 {{- define "wms.dbUrl" -}}

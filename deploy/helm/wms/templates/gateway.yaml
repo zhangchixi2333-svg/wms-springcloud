@@ -28,6 +28,7 @@ spec:
       labels:
         app: wms-gateway
     spec:
+{{ include "wms.imagePullSecrets" . | indent 6 }}
       containers:
         - name: wms-gateway
           image: {{ include "wms.image" (dict "root" . "imageName" .Values.services.gateway.imageName) | quote }}
