@@ -56,6 +56,8 @@ spec:
                 secretKeyRef:
                   name: wms-mysql-secret
                   key: password
+            - name: EUREKA_CLIENT_ENABLED
+              value: "false"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: http://wms-discovery:8761/eureka/
             - name: EUREKA_INSTANCE_HOSTNAME

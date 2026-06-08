@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:8.4
+    image: mysql:8.0
     container_name: wms-cloud-mysql
     restart: unless-stopped
     ports:
@@ -14,7 +14,8 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     volumes:
-      - wms_cloud_mysql_data:/var/lib/mysql
+      - wms_cloud_mysql80_data:/var/lib/mysql
 
 volumes:
   wms_cloud_mysql_data:
+  wms_cloud_mysql80_data:

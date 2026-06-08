@@ -33,6 +33,8 @@ spec:
           image: wms/wms-gateway:0.0.1
           imagePullPolicy: IfNotPresent
           env:
+            - name: EUREKA_CLIENT_ENABLED
+              value: "false"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: http://wms-discovery:8761/eureka/
             - name: EUREKA_INSTANCE_HOSTNAME
