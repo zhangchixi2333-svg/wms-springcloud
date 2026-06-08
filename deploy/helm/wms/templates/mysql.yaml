@@ -27,6 +27,7 @@ spec:
       labels:
         app: mysql
     spec:
+{{ include "wms.imagePullSecrets" . | indent 6 }}
       containers:
         - name: mysql
           image: {{ .Values.mysql.image | quote }}

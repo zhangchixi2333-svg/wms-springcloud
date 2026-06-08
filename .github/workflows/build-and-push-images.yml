@@ -7,6 +7,8 @@ on:
 
 env:
   IMAGE_REPOSITORY: ${{ secrets.ACR_IMAGE_REPOSITORY }}
+  MYSQL_SOURCE_IMAGE: mysql:8.0
+  MYSQL_ACR_TAG: mysql-8.0
   DEPLOY_NAMESPACE: wms
   DEPLOY_RELEASE: wms
   DEPLOY_PATH: /opt/wms-springcloud
@@ -89,10 +91,33 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image_name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image_name }}
 
+  mirror-mysql:
+    name: Mirror MySQL image to ACR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Login to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Pull, tag and push MySQL image
+        shell: bash
+        run: |
+          docker pull "${MYSQL_SOURCE_IMAGE}"
+          docker tag "${MYSQL_SOURCE_IMAGE}" "${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}"
+          docker push "${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}"
+
   deploy:
     name: Deploy to cloud server
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs:
+      - build-and-push
+      - mirror-mysql
     permissions:
       contents: read
 
@@ -143,6 +168,7 @@ jobs:
               --create-namespace \
               --set "image.repository=${{ env.IMAGE_REPOSITORY }}" \
               --set "image.tag=${{ steps.version.outputs.tag }}" \
+              --set "mysql.image=${{ env.IMAGE_REPOSITORY }}:${{ env.MYSQL_ACR_TAG }}" \
               --set "image.pullSecrets[0].name=aliyun-acr"
 
             kubectl rollout status statefulset/mysql -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s

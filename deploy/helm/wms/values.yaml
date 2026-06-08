@@ -7,7 +7,7 @@ image:
   pullSecrets: []
 
 mysql:
-  image: mysql:8.4
+  image: crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:mysql-8.0
   database: wms_cloud
   rootPassword: root123456
   username: wms
