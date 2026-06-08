@@ -104,3 +104,5 @@
 2026-06-08T22:01:12.616+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
 2026-06-08T22:06:12.633+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
 2026-06-08T22:11:12.643+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:16:12.654+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:21:12.670+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
