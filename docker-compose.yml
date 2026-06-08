@@ -1,0 +1,20 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: wms-cloud-mysql
+    restart: unless-stopped
+    ports:
+      - "3317:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: wms_cloud
+      MYSQL_USER: wms
+      MYSQL_PASSWORD: wms123456
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - wms_cloud_mysql_data:/var/lib/mysql
+
+volumes:
+  wms_cloud_mysql_data:

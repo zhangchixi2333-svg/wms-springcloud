@@ -1,0 +1,46 @@
+namespaceOverride: ""
+
+image:
+  repositoryPrefix: wms
+  tag: "0.0.1"
+  pullPolicy: IfNotPresent
+
+mysql:
+  image: mysql:8.4
+  database: wms_cloud
+  rootPassword: root123456
+  username: wms
+  password: wms123456
+  storage: 5Gi
+
+service:
+  gatewayNodePort: 30080
+  frontendNodePort: 30081
+
+replicaCount:
+  discovery: 1
+  gateway: 1
+  system: 1
+  masterdata: 1
+  business: 1
+  frontend: 1
+
+frontend:
+  imageName: wms-frontend
+
+services:
+  discovery:
+    imageName: wms-discovery
+    port: 8761
+  gateway:
+    imageName: wms-gateway
+    port: 8080
+  system:
+    imageName: wms-system-service
+    port: 8082
+  masterdata:
+    imageName: wms-masterdata-service
+    port: 8083
+  business:
+    imageName: wms-business-service
+    port: 8084

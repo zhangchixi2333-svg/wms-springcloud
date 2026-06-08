@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-gateway
+  namespace: {{ include "wms.namespace" . }}
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: {{ .Values.services.gateway.port }}
+      targetPort: {{ .Values.services.gateway.port }}
+      nodePort: {{ .Values.service.gatewayNodePort }}
+  selector:
+    app: wms-gateway
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-gateway
+  namespace: {{ include "wms.namespace" . }}
+spec:
+  replicas: {{ .Values.replicaCount.gateway }}
+  selector:
+    matchLabels:
+      app: wms-gateway
+  template:
+    metadata:
+      labels:
+        app: wms-gateway
+    spec:
+      containers:
+        - name: wms-gateway
+          image: {{ include "wms.image" (dict "root" . "imageName" .Values.services.gateway.imageName) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: http://wms-discovery:8761/eureka/
+          ports:
+            - name: http
+              containerPort: {{ .Values.services.gateway.port }}

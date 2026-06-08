@@ -1,0 +1,77 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.example:wms-gateway >-----------------------
+[INFO] Building wms-gateway 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.5.7:run (default-cli) > test-compile @ wms-gateway >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ wms-gateway ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ wms-gateway ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ wms-gateway ---
+[INFO] skip non existing resourceDirectory D:\projects\wms-springcloud\wms-gateway\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ wms-gateway ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] <<< spring-boot:3.5.7:run (default-cli) < test-compile @ wms-gateway <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.5.7:run (default-cli) @ wms-gateway ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.7)
+
+2026-06-08T21:46:15.800+08:00  INFO 11956 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : Starting WmsGatewayApplication using Java 21.0.10 with PID 11956 (D:\projects\wms-springcloud\wms-gateway\target\classes started by lenovo in D:\projects\wms-springcloud\wms-gateway)
+2026-06-08T21:46:15.803+08:00  INFO 11956 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : No active profile set, falling back to 1 default profile: "default"
+2026-06-08T21:46:16.391+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=f0fe96b5-d084-36f4-80ca-d2f7a702d161
+2026-06-08T21:46:16.974+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [After]
+2026-06-08T21:46:16.975+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Before]
+2026-06-08T21:46:16.975+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Between]
+2026-06-08T21:46:16.975+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Cookie]
+2026-06-08T21:46:16.975+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Header]
+2026-06-08T21:46:16.975+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Host]
+2026-06-08T21:46:16.975+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Method]
+2026-06-08T21:46:16.975+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Path]
+2026-06-08T21:46:16.975+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Query]
+2026-06-08T21:46:16.976+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [ReadBody]
+2026-06-08T21:46:16.976+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [RemoteAddr]
+2026-06-08T21:46:16.976+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [XForwardedRemoteAddr]
+2026-06-08T21:46:16.976+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Weight]
+2026-06-08T21:46:16.976+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [CloudFoundryRouteService]
+2026-06-08T21:46:17.127+08:00  INFO 11956 --- [wms-gateway] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-06-08T21:46:17.156+08:00  WARN 11956 --- [wms-gateway] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-06-08T21:46:17.176+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
+2026-06-08T21:46:17.192+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
+2026-06-08T21:46:17.194+08:00  INFO 11956 --- [wms-gateway] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T21:46:17.200+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-06-08T21:46:17.200+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-06-08T21:46:17.200+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-06-08T21:46:17.200+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-06-08T21:46:17.200+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-06-08T21:46:17.202+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
+2026-06-08T21:46:17.202+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-06-08T21:46:17.456+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-06-08T21:46:17.457+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Starting heartbeat executor: renew interval is: 30
+2026-06-08T21:46:17.458+08:00  INFO 11956 --- [wms-gateway] [           main] c.n.discovery.InstanceInfoReplicator     : InstanceInfoReplicator onDemand update allowed rate per min is 4
+2026-06-08T21:46:17.459+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1780926377459 with initial instances count: 0
+2026-06-08T21:46:17.462+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application WMS-GATEWAY with eureka with status UP
+2026-06-08T21:46:17.462+08:00  INFO 11956 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Saw local status change event StatusChangeEvent [timestamp=1780926377462, current=UP, previous=STARTING]
+2026-06-08T21:46:17.464+08:00  INFO 11956 --- [wms-gateway] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-GATEWAY/LAPTOP-CP80UB9G:wms-gateway:8080: registering service...
+2026-06-08T21:46:17.494+08:00  INFO 11956 --- [wms-gateway] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-GATEWAY/LAPTOP-CP80UB9G:wms-gateway:8080 - registration status: 204
+2026-06-08T21:46:17.592+08:00  INFO 11956 --- [wms-gateway] [           main] o.s.b.web.embedded.netty.NettyWebServer  : Netty started on port 8080 (http)
+2026-06-08T21:46:17.593+08:00  INFO 11956 --- [wms-gateway] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8080
+2026-06-08T21:46:17.612+08:00  INFO 11956 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : Started WmsGatewayApplication in 2.094 seconds (process running for 2.481)

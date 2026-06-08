@@ -1,0 +1,87 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------< com.example:wms-business-service >------------------
+[INFO] Building wms-business-service 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.5.7:run (default-cli) > test-compile @ wms-business-service >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ wms-business-service ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ wms-business-service ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ wms-business-service ---
+[INFO] skip non existing resourceDirectory D:\projects\wms-springcloud\wms-business-service\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ wms-business-service ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] <<< spring-boot:3.5.7:run (default-cli) < test-compile @ wms-business-service <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.5.7:run (default-cli) @ wms-business-service ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.7)
+
+2026-06-08T21:46:11.969+08:00  INFO 40044 --- [wms-business-service] [           main] c.e.wms.WmsBusinessServiceApplication    : Starting WmsBusinessServiceApplication using Java 21.0.10 with PID 40044 (D:\projects\wms-springcloud\wms-business-service\target\classes started by lenovo in D:\projects\wms-springcloud\wms-business-service)
+2026-06-08T21:46:11.970+08:00  INFO 40044 --- [wms-business-service] [           main] c.e.wms.WmsBusinessServiceApplication    : No active profile set, falling back to 1 default profile: "default"
+2026-06-08T21:46:12.469+08:00  INFO 40044 --- [wms-business-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-08T21:46:12.604+08:00  INFO 40044 --- [wms-business-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 129 ms. Found 17 JPA repository interfaces.
+2026-06-08T21:46:12.724+08:00  INFO 40044 --- [wms-business-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=26ed61c4-eca5-3e62-b25a-ffb763833fd5
+2026-06-08T21:46:13.005+08:00  INFO 40044 --- [wms-business-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8084 (http)
+2026-06-08T21:46:13.021+08:00  INFO 40044 --- [wms-business-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-08T21:46:13.021+08:00  INFO 40044 --- [wms-business-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.48]
+2026-06-08T21:46:13.081+08:00  INFO 40044 --- [wms-business-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-06-08T21:46:13.082+08:00  INFO 40044 --- [wms-business-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1084 ms
+2026-06-08T21:46:13.213+08:00  INFO 40044 --- [wms-business-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-06-08T21:46:13.243+08:00  INFO 40044 --- [wms-business-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.33.Final
+2026-06-08T21:46:13.264+08:00  INFO 40044 --- [wms-business-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-06-08T21:46:13.484+08:00  INFO 40044 --- [wms-business-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-06-08T21:46:13.504+08:00  INFO 40044 --- [wms-business-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-08T21:46:13.633+08:00  INFO 40044 --- [wms-business-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@44485db
+2026-06-08T21:46:13.634+08:00  INFO 40044 --- [wms-business-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-08T21:46:13.721+08:00  INFO 40044 --- [wms-business-service] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.4.9
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-06-08T21:46:14.461+08:00  INFO 40044 --- [wms-business-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-06-08T21:46:14.509+08:00  INFO 40044 --- [wms-business-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-08T21:46:15.267+08:00  INFO 40044 --- [wms-business-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-06-08T21:46:15.288+08:00  WARN 40044 --- [wms-business-service] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-06-08T21:46:15.302+08:00  INFO 40044 --- [wms-business-service] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
+2026-06-08T21:46:15.319+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
+2026-06-08T21:46:15.321+08:00  INFO 40044 --- [wms-business-service] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T21:46:15.327+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-06-08T21:46:15.327+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-06-08T21:46:15.327+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-06-08T21:46:15.327+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-06-08T21:46:15.327+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-06-08T21:46:15.328+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
+2026-06-08T21:46:15.328+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-06-08T21:46:15.556+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-06-08T21:46:15.558+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Starting heartbeat executor: renew interval is: 30
+2026-06-08T21:46:15.559+08:00  INFO 40044 --- [wms-business-service] [           main] c.n.discovery.InstanceInfoReplicator     : InstanceInfoReplicator onDemand update allowed rate per min is 4
+2026-06-08T21:46:15.560+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1780926375560 with initial instances count: 0
+2026-06-08T21:46:15.563+08:00  INFO 40044 --- [wms-business-service] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application WMS-BUSINESS-SERVICE with eureka with status UP
+2026-06-08T21:46:15.563+08:00  INFO 40044 --- [wms-business-service] [           main] com.netflix.discovery.DiscoveryClient    : Saw local status change event StatusChangeEvent [timestamp=1780926375563, current=UP, previous=STARTING]
+2026-06-08T21:46:15.565+08:00  INFO 40044 --- [wms-business-service] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-BUSINESS-SERVICE/LAPTOP-CP80UB9G:wms-business-service:8084: registering service...
+2026-06-08T21:46:15.580+08:00  INFO 40044 --- [wms-business-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8084 (http) with context path '/'
+2026-06-08T21:46:15.580+08:00  INFO 40044 --- [wms-business-service] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8084
+2026-06-08T21:46:15.593+08:00  INFO 40044 --- [wms-business-service] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-BUSINESS-SERVICE/LAPTOP-CP80UB9G:wms-business-service:8084 - registration status: 204
+2026-06-08T21:46:15.596+08:00  INFO 40044 --- [wms-business-service] [           main] c.e.wms.WmsBusinessServiceApplication    : Started WmsBusinessServiceApplication in 3.95 seconds (process running for 4.375)

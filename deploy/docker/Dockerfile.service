@@ -1,0 +1,28 @@
+FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /workspace
+
+COPY pom.xml .
+COPY wms-common/pom.xml wms-common/pom.xml
+COPY wms-discovery/pom.xml wms-discovery/pom.xml
+COPY wms-gateway/pom.xml wms-gateway/pom.xml
+COPY wms-system-service/pom.xml wms-system-service/pom.xml
+COPY wms-masterdata-service/pom.xml wms-masterdata-service/pom.xml
+COPY wms-business-service/pom.xml wms-business-service/pom.xml
+RUN mvn -q -DskipTests dependency:go-offline
+
+COPY wms-common wms-common
+COPY wms-discovery wms-discovery
+COPY wms-gateway wms-gateway
+COPY wms-system-service wms-system-service
+COPY wms-masterdata-service wms-masterdata-service
+COPY wms-business-service wms-business-service
+
+ARG MODULE
+RUN mvn -q -DskipTests -pl ${MODULE} -am package
+
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+ARG MODULE
+COPY --from=build /workspace/${MODULE}/target/*.jar /app/app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

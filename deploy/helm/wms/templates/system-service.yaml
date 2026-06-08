@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-system-service
+  namespace: {{ include "wms.namespace" . }}
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.services.system.port }}
+      targetPort: {{ .Values.services.system.port }}
+  selector:
+    app: wms-system-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-system-service
+  namespace: {{ include "wms.namespace" . }}
+spec:
+  replicas: {{ .Values.replicaCount.system }}
+  selector:
+    matchLabels:
+      app: wms-system-service
+  template:
+    metadata:
+      labels:
+        app: wms-system-service
+    spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: {{ .Values.mysql.image | quote }}
+          command: ["sh", "-c", "until mysqladmin ping -hmysql -uwms -p\"$MYSQL_PASSWORD\" --silent; do sleep 2; done"]
+          env:
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wms-mysql-secret
+                  key: password
+      containers:
+        - name: wms-system-service
+          image: {{ include "wms.image" (dict "root" . "imageName" .Values.services.system.imageName) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: DB_URL
+              value: {{ include "wms.dbUrl" . | quote }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: wms-mysql-secret
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wms-mysql-secret
+                  key: password
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: http://wms-discovery:8761/eureka/
+          ports:
+            - name: http
+              containerPort: {{ .Values.services.system.port }}

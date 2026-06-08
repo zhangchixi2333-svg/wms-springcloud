@@ -1,0 +1,86 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------------< com.example:wms-discovery >----------------------
+[INFO] Building wms-discovery 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.5.7:run (default-cli) > test-compile @ wms-discovery >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ wms-discovery ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ wms-discovery ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ wms-discovery ---
+[INFO] skip non existing resourceDirectory D:\projects\wms-springcloud\wms-discovery\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ wms-discovery ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] <<< spring-boot:3.5.7:run (default-cli) < test-compile @ wms-discovery <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.5.7:run (default-cli) @ wms-discovery ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.7)
+
+2026-06-08T21:46:00.573+08:00  INFO 24388 --- [wms-discovery] [           main] c.e.w.discovery.WmsDiscoveryApplication  : Starting WmsDiscoveryApplication using Java 21.0.10 with PID 24388 (D:\projects\wms-springcloud\wms-discovery\target\classes started by lenovo in D:\projects\wms-springcloud\wms-discovery)
+2026-06-08T21:46:00.575+08:00  INFO 24388 --- [wms-discovery] [           main] c.e.w.discovery.WmsDiscoveryApplication  : No active profile set, falling back to 1 default profile: "default"
+2026-06-08T21:46:01.201+08:00  INFO 24388 --- [wms-discovery] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=d65acce0-7f99-3e65-b55b-12a352db2d14
+2026-06-08T21:46:01.406+08:00  INFO 24388 --- [wms-discovery] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8761 (http)
+2026-06-08T21:46:01.418+08:00  INFO 24388 --- [wms-discovery] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-08T21:46:01.419+08:00  INFO 24388 --- [wms-discovery] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.48]
+2026-06-08T21:46:01.468+08:00  INFO 24388 --- [wms-discovery] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-06-08T21:46:01.468+08:00  INFO 24388 --- [wms-discovery] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 863 ms
+2026-06-08T21:46:02.066+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.d.provider.DiscoveryJerseyProvider   : Using JSON encoding codec LegacyJacksonJson
+2026-06-08T21:46:02.067+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.d.provider.DiscoveryJerseyProvider   : Using JSON decoding codec LegacyJacksonJson
+2026-06-08T21:46:02.188+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.d.provider.DiscoveryJerseyProvider   : Using XML encoding codec XStreamXml
+2026-06-08T21:46:02.188+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.d.provider.DiscoveryJerseyProvider   : Using XML decoding codec XStreamXml
+2026-06-08T21:46:02.304+08:00  INFO 24388 --- [wms-discovery] [           main] o.s.v.b.OptionalValidatorFactoryBean     : Failed to set up a Bean Validation provider: jakarta.validation.NoProviderFoundException: Unable to create a Configuration, because no Jakarta Bean Validation provider could be found. Add a provider like Hibernate Validator (RI) to your classpath.
+2026-06-08T21:46:02.697+08:00  WARN 24388 --- [wms-discovery] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-06-08T21:46:02.711+08:00  INFO 24388 --- [wms-discovery] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
+2026-06-08T21:46:02.734+08:00  INFO 24388 --- [wms-discovery] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
+2026-06-08T21:46:02.734+08:00  INFO 24388 --- [wms-discovery] [           main] com.netflix.discovery.DiscoveryClient    : Client configured to neither register nor query for data.
+2026-06-08T21:46:02.736+08:00  INFO 24388 --- [wms-discovery] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1780926362735 with initial instances count: 0
+2026-06-08T21:46:02.768+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.eureka.DefaultEurekaServerContext    : Initializing ...
+2026-06-08T21:46:02.770+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.eureka.cluster.PeerEurekaNodes       : Adding new peer nodes [http://127.0.0.1:8761/eureka/]
+2026-06-08T21:46:02.831+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.d.provider.DiscoveryJerseyProvider   : Using JSON encoding codec LegacyJacksonJson
+2026-06-08T21:46:02.831+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.d.provider.DiscoveryJerseyProvider   : Using JSON decoding codec LegacyJacksonJson
+2026-06-08T21:46:02.831+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.d.provider.DiscoveryJerseyProvider   : Using XML encoding codec XStreamXml
+2026-06-08T21:46:02.831+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.d.provider.DiscoveryJerseyProvider   : Using XML decoding codec XStreamXml
+2026-06-08T21:46:02.856+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.eureka.cluster.PeerEurekaNodes       : Replica node URL:  http://127.0.0.1:8761/eureka/
+2026-06-08T21:46:02.861+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.e.registry.AbstractInstanceRegistry  : Finished initializing remote region registries. All known remote regions: []
+2026-06-08T21:46:02.862+08:00  INFO 24388 --- [wms-discovery] [           main] c.n.eureka.DefaultEurekaServerContext    : Initialized
+2026-06-08T21:46:02.870+08:00  INFO 24388 --- [wms-discovery] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-06-08T21:46:02.949+08:00  INFO 24388 --- [wms-discovery] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application WMS-DISCOVERY with eureka with status UP
+2026-06-08T21:46:02.960+08:00  INFO 24388 --- [wms-discovery] [       Thread-9] o.s.c.n.e.server.EurekaServerBootstrap   : isAws returned false
+2026-06-08T21:46:02.961+08:00  INFO 24388 --- [wms-discovery] [       Thread-9] o.s.c.n.e.server.EurekaServerBootstrap   : Initialized server context
+2026-06-08T21:46:02.961+08:00  INFO 24388 --- [wms-discovery] [       Thread-9] c.n.e.r.PeerAwareInstanceRegistryImpl    : Got 1 instances from neighboring DS node
+2026-06-08T21:46:02.962+08:00  INFO 24388 --- [wms-discovery] [       Thread-9] c.n.e.r.PeerAwareInstanceRegistryImpl    : Renew threshold is: 1
+2026-06-08T21:46:02.962+08:00  INFO 24388 --- [wms-discovery] [       Thread-9] c.n.e.r.PeerAwareInstanceRegistryImpl    : Changing status to UP
+2026-06-08T21:46:02.966+08:00  INFO 24388 --- [wms-discovery] [       Thread-9] e.s.EurekaServerInitializerConfiguration : Started Eureka Server
+2026-06-08T21:46:02.992+08:00  INFO 24388 --- [wms-discovery] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8761 (http) with context path '/'
+2026-06-08T21:46:02.994+08:00  INFO 24388 --- [wms-discovery] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8761
+2026-06-08T21:46:03.022+08:00  INFO 24388 --- [wms-discovery] [           main] c.e.w.discovery.WmsDiscoveryApplication  : Started WmsDiscoveryApplication in 2.758 seconds (process running for 3.141)
+2026-06-08T21:46:09.689+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-08T21:46:09.689+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-08T21:46:09.692+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-06-08T21:46:10.106+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-2] c.n.e.registry.AbstractInstanceRegistry  : Registered instance WMS-SYSTEM-SERVICE/LAPTOP-CP80UB9G:wms-system-service:8082 with status UP (replication=false)
+2026-06-08T21:46:10.865+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-4] c.n.e.registry.AbstractInstanceRegistry  : Registered instance WMS-SYSTEM-SERVICE/LAPTOP-CP80UB9G:wms-system-service:8082 with status UP (replication=true)
+2026-06-08T21:46:13.099+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-5] c.n.e.registry.AbstractInstanceRegistry  : Registered instance WMS-MASTERDATA-SERVICE/LAPTOP-CP80UB9G:wms-masterdata-service:8083 with status UP (replication=false)
+2026-06-08T21:46:13.607+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-6] c.n.e.registry.AbstractInstanceRegistry  : Registered instance WMS-MASTERDATA-SERVICE/LAPTOP-CP80UB9G:wms-masterdata-service:8083 with status UP (replication=true)
+2026-06-08T21:46:15.590+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-8] c.n.e.registry.AbstractInstanceRegistry  : Registered instance WMS-BUSINESS-SERVICE/LAPTOP-CP80UB9G:wms-business-service:8084 with status UP (replication=false)
+2026-06-08T21:46:16.101+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-9] c.n.e.registry.AbstractInstanceRegistry  : Registered instance WMS-BUSINESS-SERVICE/LAPTOP-CP80UB9G:wms-business-service:8084 with status UP (replication=true)
+2026-06-08T21:46:17.493+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-1] c.n.e.registry.AbstractInstanceRegistry  : Registered instance WMS-GATEWAY/LAPTOP-CP80UB9G:wms-gateway:8080 with status UP (replication=false)
+2026-06-08T21:46:18.006+08:00  INFO 24388 --- [wms-discovery] [nio-8761-exec-2] c.n.e.registry.AbstractInstanceRegistry  : Registered instance WMS-GATEWAY/LAPTOP-CP80UB9G:wms-gateway:8080 with status UP (replication=true)

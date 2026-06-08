@@ -1,0 +1,44 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: wms-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials,RETAIN_FIRST
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins:
+                  - http://localhost:5173
+                  - http://127.0.0.1:5173
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders:
+                  - '*'
+          routes:
+            - id: wms-system-service
+              uri: lb://wms-system-service
+              predicates:
+                - Path=/api/auth/**,/api/menus/**,/api/users/**,/api/roles/**,/api/config-items/**
+            - id: wms-masterdata-service
+              uri: lb://wms-masterdata-service
+              predicates:
+                - Path=/api/suppliers/**,/api/customers/**,/api/equipment/**,/api/parts/**,/api/locations/**
+            - id: wms-business-service
+              uri: lb://wms-business-service
+              predicates:
+                - Path=/api/inbound-orders/**,/api/outbound-orders/**,/api/kanbans/**,/api/inventory/**,/api/mobile/scan/**
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:8761/eureka/

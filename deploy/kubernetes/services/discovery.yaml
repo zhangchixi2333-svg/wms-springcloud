@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-discovery
+  namespace: wms
+spec:
+  ports:
+    - name: http
+      port: 8761
+      targetPort: 8761
+  selector:
+    app: wms-discovery
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-discovery
+  namespace: wms
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-discovery
+  template:
+    metadata:
+      labels:
+        app: wms-discovery
+    spec:
+      containers:
+        - name: wms-discovery
+          image: wms/wms-discovery:0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8761
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8761
+            initialDelaySeconds: 20
+            periodSeconds: 10

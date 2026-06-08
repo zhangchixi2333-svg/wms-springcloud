@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-frontend
+  namespace: {{ include "wms.namespace" . }}
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: {{ .Values.service.frontendNodePort }}
+  selector:
+    app: wms-frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-frontend
+  namespace: {{ include "wms.namespace" . }}
+spec:
+  replicas: {{ .Values.replicaCount.frontend }}
+  selector:
+    matchLabels:
+      app: wms-frontend
+  template:
+    metadata:
+      labels:
+        app: wms-frontend
+    spec:
+      containers:
+        - name: wms-frontend
+          image: {{ include "wms.image" (dict "root" . "imageName" .Values.frontend.imageName) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80

@@ -1,0 +1,19 @@
+resources:
+  - base/namespace.yaml
+  - base/secret.yaml
+  - mysql/mysql.yaml
+  - services/discovery.yaml
+  - services/system-service.yaml
+  - services/masterdata-service.yaml
+  - services/business-service.yaml
+  - services/gateway.yaml
+  - frontend/frontend.yaml
+
+configMapGenerator:
+  - name: wms-mysql-init
+    namespace: wms
+    files:
+      - wms-cloud-init.sql=mysql/wms-cloud-init.sql
+
+generatorOptions:
+  disableNameSuffixHash: true

@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-frontend
+  namespace: wms
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30081
+  selector:
+    app: wms-frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-frontend
+  namespace: wms
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-frontend
+  template:
+    metadata:
+      labels:
+        app: wms-frontend
+    spec:
+      containers:
+        - name: wms-frontend
+          image: wms/wms-frontend:0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
