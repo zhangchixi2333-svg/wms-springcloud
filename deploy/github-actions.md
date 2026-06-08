@@ -101,6 +101,7 @@ SSH 登录云服务器
 -> 上传 deploy/helm/wms
 -> helm upgrade --install wms
 -> 等待 mysql StatefulSet 和 mysql-0 Ready
+-> Helm post-install/post-upgrade Job 执行数据库初始化 SQL
 -> 等待 6 个 Deployment rollout 完成
 ```
 
