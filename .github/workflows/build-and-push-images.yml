@@ -1,0 +1,88 @@
+name: Build and Push WMS Images
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE_REPOSITORY: ${{ secrets.ACR_IMAGE_REPOSITORY }}
+
+jobs:
+  build-and-push:
+    name: Build and push Docker images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: wms-discovery
+            module: wms-discovery
+            dockerfile: deploy/docker/Dockerfile.service
+            build_args: |
+              MODULE=wms-discovery
+          - image_name: wms-gateway
+            module: wms-gateway
+            dockerfile: deploy/docker/Dockerfile.service
+            build_args: |
+              MODULE=wms-gateway
+          - image_name: wms-system-service
+            module: wms-system-service
+            dockerfile: deploy/docker/Dockerfile.service
+            build_args: |
+              MODULE=wms-system-service
+          - image_name: wms-masterdata-service
+            module: wms-masterdata-service
+            dockerfile: deploy/docker/Dockerfile.service
+            build_args: |
+              MODULE=wms-masterdata-service
+          - image_name: wms-business-service
+            module: wms-business-service
+            dockerfile: deploy/docker/Dockerfile.service
+            build_args: |
+              MODULE=wms-business-service
+          - image_name: wms-frontend
+            module: frontend
+            dockerfile: deploy/docker/Dockerfile.frontend
+            build_args: |
+              VITE_API_BASE=/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tags
+        id: meta
+        shell: bash
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          SAFE_REF="$(echo "${GITHUB_REF_NAME}" | tr '/' '-')"
+          echo "sha_tag=${{ matrix.image_name }}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "branch_tag=${{ matrix.image_name }}-${SAFE_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push ${{ matrix.image_name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          build-args: ${{ matrix.build_args }}
+          tags: |
+            ${{ env.IMAGE_REPOSITORY }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.IMAGE_REPOSITORY }}:${{ steps.meta.outputs.branch_tag }}
+          cache-from: type=gha,scope=${{ matrix.image_name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image_name }}

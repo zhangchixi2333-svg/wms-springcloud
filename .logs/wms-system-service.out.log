@@ -85,3 +85,22 @@
 2026-06-08T21:46:09.941+08:00  INFO 28340 --- [wms-system-service] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8082
 2026-06-08T21:46:09.965+08:00  INFO 28340 --- [wms-system-service] [           main] c.e.wms.WmsSystemServiceApplication      : Started WmsSystemServiceApplication in 6.024 seconds (process running for 6.49)
 2026-06-08T21:46:10.115+08:00  INFO 28340 --- [wms-system-service] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-SYSTEM-SERVICE/LAPTOP-CP80UB9G:wms-system-service:8082 - registration status: 204
+2026-06-08T21:46:39.909+08:00  INFO 28340 --- [wms-system-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-06-08T21:46:39.910+08:00  INFO 28340 --- [wms-system-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-06-08T21:46:39.910+08:00  INFO 28340 --- [wms-system-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-06-08T21:46:39.911+08:00  INFO 28340 --- [wms-system-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-06-08T21:46:39.911+08:00  INFO 28340 --- [wms-system-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-06-08T21:46:39.911+08:00  INFO 28340 --- [wms-system-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application version is -1: false
+2026-06-08T21:46:39.912+08:00  INFO 28340 --- [wms-system-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-06-08T21:46:39.937+08:00  INFO 28340 --- [wms-system-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-06-08T21:46:52.093+08:00  INFO 28340 --- [wms-system-service] [nio-8082-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-08T21:46:52.096+08:00  INFO 28340 --- [wms-system-service] [nio-8082-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-08T21:46:52.099+08:00  INFO 28340 --- [wms-system-service] [nio-8082-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 2 ms
+2026-06-08T21:47:09.981+08:00  INFO 28340 --- [wms-system-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-SYSTEM-SERVICE/LAPTOP-CP80UB9G:wms-system-service:8082 - Re-registering apps/WMS-SYSTEM-SERVICE
+2026-06-08T21:47:09.983+08:00  INFO 28340 --- [wms-system-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-SYSTEM-SERVICE/LAPTOP-CP80UB9G:wms-system-service:8082: registering service...
+2026-06-08T21:47:09.993+08:00  INFO 28340 --- [wms-system-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-SYSTEM-SERVICE/LAPTOP-CP80UB9G:wms-system-service:8082 - registration status: 204
+2026-06-08T21:51:09.149+08:00  INFO 28340 --- [wms-system-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T21:56:09.161+08:00  INFO 28340 --- [wms-system-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:01:09.164+08:00  INFO 28340 --- [wms-system-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:06:09.172+08:00  INFO 28340 --- [wms-system-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:11:09.191+08:00  INFO 28340 --- [wms-system-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration

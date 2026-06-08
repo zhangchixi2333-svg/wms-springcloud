@@ -85,3 +85,22 @@
 2026-06-08T21:46:15.580+08:00  INFO 40044 --- [wms-business-service] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8084
 2026-06-08T21:46:15.593+08:00  INFO 40044 --- [wms-business-service] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-BUSINESS-SERVICE/LAPTOP-CP80UB9G:wms-business-service:8084 - registration status: 204
 2026-06-08T21:46:15.596+08:00  INFO 40044 --- [wms-business-service] [           main] c.e.wms.WmsBusinessServiceApplication    : Started WmsBusinessServiceApplication in 3.95 seconds (process running for 4.375)
+2026-06-08T21:46:45.564+08:00  INFO 40044 --- [wms-business-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-06-08T21:46:45.565+08:00  INFO 40044 --- [wms-business-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-06-08T21:46:45.565+08:00  INFO 40044 --- [wms-business-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-06-08T21:46:45.565+08:00  INFO 40044 --- [wms-business-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-06-08T21:46:45.566+08:00  INFO 40044 --- [wms-business-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-06-08T21:46:45.566+08:00  INFO 40044 --- [wms-business-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application version is -1: false
+2026-06-08T21:46:45.566+08:00  INFO 40044 --- [wms-business-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-06-08T21:46:45.584+08:00  INFO 40044 --- [wms-business-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-BUSINESS-SERVICE/LAPTOP-CP80UB9G:wms-business-service:8084 - Re-registering apps/WMS-BUSINESS-SERVICE
+2026-06-08T21:46:45.584+08:00  INFO 40044 --- [wms-business-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-BUSINESS-SERVICE/LAPTOP-CP80UB9G:wms-business-service:8084: registering service...
+2026-06-08T21:46:45.587+08:00  INFO 40044 --- [wms-business-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-BUSINESS-SERVICE/LAPTOP-CP80UB9G:wms-business-service:8084 - registration status: 204
+2026-06-08T21:46:45.588+08:00  INFO 40044 --- [wms-business-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-06-08T21:46:53.249+08:00  INFO 40044 --- [wms-business-service] [nio-8084-exec-2] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-08T21:46:53.250+08:00  INFO 40044 --- [wms-business-service] [nio-8084-exec-2] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-08T21:46:53.252+08:00  INFO 40044 --- [wms-business-service] [nio-8084-exec-2] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-06-08T21:51:15.331+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T21:56:15.348+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:01:15.351+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:06:15.358+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-08T22:11:15.376+08:00  INFO 40044 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
