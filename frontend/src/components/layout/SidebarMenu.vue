@@ -171,4 +171,60 @@ function isExpanded(menuKey: string) {
   color: rgba(246, 251, 253, 0.9);
   padding: 0 12px;
 }
+
+@media (max-width: 760px) {
+  .sidebar {
+    height: auto;
+    min-height: 0;
+    max-height: 40vh;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .brand h1 {
+    font-size: 20px;
+  }
+
+  .brand-mark,
+  .brand-subtitle {
+    display: none;
+  }
+
+  .menu-tree {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding-right: 0;
+  }
+
+  .group {
+    gap: 6px;
+  }
+
+  .group-children {
+    padding-left: 0;
+  }
+
+  .leaf-button,
+  .group-button,
+  .child-button {
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .sidebar {
+    max-height: 36vh;
+  }
+
+  .menu-tree {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

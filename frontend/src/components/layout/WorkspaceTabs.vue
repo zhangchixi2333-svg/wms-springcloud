@@ -63,4 +63,17 @@ const emit = defineEmits<{
   font-size: 18px;
   line-height: 1;
 }
+
+@media (max-width: 760px) {
+  .tabs {
+    gap: 6px;
+    padding: 0 12px 8px;
+  }
+
+  .tab {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+}
 </style>

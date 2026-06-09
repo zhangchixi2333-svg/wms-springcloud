@@ -90,4 +90,50 @@ const emit = defineEmits<{
 .logout-button {
   background: #14323f;
 }
+
+@media (max-width: 760px) {
+  .topbar {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 12px 8px;
+  }
+
+  .topbar h2 {
+    font-size: 18px;
+  }
+
+  .topbar p {
+    font-size: 12px;
+  }
+
+  .account-panel {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .account-card {
+    padding: 6px 8px;
+  }
+
+  .account-text span {
+    display: none;
+  }
+
+  .logout-button {
+    min-height: 34px;
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .account-panel {
+    flex-direction: row;
+  }
+}
 </style>
