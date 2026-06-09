@@ -35,75 +35,151 @@
 
  :: Spring Boot ::                (v3.5.7)
 
-2026-06-08T21:46:08.341+08:00  INFO 42900 --- [wms-masterdata-service] [           main] c.e.wms.WmsMasterDataServiceApplication  : Starting WmsMasterDataServiceApplication using Java 21.0.10 with PID 42900 (D:\projects\wms-springcloud\wms-masterdata-service\target\classes started by lenovo in D:\projects\wms-springcloud\wms-masterdata-service)
-2026-06-08T21:46:08.342+08:00  INFO 42900 --- [wms-masterdata-service] [           main] c.e.wms.WmsMasterDataServiceApplication  : No active profile set, falling back to 1 default profile: "default"
-2026-06-08T21:46:08.829+08:00  INFO 42900 --- [wms-masterdata-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
-2026-06-08T21:46:08.921+08:00  INFO 42900 --- [wms-masterdata-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 86 ms. Found 5 JPA repository interfaces.
-2026-06-08T21:46:09.206+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=b368ee32-70be-3d91-93e4-ae562ac5084b
-2026-06-08T21:46:09.454+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8083 (http)
-2026-06-08T21:46:09.466+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-06-08T21:46:09.467+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.48]
-2026-06-08T21:46:09.516+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-2026-06-08T21:46:09.519+08:00  INFO 42900 --- [wms-masterdata-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1148 ms
-2026-06-08T21:46:09.653+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
-2026-06-08T21:46:09.684+08:00  INFO 42900 --- [wms-masterdata-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.33.Final
-2026-06-08T21:46:09.708+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
-2026-06-08T21:46:09.892+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
-2026-06-08T21:46:09.912+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-06-08T21:46:10.055+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@28b5d5dc
-2026-06-08T21:46:10.057+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-2026-06-08T21:46:10.123+08:00  INFO 42900 --- [wms-masterdata-service] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+2026-06-09T02:41:19.163+08:00  INFO 45876 --- [wms-masterdata-service] [           main] c.e.wms.WmsMasterDataServiceApplication  : Starting WmsMasterDataServiceApplication using Java 21.0.10 with PID 45876 (D:\projects\wms-springcloud\wms-masterdata-service\target\classes started by lenovo in D:\projects\wms-springcloud\wms-masterdata-service)
+2026-06-09T02:41:19.166+08:00  INFO 45876 --- [wms-masterdata-service] [           main] c.e.wms.WmsMasterDataServiceApplication  : No active profile set, falling back to 1 default profile: "default"
+2026-06-09T02:41:19.853+08:00  INFO 45876 --- [wms-masterdata-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-09T02:41:19.967+08:00  INFO 45876 --- [wms-masterdata-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 106 ms. Found 5 JPA repository interfaces.
+2026-06-09T02:41:20.119+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=b368ee32-70be-3d91-93e4-ae562ac5084b
+2026-06-09T02:41:20.552+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8083 (http)
+2026-06-09T02:41:20.579+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-09T02:41:20.580+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.48]
+2026-06-09T02:41:20.691+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-06-09T02:41:20.692+08:00  INFO 45876 --- [wms-masterdata-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1472 ms
+2026-06-09T02:41:21.063+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-06-09T02:41:21.185+08:00  INFO 45876 --- [wms-masterdata-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.33.Final
+2026-06-09T02:41:21.239+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-06-09T02:41:21.775+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-06-09T02:41:21.840+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-09T02:41:22.160+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@c5a2d5
+2026-06-09T02:41:22.163+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-09T02:41:22.300+08:00  INFO 45876 --- [wms-masterdata-service] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
 	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
 	Database driver: undefined/unknown
-	Database version: 8.4.9
+	Database version: 8.0.46
 	Autocommit mode: undefined/unknown
 	Isolation level: undefined/unknown
 	Minimum pool size: undefined/unknown
 	Maximum pool size: undefined/unknown
-2026-06-08T21:46:10.953+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
-2026-06-08T21:46:11.038+08:00  INFO 42900 --- [wms-masterdata-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
-2026-06-08T21:46:12.437+08:00  INFO 42900 --- [wms-masterdata-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
-2026-06-08T21:46:12.489+08:00  WARN 42900 --- [wms-masterdata-service] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
-2026-06-08T21:46:12.529+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
-2026-06-08T21:46:12.565+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
-2026-06-08T21:46:12.570+08:00  INFO 42900 --- [wms-masterdata-service] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-08T21:46:12.583+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
-2026-06-08T21:46:12.584+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
-2026-06-08T21:46:12.585+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
-2026-06-08T21:46:12.585+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
-2026-06-08T21:46:12.585+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
-2026-06-08T21:46:12.585+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
-2026-06-08T21:46:12.586+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
-2026-06-08T21:46:13.050+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
-2026-06-08T21:46:13.051+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Starting heartbeat executor: renew interval is: 30
-2026-06-08T21:46:13.053+08:00  INFO 42900 --- [wms-masterdata-service] [           main] c.n.discovery.InstanceInfoReplicator     : InstanceInfoReplicator onDemand update allowed rate per min is 4
-2026-06-08T21:46:13.055+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1780926373054 with initial instances count: 0
-2026-06-08T21:46:13.058+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application WMS-MASTERDATA-SERVICE with eureka with status UP
-2026-06-08T21:46:13.059+08:00  INFO 42900 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Saw local status change event StatusChangeEvent [timestamp=1780926373059, current=UP, previous=STARTING]
-2026-06-08T21:46:13.062+08:00  INFO 42900 --- [wms-masterdata-service] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-MASTERDATA-SERVICE/LAPTOP-CP80UB9G:wms-masterdata-service:8083: registering service...
-2026-06-08T21:46:13.078+08:00  INFO 42900 --- [wms-masterdata-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8083 (http) with context path '/'
-2026-06-08T21:46:13.079+08:00  INFO 42900 --- [wms-masterdata-service] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8083
-2026-06-08T21:46:13.097+08:00  INFO 42900 --- [wms-masterdata-service] [           main] c.e.wms.WmsMasterDataServiceApplication  : Started WmsMasterDataServiceApplication in 5.088 seconds (process running for 5.512)
-2026-06-08T21:46:13.101+08:00  INFO 42900 --- [wms-masterdata-service] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-MASTERDATA-SERVICE/LAPTOP-CP80UB9G:wms-masterdata-service:8083 - registration status: 204
-2026-06-08T21:46:43.059+08:00  INFO 42900 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
-2026-06-08T21:46:43.060+08:00  INFO 42900 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
-2026-06-08T21:46:43.060+08:00  INFO 42900 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
-2026-06-08T21:46:43.060+08:00  INFO 42900 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application is null : false
-2026-06-08T21:46:43.060+08:00  INFO 42900 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
-2026-06-08T21:46:43.061+08:00  INFO 42900 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application version is -1: false
-2026-06-08T21:46:43.061+08:00  INFO 42900 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
-2026-06-08T21:46:43.088+08:00  INFO 42900 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : The response status is 200
-2026-06-08T21:46:43.118+08:00  INFO 42900 --- [wms-masterdata-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-MASTERDATA-SERVICE/LAPTOP-CP80UB9G:wms-masterdata-service:8083 - Re-registering apps/WMS-MASTERDATA-SERVICE
-2026-06-08T21:46:43.118+08:00  INFO 42900 --- [wms-masterdata-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-MASTERDATA-SERVICE/LAPTOP-CP80UB9G:wms-masterdata-service:8083: registering service...
-2026-06-08T21:46:43.123+08:00  INFO 42900 --- [wms-masterdata-service] [beatExecutor-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-MASTERDATA-SERVICE/LAPTOP-CP80UB9G:wms-masterdata-service:8083 - registration status: 204
-2026-06-08T21:46:53.036+08:00  INFO 42900 --- [wms-masterdata-service] [nio-8083-exec-2] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
-2026-06-08T21:46:53.039+08:00  INFO 42900 --- [wms-masterdata-service] [nio-8083-exec-2] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
-2026-06-08T21:46:53.045+08:00  INFO 42900 --- [wms-masterdata-service] [nio-8083-exec-2] o.s.web.servlet.DispatcherServlet        : Completed initialization in 4 ms
-2026-06-08T21:51:12.603+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-08T21:56:12.613+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-08T22:01:12.616+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-08T22:06:12.633+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-08T22:11:12.643+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-08T22:16:12.654+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-08T22:21:12.670+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-08T22:26:12.685+08:00  INFO 42900 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T02:41:23.500+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-06-09T02:41:23.568+08:00  INFO 45876 --- [wms-masterdata-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-09T02:41:25.775+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-06-09T02:41:26.874+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-06-09T02:41:26.944+08:00  INFO 45876 --- [wms-masterdata-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-06-09T02:41:27.041+08:00  WARN 45876 --- [wms-masterdata-service] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-06-09T02:41:27.090+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
+2026-06-09T02:41:27.143+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
+2026-06-09T02:41:27.149+08:00  INFO 45876 --- [wms-masterdata-service] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T02:41:27.167+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-06-09T02:41:27.168+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-06-09T02:41:27.168+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-06-09T02:41:27.169+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-06-09T02:41:27.169+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-06-09T02:41:27.170+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
+2026-06-09T02:41:27.171+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-06-09T02:41:28.000+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-06-09T02:41:28.003+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Starting heartbeat executor: renew interval is: 30
+2026-06-09T02:41:28.005+08:00  INFO 45876 --- [wms-masterdata-service] [           main] c.n.discovery.InstanceInfoReplicator     : InstanceInfoReplicator onDemand update allowed rate per min is 4
+2026-06-09T02:41:28.010+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1780944088007 with initial instances count: 0
+2026-06-09T02:41:28.015+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application WMS-MASTERDATA-SERVICE with eureka with status UP
+2026-06-09T02:41:28.018+08:00  INFO 45876 --- [wms-masterdata-service] [           main] com.netflix.discovery.DiscoveryClient    : Saw local status change event StatusChangeEvent [timestamp=1780944088018, current=UP, previous=STARTING]
+2026-06-09T02:41:28.022+08:00  INFO 45876 --- [wms-masterdata-service] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-MASTERDATA-SERVICE/localhost:wms-masterdata-service:8083: registering service...
+2026-06-09T02:41:28.050+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8083 (http) with context path '/'
+2026-06-09T02:41:28.051+08:00  INFO 45876 --- [wms-masterdata-service] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8083
+2026-06-09T02:41:28.079+08:00  INFO 45876 --- [wms-masterdata-service] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-MASTERDATA-SERVICE/localhost:wms-masterdata-service:8083 - registration status: 204
+2026-06-09T02:41:29.070+08:00  INFO 45876 --- [wms-masterdata-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-06-09T02:41:29.088+08:00  INFO 45876 --- [wms-masterdata-service] [           main] c.e.wms.WmsMasterDataServiceApplication  : Started WmsMasterDataServiceApplication in 11.305 seconds (process running for 11.748)
+2026-06-09T02:41:58.017+08:00  INFO 45876 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-06-09T02:41:58.018+08:00  INFO 45876 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-06-09T02:41:58.018+08:00  INFO 45876 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-06-09T02:41:58.018+08:00  INFO 45876 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-06-09T02:41:58.021+08:00  INFO 45876 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-06-09T02:41:58.021+08:00  INFO 45876 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application version is -1: false
+2026-06-09T02:41:58.022+08:00  INFO 45876 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-06-09T02:41:58.053+08:00  INFO 45876 --- [wms-masterdata-service] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-06-09T02:43:13.230+08:00  INFO 45876 --- [wms-masterdata-service] [nio-8083-exec-2] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-09T02:43:13.232+08:00  INFO 45876 --- [wms-masterdata-service] [nio-8083-exec-2] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-09T02:43:13.238+08:00  INFO 45876 --- [wms-masterdata-service] [nio-8083-exec-2] o.s.web.servlet.DispatcherServlet        : Completed initialization in 5 ms
+2026-06-09T02:46:29.671+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T02:51:29.681+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T02:56:29.689+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:01:29.703+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:06:29.722+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:11:29.728+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:16:29.737+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:21:29.742+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:26:29.749+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:31:29.765+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:36:29.766+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:41:29.766+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:46:29.775+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:51:29.784+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T03:56:29.789+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:01:29.803+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:06:29.817+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:11:29.824+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:16:29.824+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:21:29.830+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:26:29.838+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:31:29.848+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:36:29.862+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:41:29.877+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:46:29.881+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:51:29.893+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T04:56:29.900+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:01:29.912+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:06:29.921+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:11:29.937+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:16:29.942+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:21:29.946+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:26:29.967+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:31:29.972+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:36:29.981+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:41:29.984+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:46:29.995+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:51:30.007+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T05:56:30.020+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:01:30.030+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:06:30.035+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:11:30.040+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:16:30.050+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:21:30.058+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:26:30.072+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:31:30.083+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:36:30.099+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:41:30.119+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:46:30.134+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:51:30.148+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T06:56:30.162+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:01:30.171+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:06:30.185+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:11:30.205+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:16:30.230+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:21:30.250+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:26:30.266+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:31:30.284+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:36:30.264+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:41:30.240+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:46:30.220+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:51:30.209+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T07:56:30.211+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T08:01:30.207+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T08:06:30.198+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T08:11:30.200+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T08:16:30.191+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T08:21:30.186+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T08:26:30.178+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T08:31:30.181+08:00  INFO 45876 --- [wms-masterdata-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-09T08:52:48.635+08:00  WARN 45876 --- [wms-masterdata-service] [l-1:housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=20m19s6ms292µs600ns).
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  06:15 h
+[INFO] Finished at: 2026-06-09T08:56:33+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.springframework.boot:spring-boot-maven-plugin:3.5.7:run (default-cli) on project wms-masterdata-service: Process terminated with exit code: -1 -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException
