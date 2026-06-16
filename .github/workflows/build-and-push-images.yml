@@ -1,9 +1,14 @@
-name: Build and Push WMS Images
+name: Build Push Deploy WMS
 
 on:
   push:
     branches:
       - master
+  workflow_dispatch:
+
+concurrency:
+  group: wms-master-deploy
+  cancel-in-progress: false
 
 env:
   IMAGE_REPOSITORY: ${{ secrets.ACR_IMAGE_REPOSITORY }}
@@ -14,59 +19,58 @@ env:
   DEPLOY_PATH: /opt/wms-springcloud
 
 jobs:
+  prepare-version:
+    name: Prepare version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      mysql_image: ${{ steps.version.outputs.mysql_image }}
+    steps:
+      - name: Generate version
+        id: version
+        shell: bash
+        run: |
+          VERSION="v${GITHUB_RUN_NUMBER}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "mysql_image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" >> "$GITHUB_OUTPUT"
+
   build-and-push:
     name: Build and push Docker images
     runs-on: ubuntu-latest
+    needs: prepare-version
     permissions:
       contents: read
-
     strategy:
       fail-fast: false
       matrix:
         include:
           - image_name: wms-discovery
-            module: wms-discovery
             dockerfile: deploy/docker/Dockerfile.service
             build_args: |
               MODULE=wms-discovery
           - image_name: wms-gateway
-            module: wms-gateway
             dockerfile: deploy/docker/Dockerfile.service
             build_args: |
               MODULE=wms-gateway
           - image_name: wms-system-service
-            module: wms-system-service
             dockerfile: deploy/docker/Dockerfile.service
             build_args: |
               MODULE=wms-system-service
           - image_name: wms-masterdata-service
-            module: wms-masterdata-service
             dockerfile: deploy/docker/Dockerfile.service
             build_args: |
               MODULE=wms-masterdata-service
           - image_name: wms-business-service
-            module: wms-business-service
             dockerfile: deploy/docker/Dockerfile.service
             build_args: |
               MODULE=wms-business-service
           - image_name: wms-frontend
-            module: frontend
             dockerfile: deploy/docker/Dockerfile.frontend
             build_args: |
               VITE_API_BASE=/api
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set image tags
-        id: meta
-        shell: bash
-        run: |
-          VERSION="v${GITHUB_RUN_NUMBER}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "version_tag=${{ matrix.image_name }}-${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "branch_tag=${{ matrix.image_name }}-master" >> "$GITHUB_OUTPUT"
 
       - name: Login to Aliyun Container Registry
         uses: docker/login-action@v3
@@ -86,17 +90,17 @@ jobs:
           push: true
           build-args: ${{ matrix.build_args }}
           tags: |
-            ${{ env.IMAGE_REPOSITORY }}:${{ steps.meta.outputs.version_tag }}
-            ${{ env.IMAGE_REPOSITORY }}:${{ steps.meta.outputs.branch_tag }}
+            ${{ env.IMAGE_REPOSITORY }}:${{ matrix.image_name }}-${{ needs.prepare-version.outputs.version }}
+            ${{ env.IMAGE_REPOSITORY }}:${{ matrix.image_name }}-master
           cache-from: type=gha,scope=${{ matrix.image_name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image_name }}
 
   mirror-mysql:
     name: Mirror MySQL image to ACR
     runs-on: ubuntu-latest
+    needs: prepare-version
     permissions:
       contents: read
-
     steps:
       - name: Login to Aliyun Container Registry
         uses: docker/login-action@v3
@@ -105,7 +109,7 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Pull, tag and push MySQL image
+      - name: Pull tag and push MySQL
         shell: bash
         run: |
           docker pull "${MYSQL_SOURCE_IMAGE}"
@@ -113,23 +117,17 @@ jobs:
           docker push "${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}"
 
   deploy:
-    name: Deploy to cloud server
+    name: Deploy to k3s by Helm
     runs-on: ubuntu-latest
     needs:
+      - prepare-version
       - build-and-push
       - mirror-mysql
     permissions:
       contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set deploy version
-        id: version
-        shell: bash
-        run: |
-          echo "tag=v${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Prepare remote deploy directory
         uses: appleboy/ssh-action@v1.0.3
@@ -138,10 +136,11 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
+          script_stop: true
           script: |
-            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            rm -rf ${{ env.DEPLOY_PATH }}/deploy/helm/wms
-            mkdir -p ${{ env.DEPLOY_PATH }}/deploy/helm
+            set -e
+            mkdir -p "${{ env.DEPLOY_PATH }}/deploy/helm"
+            rm -rf "${{ env.DEPLOY_PATH }}/deploy/helm/wms"
 
       - name: Upload Helm chart
         uses: appleboy/scp-action@v0.1.7
@@ -162,28 +161,35 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script_stop: true
+          envs: IMAGE_REPOSITORY,DEPLOY_NAMESPACE,DEPLOY_RELEASE,DEPLOY_PATH
           script: |
             set -e
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            helm upgrade --install ${{ env.DEPLOY_RELEASE }} ${{ env.DEPLOY_PATH }}/deploy/helm/wms \
-              -n ${{ env.DEPLOY_NAMESPACE }} \
+            VERSION="${{ needs.prepare-version.outputs.version }}"
+
+            helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
+              -n "${DEPLOY_NAMESPACE}" \
               --create-namespace \
-              --server-side true \
+              --server-side \
               --force-conflicts \
-              --set "image.repository=${{ env.IMAGE_REPOSITORY }}" \
-              --set "image.tag=${{ steps.version.outputs.tag }}" \
-              --set "mysql.image=${{ env.IMAGE_REPOSITORY }}:${{ env.MYSQL_ACR_TAG }}" \
+              --wait \
+              --timeout 15m \
+              --set "image.repository=${IMAGE_REPOSITORY}" \
+              --set "image.tag=${VERSION}" \
+              --set "mysql.image=${{ needs.prepare-version.outputs.mysql_image }}" \
               --set "image.pullSecrets[0].name=aliyun-acr"
 
-            kubectl rollout status statefulset/mysql -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
-            kubectl wait --for=condition=Ready pod/mysql-0 -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+            kubectl rollout status statefulset/mysql -n "${DEPLOY_NAMESPACE}" --timeout=600s
+            kubectl wait --for=condition=Ready pod/mysql-0 -n "${DEPLOY_NAMESPACE}" --timeout=600s
 
-            kubectl exec -n ${{ env.DEPLOY_NAMESPACE }} mysql-0 -- sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" --default-character-set=utf8mb4 < /docker-entrypoint-initdb.d/wms-cloud-init.sql'
-            kubectl exec -n ${{ env.DEPLOY_NAMESPACE }} mysql-0 -- sh -c 'mysql -uwms -p"$MYSQL_PASSWORD" --default-character-set=utf8mb4 wms_cloud -e "SELECT COUNT(*) AS user_count FROM app_user;"'
+            kubectl wait --for=condition=complete job/wms-mysql-init -n "${DEPLOY_NAMESPACE}" --timeout=600s || true
+            kubectl logs job/wms-mysql-init -n "${DEPLOY_NAMESPACE}" --tail=100 || true
 
-            kubectl rollout status deployment/wms-discovery -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
-            kubectl rollout status deployment/wms-gateway -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
-            kubectl rollout status deployment/wms-system-service -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
-            kubectl rollout status deployment/wms-masterdata-service -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
-            kubectl rollout status deployment/wms-business-service -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
-            kubectl rollout status deployment/wms-frontend -n ${{ env.DEPLOY_NAMESPACE }} --timeout=300s
+            kubectl rollout status deployment/wms-discovery -n "${DEPLOY_NAMESPACE}" --timeout=600s
+            kubectl rollout status deployment/wms-gateway -n "${DEPLOY_NAMESPACE}" --timeout=600s
+            kubectl rollout status deployment/wms-system-service -n "${DEPLOY_NAMESPACE}" --timeout=600s
+            kubectl rollout status deployment/wms-masterdata-service -n "${DEPLOY_NAMESPACE}" --timeout=600s
+            kubectl rollout status deployment/wms-business-service -n "${DEPLOY_NAMESPACE}" --timeout=600s
+            kubectl rollout status deployment/wms-frontend -n "${DEPLOY_NAMESPACE}" --timeout=600s
+
+            kubectl get pods -n "${DEPLOY_NAMESPACE}"
