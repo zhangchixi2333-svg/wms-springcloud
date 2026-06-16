@@ -1,3 +1,6 @@
+/**
+ * 本文件实现 SystemService 业务服务。
+ */
 package com.example.wms.service;
 
 import com.example.wms.api.SystemController.CurrentUserView;
@@ -39,26 +42,16 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * 系统服务类
- * 负责处理系统用户管理、菜单管理等核心系统功能
- */
 @Service
 @Transactional
 public class SystemService {
     private static final Set<String> PERMISSION_LEVELS = Set.of("ADMIN", "MANAGER", "OPERATOR", "VIEWER");
 
-    // 注入用户和菜单的仓库接口
     private final AppUserRepository appUserRepository;
     private final MenuItemRepository menuItemRepository;
     private final AppRoleRepository appRoleRepository;
     private final RoleMenuRepository roleMenuRepository;
 
-    /**
-     * 构造函数，通过依赖注入初始化系统相关仓库接口
-     * @param appUserRepository 用户仓库接口
-     * @param menuItemRepository 菜单项仓库接口
-     */
     public SystemService(AppUserRepository appUserRepository,
                          MenuItemRepository menuItemRepository,
                          AppRoleRepository appRoleRepository,
@@ -228,12 +221,8 @@ public class SystemService {
         return toRoleView(role);
     }
 
-    /**
-     * 获取树形结构的菜单列表
-     * @return 菜单节点视图对象列表，包含父子层级关系
-     */
     public List<MenuNodeView> getMenuTree() {
-        // 查询所有可见菜单并排序
+
         Set<String> allowedMenuKeys = allowedMenuKeys(AuthContext.getUser().getRoleName());
         List<MenuItem> items = menuItemRepository.findAllByOrderBySortOrderAscIdAsc().stream()
                 .filter(MenuItem::isVisible)
@@ -242,11 +231,10 @@ public class SystemService {
         Map<Long, MenuNodeView> nodeMap = new HashMap<>();
         List<MenuNodeView> roots = new ArrayList<>();
 
-        // 第一步：将所有菜单项转换为节点视图并存入map
         for (MenuItem item : items) {
             nodeMap.put(item.getId(), toNode(item));
         }
-        // 第二步：构建树形结构，建立父子关系
+
         for (MenuItem item : items) {
             MenuNodeView node = nodeMap.get(item.getId());
             if (item.getParentId() == null) {
@@ -258,16 +246,12 @@ public class SystemService {
                 }
             }
         }
-        // 递归排序所有节点
+
         roots.forEach(this::sortRecursively);
         roots.sort(Comparator.comparing(MenuNodeView::sortOrder).thenComparing(MenuNodeView::id));
         return roots;
     }
 
-    /**
-     * 查询所有菜单列表（平铺结构）
-     * @return 菜单视图对象列表
-     */
     public List<MenuView> listMenus() {
         if (isAdmin(AuthContext.getUser().getRoleName())) {
             return menuItemRepository.findAllByOrderBySortOrderAscIdAsc().stream()
@@ -281,12 +265,6 @@ public class SystemService {
                 .toList();
     }
 
-    /**
-     * 创建新菜单
-     * @param request 菜单创建请求，包含菜单的所有属性
-     * @return 创建后的菜单视图对象
-     * @throws BusinessException 如果菜单标识已存在则抛出业务异常
-     */
     public MenuView createMenu(MenuSaveRequest request) {
         requireAdmin();
         menuItemRepository.findByMenuKey(request.menuKey()).ifPresent(existing -> {
@@ -297,14 +275,6 @@ public class SystemService {
         return toView(menu);
     }
 
-    /**
-     * 更新现有菜单
-     * @param id 要更新的菜单ID
-     * @param request 菜单更新请求，包含更新后的菜单属性
-     * @return 更新后的菜单视图对象
-     * @throws NotFoundException 如果要更新的菜单不存在则抛出资源未找到异常
-     * @throws BusinessException 如果菜单标识已被其他菜单使用则抛出业务异常
-     */
     public MenuView updateMenu(Long id, MenuSaveRequest request) {
         requireAdmin();
         MenuItem menuItem = menuItemRepository.findById(id)
@@ -317,11 +287,6 @@ public class SystemService {
         return toView(menuItemRepository.save(fromRequest(menuItem, request)));
     }
 
-    /**
-     * 删除菜单
-     * @param id 要删除的菜单ID
-     * @throws BusinessException 如果菜单存在子菜单则抛出业务异常，要求先删除子菜单
-     */
     public void deleteMenu(Long id) {
         requireAdmin();
         boolean hasChildren = menuItemRepository.findAll().stream().anyMatch(item -> id.equals(item.getParentId()));
@@ -332,12 +297,6 @@ public class SystemService {
         menuItemRepository.deleteById(id);
     }
 
-    /**
-     * 将菜单保存请求转换为菜单项实体
-     * @param item 菜单项实体
-     * @param request 菜单保存请求
-     * @return 更新后的菜单项实体
-     */
     private MenuItem fromRequest(MenuItem item, MenuSaveRequest request) {
         item.setParentId(request.parentId());
         item.setMenuKey(request.menuKey());
@@ -351,11 +310,6 @@ public class SystemService {
         return item;
     }
 
-    /**
-     * 将菜单项实体转换为菜单节点视图（用于树形结构）
-     * @param item 菜单项实体
-     * @return 菜单节点视图对象
-     */
     private MenuNodeView toNode(MenuItem item) {
         return new MenuNodeView(
                 item.getId(),
@@ -371,11 +325,6 @@ public class SystemService {
         );
     }
 
-    /**
-     * 将菜单项实体转换为菜单视图（用于平铺列表）
-     * @param item 菜单项实体
-     * @return 菜单视图对象
-     */
     private MenuView toView(MenuItem item) {
         return new MenuView(
                 item.getId(),
@@ -391,10 +340,6 @@ public class SystemService {
         );
     }
 
-    /**
-     * 递归排序菜单节点，确保所有层级的菜单都按排序字段升序排列
-     * @param node 要排序的菜单节点
-     */
     private void sortRecursively(MenuNodeView node) {
         node.children().sort(Comparator.comparing(MenuNodeView::sortOrder).thenComparing(MenuNodeView::id));
         node.children().forEach(this::sortRecursively);

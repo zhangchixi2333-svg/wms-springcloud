@@ -1,3 +1,4 @@
+<!-- 本文件实现前端应用模块 AppShell。 -->
 <script setup lang="ts">
 import AuthPage from '../components/auth/AuthPage.vue'
 import SidebarMenu from '../components/layout/SidebarMenu.vue'

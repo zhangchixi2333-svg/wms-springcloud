@@ -1,3 +1,6 @@
+/**
+ * 本文件实现 WmsService 业务服务。
+ */
 package com.example.wms.service;
 
 import com.example.wms.api.InventoryController.InventorySummaryView;
@@ -58,17 +61,11 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * 仓库管理核心服务类
- * 负责处理WMS系统的核心业务逻辑，包括入库单管理、出库单管理、看板管理、库存操作等
- */
 @Service
 public class WmsService {
 
-    // 时间格式化器，用于生成订单号、交易号等
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    // 注入所有相关的仓库接口
     private final SupplierRepository supplierRepository;
     private final CustomerRepository customerRepository;
     private final EquipmentRepository equipmentRepository;
@@ -82,9 +79,6 @@ public class WmsService {
     private final InventoryRepository inventoryRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
 
-    /**
-     * 构造函数，通过依赖注入初始化所有仓库接口
-     */
     public WmsService(SupplierRepository supplierRepository,
                       CustomerRepository customerRepository,
                       EquipmentRepository equipmentRepository,
@@ -111,13 +105,6 @@ public class WmsService {
         this.inventoryTransactionRepository = inventoryTransactionRepository;
     }
 
-    /**
-     * 创建入库单
-     * @param request 入库单创建请求，包含供应商ID和入库单行项目列表
-     * @return 创建后的入库单视图对象
-     * @throws NotFoundException 如果供应商或物料不存在则抛出资源未找到异常
-     * @throws BusinessException 如果入库单没有行项目则抛出业务异常
-     */
     @Transactional
     public InboundOrderView createInboundOrder(InboundOrderCreateRequest request) {
         supplierRepository.findById(request.supplierId())
@@ -126,7 +113,6 @@ public class WmsService {
             throw new BusinessException("Inbound order must have at least one item");
         }
 
-        // 创建入库单主记录
         InboundOrder order = new InboundOrder();
         order.setInboundNo("IN" + LocalDateTime.now().format(TS));
         order.setSupplierId(request.supplierId());
@@ -134,10 +120,12 @@ public class WmsService {
         order.setCreatedAt(LocalDateTime.now());
         order = inboundOrderRepository.save(order);
 
-        // 批量创建入库单行项目
         for (InboundOrderItemRequest itemRequest : request.items()) {
-            partRepository.findById(itemRequest.partId())
+            Part part = partRepository.findById(itemRequest.partId())
                     .orElseThrow(() -> new NotFoundException("Part not found: " + itemRequest.partId()));
+            if (part.getSupplierId() != null && !part.getSupplierId().equals(request.supplierId())) {
+                throw new BusinessException("Part does not belong to selected supplier: " + part.getPartCode());
+            }
             InboundOrderItem item = new InboundOrderItem();
             item.setInboundOrderId(order.getId());
             item.setPartId(itemRequest.partId());
@@ -151,16 +139,11 @@ public class WmsService {
             inboundOrderItemRepository.save(item);
         }
 
+        generateKanbans(order.getId());
+
         return toInboundOrderView(order);
     }
 
-    /**
-     * 查询入库单列表，支持多条件筛选
-     * @param status 订单状态筛选
-     * @param supplierId 供应商ID筛选
-     * @param inboundNo 入库单号模糊搜索
-     * @return 入库单视图对象列表，按创建时间倒序排列
-     */
     public List<InboundOrderView> listInboundOrders(String status, Long supplierId, String inboundNo) {
         return inboundOrderRepository.findAll().stream()
                 .filter(order -> isBlank(status) || status.equalsIgnoreCase(order.getStatus()))
@@ -171,18 +154,11 @@ public class WmsService {
                 .toList();
     }
 
-    /**
-     * 为入库单生成看板
-     * @param inboundOrderId 入库单ID
-     * @return 生成的看板视图对象列表
-     * @throws NotFoundException 如果入库单不存在则抛出资源未找到异常
-     * @throws BusinessException 如果入库单没有行项目则抛出业务异常
-     */
     @Transactional
     public List<KanbanView> generateKanbans(Long inboundOrderId) {
         InboundOrder order = inboundOrderRepository.findById(inboundOrderId)
                 .orElseThrow(() -> new NotFoundException("Inbound order not found"));
-        // 如果已经生成过看板，直接返回
+
         List<Kanban> existing = kanbanRepository.findByInboundOrderId(inboundOrderId);
         if (!existing.isEmpty()) {
             return existing.stream().map(this::toKanbanView).toList();
@@ -193,7 +169,6 @@ public class WmsService {
             throw new BusinessException("Inbound order has no items");
         }
 
-        // 为每个行项目生成一个看板
         int sequence = 1;
         for (InboundOrderItem item : items) {
             Kanban kanban = new Kanban();
@@ -214,16 +189,6 @@ public class WmsService {
         return kanbanRepository.findByInboundOrderId(inboundOrderId).stream().map(this::toKanbanView).toList();
     }
 
-    /**
-     * 查询看板列表，支持多条件筛选
-     * @param status 看板状态筛选
-     * @param inboundNo 入库单号模糊搜索
-     * @param outboundNo 出库单号模糊搜索
-     * @param kanbanNo 看板编号模糊搜索
-     * @param supplierId 供应商ID筛选
-     * @param partCode 物料编码模糊搜索
-     * @return 看板视图对象列表，按创建时间倒序排列
-     */
     public List<KanbanView> listKanbans(String status,
                                         String inboundNo,
                                         String outboundNo,
@@ -242,13 +207,6 @@ public class WmsService {
                 .toList();
     }
 
-    /**
-     * 创建出库单
-     * @param request 出库单创建请求，包含客户ID和出库单行项目列表
-     * @return 创建后的出库单视图对象
-     * @throws NotFoundException 如果客户或物料不存在则抛出资源未找到异常
-     * @throws BusinessException 如果出库单没有行项目则抛出业务异常
-     */
     @Transactional
     public OutboundOrderView createOutboundOrder(OutboundOrderCreateRequest request) {
         if (request.customerId() != null) {
@@ -267,7 +225,6 @@ public class WmsService {
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Inbound order not found: " + inboundNo)));
 
-        // 创建出库单主记录
         OutboundOrder order = new OutboundOrder();
         order.setOutboundNo("OUT" + LocalDateTime.now().format(TS));
         order.setCustomerId(request.customerId());
@@ -276,7 +233,6 @@ public class WmsService {
         order.setCreatedAt(LocalDateTime.now());
         order = outboundOrderRepository.save(order);
 
-        // 批量创建出库单行项目
         for (OutboundOrderItemRequest itemRequest : request.items()) {
             partRepository.findById(itemRequest.partId())
                     .orElseThrow(() -> new NotFoundException("Part not found: " + itemRequest.partId()));
@@ -293,13 +249,6 @@ public class WmsService {
         return toOutboundOrderView(order);
     }
 
-    /**
-     * 查询出库单列表，支持多条件筛选
-     * @param status 订单状态筛选
-     * @param customerId 客户ID筛选
-     * @param outboundNo 出库单号模糊搜索
-     * @return 出库单视图对象列表，按创建时间倒序排列
-     */
     public List<OutboundOrderView> listOutboundOrders(String status, Long customerId, String outboundNo) {
         return outboundOrderRepository.findAll().stream()
                 .filter(order -> isBlank(status) || status.equalsIgnoreCase(order.getStatus()))
@@ -310,13 +259,6 @@ public class WmsService {
                 .toList();
     }
 
-    /**
-     * 执行入库扫描，将看板对应的物料入库到指定库位
-     * @param request 入库扫描请求，包含条码和库位编码
-     * @return 扫描结果视图对象
-     * @throws NotFoundException 如果条码、库位或入库单行项目不存在则抛出资源未找到异常
-     * @throws BusinessException 如果看板状态不允许入库则抛出业务异常
-     */
     @Transactional
     public ScanResultView scanInbound(ScanInboundRequest request) {
         Kanban kanban = findKanbanByScanCode(request.barcode());
@@ -326,7 +268,6 @@ public class WmsService {
         Location location = locationRepository.findByLocationCode(request.locationCode())
                 .orElseThrow(() -> new NotFoundException("Location not found"));
 
-        // 查询或创建库存记录
         Inventory inventory = inventoryRepository.findByPartIdAndLocationId(kanban.getPartId(), location.getId())
                 .orElseGet(() -> {
                     Inventory created = new Inventory();
@@ -336,38 +277,28 @@ public class WmsService {
                     created.setUpdatedAt(LocalDateTime.now());
                     return created;
                 });
-        // 增加库存数量
+
         inventory.setQty(inventory.getQty().add(kanban.getQty()));
         inventory.setUpdatedAt(LocalDateTime.now());
         inventoryRepository.save(inventory);
 
-        // 更新看板状态
         kanban.setLocationId(location.getId());
         kanban.setStatus("INBOUND");
         kanban.setInboundTime(LocalDateTime.now());
         kanbanRepository.save(kanban);
 
-        // 更新入库单行项目的已收货数量
         InboundOrderItem item = inboundOrderItemRepository.findById(kanban.getInboundOrderItemId())
                 .orElseThrow(() -> new NotFoundException("Inbound order item not found"));
         item.setReceivedQty(item.getReceivedQty().add(kanban.getQty()));
         inboundOrderItemRepository.save(item);
-        // 同步更新入库单状态
+
         syncInboundOrderStatus(kanban.getInboundOrderId());
 
-        // 保存库存交易记录
         saveTransaction(kanban, location.getId(), kanban.getQty(), "INBOUND_SCAN", "Inbound scan completed");
 
         return new ScanResultView("INBOUND_OK", "Inbound completed", kanban.getBarcode(), kanban.getStatus());
     }
 
-    /**
-     * 执行出库扫描，将看板对应的物料从库存中出库
-     * @param request 出库扫描请求，包含条码和出库单号
-     * @return 扫描结果视图对象
-     * @throws NotFoundException 如果条码、出库单不存在则抛出资源未找到异常
-     * @throws BusinessException 如果看板状态不允许出库、库存不足或其他业务校验不通过则抛出异常
-     */
     @Transactional
     public ScanResultView scanOutbound(ScanOutboundRequest request) {
         Kanban kanban = findKanbanByScanCode(request.barcode());
@@ -393,24 +324,20 @@ public class WmsService {
         applyOutboundScanToOrder(order, kanban);
         kanban.setOutboundOrderNo(order.getOutboundNo());
 
-        // 检查库存是否足够
         Inventory inventory = inventoryRepository.findByPartIdAndLocationId(kanban.getPartId(), kanban.getLocationId())
                 .orElseThrow(() -> new BusinessException("Inventory record not found"));
         if (inventory.getQty().compareTo(kanban.getQty()) < 0) {
             throw new BusinessException("Inventory is not enough for outbound");
         }
 
-        // 减少库存数量
         inventory.setQty(inventory.getQty().subtract(kanban.getQty()));
         inventory.setUpdatedAt(LocalDateTime.now());
         inventoryRepository.save(inventory);
 
-        // 更新看板状态
         kanban.setStatus("OUTBOUND");
         kanban.setOutboundTime(LocalDateTime.now());
         kanbanRepository.save(kanban);
 
-        // 保存库存交易记录
         saveInventoryTransaction(
                 kanban.getPartId(),
                 kanban.getLocationId(),
@@ -423,25 +350,16 @@ public class WmsService {
         return new ScanResultView("OUTBOUND_OK", "Outbound completed", kanban.getBarcode(), kanban.getStatus());
     }
 
-    /**
-     * 获取库存汇总列表，支持多条件筛选
-     * @param warehouseName 仓库名称模糊搜索
-     * @param zoneName 库区名称模糊搜索
-     * @param materialKeyword 物料编码或名称模糊搜索
-     * @param supplierId 供应商ID筛选
-     * @return 库存汇总视图对象列表，按更新时间倒序排列
-     */
     public List<InventorySummaryView> getInventorySummary(String warehouseName,
                                                           String zoneName,
                                                           String materialKeyword,
                                                           Long supplierId) {
-        // 预加载所有物料和库位，提高查询效率
+
         Map<Long, Part> partMap = partRepository.findAll().stream().collect(Collectors.toMap(Part::getId, Function.identity()));
         Map<Long, Location> locationMap = locationRepository.findAll().stream().collect(Collectors.toMap(Location::getId, Function.identity()));
         Map<String, String> supplierNameByPartLocation = new HashMap<>();
         Map<String, Long> supplierIdByPartLocation = new HashMap<>();
 
-        // 从在库看板中提取供应商信息
         for (Kanban kanban : kanbanRepository.findAll()) {
             if (!"INBOUND".equals(kanban.getStatus()) || kanban.getLocationId() == null) {
                 continue;
@@ -456,7 +374,6 @@ public class WmsService {
             }
         }
 
-        // 转换库存实体为视图对象并应用筛选条件
         return inventoryRepository.findAll().stream()
                 .sorted(Comparator.comparing(Inventory::getUpdatedAt).reversed())
                 .map(item -> {
@@ -484,12 +401,6 @@ public class WmsService {
                 .toList();
     }
 
-    /**
-     * 手动录入库存，直接增加指定库位的物料数量
-     * @param request 手动入库请求，包含物料ID、库位ID和数量
-     * @return 更新后的库存汇总视图对象
-     * @throws NotFoundException 如果物料或库位不存在则抛出资源未找到异常
-     */
     @Transactional
     public InventorySummaryView manualInventoryEntry(ManualInventoryEntryRequest request) {
         partRepository.findById(request.partId())
@@ -497,7 +408,6 @@ public class WmsService {
         Location location = locationRepository.findById(request.locationId())
                 .orElseThrow(() -> new NotFoundException("Location not found"));
 
-        // 查询或创建库存记录
         Inventory inventory = inventoryRepository.findByPartIdAndLocationId(request.partId(), request.locationId())
                 .orElseGet(() -> {
                     Inventory created = new Inventory();
@@ -508,7 +418,6 @@ public class WmsService {
                     return created;
                 });
 
-        // 增加库存数量
         inventory.setQty(inventory.getQty().add(request.qty()));
         inventory.setUpdatedAt(LocalDateTime.now());
         inventory = inventoryRepository.save(inventory);
@@ -523,7 +432,6 @@ public class WmsService {
                 request.remark()
         );
 
-        // 查询物料信息，构建库存汇总视图返回
         Part part = partRepository.findById(request.partId()).orElse(null);
         return new InventorySummaryView(
                 inventory.getId(),
@@ -540,10 +448,6 @@ public class WmsService {
         );
     }
 
-    /**
-     * 获取库存交易记录列表
-     * @return 库存交易记录视图对象列表，按创建时间倒序排列
-     */
     @Transactional
     public KanbanView transferKanban(TransferKanbanRequest request) {
         Kanban kanban = findOperableStockKanban(request.barcode());
@@ -654,10 +558,10 @@ public class WmsService {
     }
 
     public List<InventoryTransactionView> getTransactions() {
-        // 预加载物料和库位信息
+
         Map<Long, Part> partMap = partRepository.findAll().stream().collect(Collectors.toMap(Part::getId, Function.identity()));
         Map<Long, Location> locationMap = locationRepository.findAll().stream().collect(Collectors.toMap(Location::getId, Function.identity()));
-        // 转换为视图对象返回
+
         return inventoryTransactionRepository.findAll().stream()
                 .sorted(Comparator.comparing(InventoryTransaction::getCreatedAt).reversed())
                 .map(item -> new InventoryTransactionView(
@@ -675,12 +579,6 @@ public class WmsService {
                 .toList();
     }
 
-    /**
-     * 将出库扫描应用到出库单，更新出库单行项目的已扫描数量
-     * @param order 出库单实体
-     * @param kanban 看板实体
-     * @throws BusinessException 如果找不到匹配的出库单行项目则抛出业务异常
-     */
     private Kanban findOperableStockKanban(String barcode) {
         Kanban kanban = findKanbanByScanCode(barcode);
         if (!"INBOUND".equals(kanban.getStatus())) {
@@ -759,7 +657,25 @@ public class WmsService {
 
     private void applyOutboundScanToOrder(OutboundOrder order, Kanban kanban) {
         List<OutboundOrderItem> items = outboundOrderItemRepository.findByOutboundOrderId(order.getId());
-        // 找到第一个匹配该物料且未完成的行项目
+        List<Kanban> fifoCandidates = kanbanRepository.findAll().stream()
+                .filter(item -> "INBOUND".equals(item.getStatus()))
+                .filter(item -> !item.isFrozen())
+                .filter(item -> item.getLocationId() != null)
+                .filter(item -> item.getPartId().equals(kanban.getPartId()))
+                .filter(item -> {
+                    InboundOrder inboundOrder = inboundOrderRepository.findById(item.getInboundOrderId()).orElse(null);
+                    return inboundOrder != null && splitCsv(order.getInboundOrderNos()).stream()
+                            .anyMatch(source -> source.equalsIgnoreCase(inboundOrder.getInboundNo()));
+                })
+                .sorted(Comparator
+                        .comparing(Kanban::getInboundTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Kanban::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Kanban::getId))
+                .toList();
+        if (!fifoCandidates.isEmpty() && !fifoCandidates.get(0).getId().equals(kanban.getId())) {
+            throw new BusinessException("Outbound must follow FIFO; please scan the earliest inbound kanban first");
+        }
+
         Location location = kanban.getLocationId() == null ? null : locationRepository.findById(kanban.getLocationId()).orElse(null);
         OutboundOrderItem target = items.stream()
                 .filter(item -> item.getPartId().equals(kanban.getPartId()))
@@ -770,10 +686,9 @@ public class WmsService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("No outbound order line matches this source, location, part, or remaining quantity"));
 
-        // 更新已扫描数量
         target.setScannedQty(target.getScannedQty().add(kanban.getQty()));
         outboundOrderItemRepository.save(target);
-        // 同步更新出库单状态
+
         syncOutboundOrderStatus(order.getId());
     }
 
@@ -824,50 +739,32 @@ public class WmsService {
                 .toList();
     }
 
-    /**
-     * 同步更新入库单状态，根据行项目的收货情况自动设置订单状态
-     * @param inboundOrderId 入库单ID
-     * @throws NotFoundException 如果入库单不存在则抛出资源未找到异常
-     */
     private void syncInboundOrderStatus(Long inboundOrderId) {
         InboundOrder order = inboundOrderRepository.findById(inboundOrderId)
                 .orElseThrow(() -> new NotFoundException("Inbound order not found"));
         List<InboundOrderItem> items = inboundOrderItemRepository.findByInboundOrderId(inboundOrderId);
-        // 判断订单是否全部完成
+
         boolean completed = items.stream().allMatch(item -> item.getReceivedQty().compareTo(item.getPlannedQty()) >= 0);
-        // 判断订单是否部分完成
+
         boolean partial = items.stream().anyMatch(item -> item.getReceivedQty().compareTo(BigDecimal.ZERO) > 0);
-        // 设置订单状态：COMPLETED-已完成, PARTIAL-部分完成, CREATED-创建
+
         order.setStatus(completed ? "COMPLETED" : partial ? "PARTIAL" : "CREATED");
         inboundOrderRepository.save(order);
     }
 
-    /**
-     * 同步更新出库单状态，根据行项目的扫描情况自动设置订单状态
-     * @param outboundOrderId 出库单ID
-     * @throws NotFoundException 如果出库单不存在则抛出资源未找到异常
-     */
     private void syncOutboundOrderStatus(Long outboundOrderId) {
         OutboundOrder order = outboundOrderRepository.findById(outboundOrderId)
                 .orElseThrow(() -> new NotFoundException("Outbound order not found"));
         List<OutboundOrderItem> items = outboundOrderItemRepository.findByOutboundOrderId(outboundOrderId);
-        // 判断订单是否全部完成
+
         boolean completed = items.stream().allMatch(item -> item.getScannedQty().compareTo(item.getPlannedQty()) >= 0);
-        // 判断订单是否部分完成
+
         boolean partial = items.stream().anyMatch(item -> item.getScannedQty().compareTo(BigDecimal.ZERO) > 0);
-        // 设置订单状态：COMPLETED-已完成, PARTIAL-部分完成, CREATED-创建
+
         order.setStatus(completed ? "COMPLETED" : partial ? "PARTIAL" : "CREATED");
         outboundOrderRepository.save(order);
     }
 
-    /**
-     * 保存库存交易记录
-     * @param kanban 看板实体
-     * @param locationId 库位ID
-     * @param qtyChange 库存变化数量（正数为增加，负数为减少）
-     * @param businessType 业务类型
-     * @param remark 备注信息
-     */
     private void saveTransaction(Kanban kanban, Long locationId, BigDecimal qtyChange, String businessType, String remark) {
         saveInventoryTransaction(
                 kanban.getPartId(),
@@ -900,18 +797,13 @@ public class WmsService {
         inventoryTransactionRepository.save(transaction);
     }
 
-    /**
-     * 将入库单实体转换为视图对象
-     * @param order 入库单实体
-     * @return 入库单视图对象
-     */
     private InboundOrderView toInboundOrderView(InboundOrder order) {
-        // 查询供应商名称
+
         String supplierName = supplierRepository.findById(order.getSupplierId())
                 .map(Supplier::getSupplierName)
                 .orElse("-");
         List<InboundOrderItem> items = inboundOrderItemRepository.findByInboundOrderId(order.getId());
-        // 预加载所有物料信息
+
         Map<Long, Part> partMap = partRepository.findAll().stream().collect(Collectors.toMap(Part::getId, Function.identity()));
         return new InboundOrderView(
                 order.getId(),
@@ -940,16 +832,11 @@ public class WmsService {
         );
     }
 
-    /**
-     * 将出库单实体转换为视图对象
-     * @param order 出库单实体
-     * @return 出库单视图对象
-     */
     private OutboundOrderView toOutboundOrderView(OutboundOrder order) {
-        // 查询客户名称
+
         String customerName = order.getCustomerId() == null ? "-" :
                 customerRepository.findById(order.getCustomerId()).map(Customer::getCustomerName).orElse("-");
-        // 预加载所有物料信息
+
         Map<Long, Part> partMap = partRepository.findAll().stream().collect(Collectors.toMap(Part::getId, Function.identity()));
         List<OutboundOrderItem> items = outboundOrderItemRepository.findByOutboundOrderId(order.getId());
         return new OutboundOrderView(
@@ -977,13 +864,8 @@ public class WmsService {
         );
     }
 
-    /**
-     * 将看板实体转换为视图对象
-     * @param kanban 看板实体
-     * @return 看板视图对象
-     */
     private KanbanView toKanbanView(Kanban kanban) {
-        // 查询关联的物料、入库单、库位、供应商等信息
+
         Part part = partRepository.findById(kanban.getPartId()).orElse(null);
         InboundOrderItem item = inboundOrderItemRepository.findById(kanban.getInboundOrderItemId()).orElse(null);
         InboundOrder inboundOrder = inboundOrderRepository.findById(kanban.getInboundOrderId()).orElse(null);
@@ -992,7 +874,6 @@ public class WmsService {
         Equipment equipment = item == null || isBlank(item.getEquipmentCode()) ? null :
                 equipmentRepository.findByEquipmentCode(item.getEquipmentCode()).orElse(null);
 
-        // 解析仓库和库区名称
         String[] plannedZone = splitWarehouseZone(item == null ? null : item.getWarehouseZone());
         String warehouseName = location != null ? location.getWarehouseName() : plannedZone[0];
         String zoneName = location != null ? location.getZoneName() : plannedZone[1];
@@ -1026,31 +907,20 @@ public class WmsService {
         );
     }
 
-    /**
-     * 生成库存唯一标识键，用于关联物料和库位
-     * @param partId 物料ID
-     * @param locationId 库位ID
-     * @return 格式为"partId:locationId"的唯一键
-     */
     private String inventoryKey(Long partId, Long locationId) {
         return partId + ":" + locationId;
     }
 
-    /**
-     * 分割仓库库区字符串，提取仓库名称和库区名称
-     * @param text 原始字符串，格式如"仓库/库区"
-     * @return 包含仓库名称和库区名称的数组
-     */
     private String[] splitWarehouseZone(String text) {
         if (isBlank(text)) {
             return new String[]{"-", "-"};
         }
-        // 尝试按斜杠分割
+
         String[] slash = text.split("/");
         if (slash.length >= 2) {
             return new String[]{slash[0].trim(), slash[1].trim()};
         }
-        // 尝试按空格分割
+
         String[] white = text.trim().split("\\s+");
         if (white.length >= 2) {
             return new String[]{white[0], white[1]};
@@ -1058,11 +928,6 @@ public class WmsService {
         return new String[]{text.trim(), "-"};
     }
 
-    /**
-     * 规范化字符串，去除首尾空格，空字符串转为null
-     * @param value 原始字符串
-     * @return 规范化后的字符串
-     */
     private String normalize(String value) {
         if (value == null) {
             return null;
@@ -1071,21 +936,10 @@ public class WmsService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    /**
-     * 判断字符串是否为空
-     * @param value 待判断的字符串
-     * @return 如果字符串为null或空白则返回true，否则返回false
-     */
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
 
-    /**
-     * 判断文本是否包含查询字符串（忽略大小写）
-     * @param text 原始文本
-     * @param query 查询字符串
-     * @return 如果包含则返回true，否则返回false
-     */
     private boolean containsIgnoreCase(String text, String query) {
         if (isBlank(query)) {
             return true;
@@ -1093,20 +947,10 @@ public class WmsService {
         return defaultString(text).toLowerCase().contains(query.trim().toLowerCase());
     }
 
-    /**
-     * 如果字符串为空则返回默认值"-"
-     * @param value 原始字符串
-     * @return 处理后的字符串
-     */
     private String defaultString(String value) {
         return value == null || value.isBlank() ? "-" : value;
     }
 
-    /**
-     * 如果BigDecimal为null则返回默认值BigDecimal.ZERO
-     * @param value 原始BigDecimal
-     * @return 处理后的BigDecimal
-     */
     private BigDecimal defaultBigDecimal(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }

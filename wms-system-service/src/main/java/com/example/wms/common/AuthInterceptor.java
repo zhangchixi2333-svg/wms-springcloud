@@ -1,3 +1,6 @@
+/**
+ * 本文件实现 AuthInterceptor 公共支撑模块。
+ */
 package com.example.wms.common;
 
 import com.example.wms.repo.AppUserRepository;

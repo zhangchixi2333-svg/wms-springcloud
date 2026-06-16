@@ -1,3 +1,6 @@
+/**
+ * 本文件实现前端应用模块 optionHelpers。
+ */
 import type { Equipment, Kanban, Location } from '../types/app'
 
 export type WarehouseZoneOption = {

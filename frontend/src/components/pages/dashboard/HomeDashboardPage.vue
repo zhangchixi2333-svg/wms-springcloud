@@ -1,4 +1,5 @@
-﻿<script setup lang="ts">
+<!-- 本文件实现 HomeDashboardPage 页面组件。 -->
+<script setup lang="ts">
 import { computed } from 'vue'
 import type { PageModel } from '../../../types/app'
 

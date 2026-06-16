@@ -1,4 +1,5 @@
-﻿<script setup lang="ts">
+<!-- 本文件实现 EquipmentPage 页面组件。 -->
+<script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { warehouseOptions, zoneOptions } from '../../../app/optionHelpers'
 import WorkModePage from '../../shared/WorkModePage.vue'

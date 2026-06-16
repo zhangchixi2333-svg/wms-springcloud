@@ -1,4 +1,5 @@
-﻿<script setup lang="ts">
+<!-- 本文件实现 SystemConfigPage 页面组件。 -->
+<script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '../../../api/wms'
 import type { ConfigItem, PageModel } from '../../../types/app'

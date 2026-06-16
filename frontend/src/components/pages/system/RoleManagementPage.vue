@@ -1,3 +1,4 @@
+<!-- 本文件实现 RoleManagementPage 页面组件。 -->
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
 import type { FlatMenu, PageModel, SystemRole } from '../../../types/app'

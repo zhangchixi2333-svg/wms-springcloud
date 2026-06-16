@@ -1,4 +1,5 @@
-﻿<script setup lang="ts">
+<!-- 本文件实现库存监控页面，提供筛选、汇总和明细联动查看。 -->
+<script setup lang="ts">
 import { computed, reactive } from 'vue'
 import { warehouseOptions, zoneOptions } from '../../../app/optionHelpers'
 import type { PageModel } from '../../../types/app'
@@ -6,7 +7,6 @@ import type { PageModel } from '../../../types/app'
 const props = defineProps<{ model: PageModel }>()
 
 const filters = reactive({
-  filterType: 'warehouse',
   warehouseName: '',
   zoneName: '',
   materialKeyword: '',
@@ -30,8 +30,14 @@ const rows = computed(() =>
   }),
 )
 
+const summary = computed(() => ({
+  rowCount: rows.value.length,
+  totalQty: rows.value.reduce((total, item) => total + Number(item.qty), 0),
+  warehouseCount: new Set(rows.value.map((item) => item.warehouseName)).size,
+  partCount: new Set(rows.value.map((item) => item.partCode)).size,
+}))
+
 function resetFilters() {
-  filters.filterType = 'warehouse'
   filters.warehouseName = ''
   filters.zoneName = ''
   filters.materialKeyword = ''
@@ -44,16 +50,11 @@ function resetFilters() {
     <section class="panel">
       <div class="section-head">
         <div>
-          <h3>库存看板</h3>
-          <p>先选筛选类型，再补充仓库、库区、物料和供应商等详细条件。</p>
+          <h3>库存监控</h3>
+          <p>按仓库、库区、物料和供应商查看当前库存，支持总量与明细联动。</p>
         </div>
       </div>
-      <div class="form-grid five">
-        <select v-model="filters.filterType">
-          <option value="warehouse">仓库</option>
-          <option value="zone">库区</option>
-          <option value="material">物料</option>
-        </select>
+      <div class="form-grid four">
         <select v-model="filters.warehouseName" @change="filters.zoneName = ''">
           <option value="">全部仓库</option>
           <option v-for="warehouse in inventoryWarehouseOptions" :key="warehouse" :value="warehouse">
@@ -76,6 +77,25 @@ function resetFilters() {
       </div>
       <div class="filter-actions">
         <button class="secondary-button" @click="resetFilters">重置筛选</button>
+      </div>
+    </section>
+
+    <section class="summary-grid">
+      <div class="panel summary-card">
+        <span class="summary-label">库存记录数</span>
+        <strong>{{ summary.rowCount }}</strong>
+      </div>
+      <div class="panel summary-card">
+        <span class="summary-label">库存总量</span>
+        <strong>{{ summary.totalQty }}</strong>
+      </div>
+      <div class="panel summary-card">
+        <span class="summary-label">涉及仓库</span>
+        <strong>{{ summary.warehouseCount }}</strong>
+      </div>
+      <div class="panel summary-card">
+        <span class="summary-label">涉及零件</span>
+        <strong>{{ summary.partCount }}</strong>
       </div>
     </section>
 
@@ -115,5 +135,33 @@ function resetFilters() {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-card {
+  display: grid;
+  gap: 8px;
+}
+
+.summary-label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

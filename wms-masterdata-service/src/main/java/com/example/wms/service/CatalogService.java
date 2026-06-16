@@ -1,3 +1,6 @@
+/**
+ * 本文件实现 CatalogService 业务服务。
+ */
 package com.example.wms.service;
 
 import com.example.wms.api.MasterDataController.CustomerRequest;
@@ -25,28 +28,15 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * 基础数据服务类
- * 负责管理系统中的基础主数据，包括供应商、客户、设备、物料、库位的增删改查操作
- */
 @Service
 public class CatalogService {
 
-    // 注入各基础数据的仓库接口
     private final SupplierRepository supplierRepository;
     private final CustomerRepository customerRepository;
     private final EquipmentRepository equipmentRepository;
     private final PartRepository partRepository;
     private final LocationRepository locationRepository;
 
-    /**
-     * 构造函数，通过依赖注入初始化所有仓库接口
-     * @param supplierRepository 供应商仓库接口
-     * @param customerRepository 客户仓库接口
-     * @param equipmentRepository 设备仓库接口
-     * @param partRepository 物料仓库接口
-     * @param locationRepository 库位仓库接口
-     */
     public CatalogService(SupplierRepository supplierRepository,
                           CustomerRepository customerRepository,
                           EquipmentRepository equipmentRepository,
@@ -59,12 +49,6 @@ public class CatalogService {
         this.locationRepository = locationRepository;
     }
 
-    /**
-     * 创建供应商
-     * @param request 供应商创建请求，包含供应商编码和名称
-     * @return 创建后的供应商视图对象
-     * @throws BusinessException 如果供应商编码已存在则抛出业务异常
-     */
     public SupplierView createSupplier(SupplierRequest request) {
         supplierRepository.findBySupplierCode(request.supplierCode()).ifPresent(existing -> {
             throw new BusinessException("Supplier code already exists");
@@ -75,20 +59,10 @@ public class CatalogService {
         return toView(supplierRepository.save(supplier));
     }
 
-    /**
-     * 查询所有供应商列表
-     * @return 供应商视图对象列表
-     */
     public List<SupplierView> listSuppliers() {
         return supplierRepository.findAll().stream().map(this::toView).toList();
     }
 
-    /**
-     * 创建客户
-     * @param request 客户创建请求，包含客户编码和名称
-     * @return 创建后的客户视图对象
-     * @throws BusinessException 如果客户编码已存在则抛出业务异常
-     */
     public CustomerView createCustomer(CustomerRequest request) {
         customerRepository.findByCustomerCode(request.customerCode()).ifPresent(existing -> {
             throw new BusinessException("Customer code already exists");
@@ -99,20 +73,10 @@ public class CatalogService {
         return toView(customerRepository.save(customer));
     }
 
-    /**
-     * 查询所有客户列表
-     * @return 客户视图对象列表
-     */
     public List<CustomerView> listCustomers() {
         return customerRepository.findAll().stream().map(this::toView).toList();
     }
 
-    /**
-     * 创建设备
-     * @param request 设备创建请求，包含设备编码、名称、类型、型号等信息
-     * @return 创建后的设备视图对象
-     * @throws BusinessException 如果设备编码已存在则抛出业务异常
-     */
     public EquipmentView createEquipment(EquipmentRequest request) {
         equipmentRepository.findByEquipmentCode(request.equipmentCode()).ifPresent(existing -> {
             throw new BusinessException("Equipment code already exists");
@@ -129,45 +93,36 @@ public class CatalogService {
         return toView(equipmentRepository.save(equipment));
     }
 
-    /**
-     * 查询所有设备列表
-     * @return 设备视图对象列表
-     */
     public List<EquipmentView> listEquipment() {
         return equipmentRepository.findAll().stream().map(this::toView).toList();
     }
 
-    /**
-     * 创建物料
-     * @param request 物料创建请求，包含物料编码、名称、单位
-     * @return 创建后的物料视图对象
-     * @throws BusinessException 如果物料编码已存在则抛出业务异常
-     */
     public PartView createPart(PartRequest request) {
         partRepository.findByPartCode(request.partCode()).ifPresent(existing -> {
             throw new BusinessException("Part code already exists");
         });
+        if (request.supplierId() != null) {
+            supplierRepository.findById(request.supplierId())
+                    .orElseThrow(() -> new BusinessException("Supplier not found"));
+        }
+        if (request.defaultEquipmentCode() != null && !request.defaultEquipmentCode().isBlank()) {
+            equipmentRepository.findByEquipmentCode(request.defaultEquipmentCode())
+                    .orElseThrow(() -> new BusinessException("Default equipment code not found"));
+        }
         Part part = new Part();
         part.setPartCode(request.partCode());
         part.setPartName(request.partName());
         part.setUnit(request.unit());
+        part.setSupplierId(request.supplierId());
+        part.setDefaultEquipmentCode(blankToNull(request.defaultEquipmentCode()));
+        part.setDefaultPackageCapacity(request.defaultPackageCapacity());
         return toView(partRepository.save(part));
     }
 
-    /**
-     * 查询所有物料列表
-     * @return 物料视图对象列表
-     */
     public List<PartView> listParts() {
         return partRepository.findAll().stream().map(this::toView).toList();
     }
 
-    /**
-     * 创建库位
-     * @param request 库位创建请求，包含库位编码、名称、所属仓库和库区
-     * @return 创建后的库位视图对象
-     * @throws BusinessException 如果库位编码已存在则抛出业务异常
-     */
     public LocationView createLocation(LocationRequest request) {
         locationRepository.findByLocationCode(request.locationCode()).ifPresent(existing -> {
             throw new BusinessException("Location code already exists");
@@ -181,37 +136,18 @@ public class CatalogService {
         return toView(locationRepository.save(location));
     }
 
-    /**
-     * 查询所有库位列表
-     * @return 库位视图对象列表
-     */
     public List<LocationView> listLocations() {
         return locationRepository.findAll().stream().map(this::toView).toList();
     }
 
-    /**
-     * 将供应商实体转换为视图对象
-     * @param supplier 供应商实体
-     * @return 供应商视图对象
-     */
     public SupplierView toView(Supplier supplier) {
         return new SupplierView(supplier.getId(), supplier.getSupplierCode(), supplier.getSupplierName());
     }
 
-    /**
-     * 将客户实体转换为视图对象
-     * @param customer 客户实体
-     * @return 客户视图对象
-     */
     public CustomerView toView(Customer customer) {
         return new CustomerView(customer.getId(), customer.getCustomerCode(), customer.getCustomerName());
     }
 
-    /**
-     * 将设备实体转换为视图对象
-     * @param equipment 设备实体
-     * @return 设备视图对象
-     */
     public EquipmentView toView(Equipment equipment) {
         return new EquipmentView(
                 equipment.getId(),
@@ -226,20 +162,18 @@ public class CatalogService {
         );
     }
 
-    /**
-     * 将物料实体转换为视图对象
-     * @param part 物料实体
-     * @return 物料视图对象
-     */
     public PartView toView(Part part) {
-        return new PartView(part.getId(), part.getPartCode(), part.getPartName(), part.getUnit());
+        return new PartView(
+                part.getId(),
+                part.getPartCode(),
+                part.getPartName(),
+                part.getUnit(),
+                part.getSupplierId(),
+                blankToNull(part.getDefaultEquipmentCode()),
+                part.getDefaultPackageCapacity()
+        );
     }
 
-    /**
-     * 将库位实体转换为视图对象
-     * @param location 库位实体
-     * @return 库位视图对象
-     */
     public LocationView toView(Location location) {
         return new LocationView(
                 location.getId(),
@@ -260,5 +194,12 @@ public class CatalogService {
             throw new BusinessException("Warehouse type must be OWN or THIRD_PARTY");
         }
         return normalized;
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

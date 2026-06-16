@@ -1,3 +1,6 @@
+/**
+ * 本文件是 WmsDiscoveryApplication Spring Boot 启动入口。
+ */
 package com.example.wms.discovery;
 
 import org.springframework.boot.SpringApplication;

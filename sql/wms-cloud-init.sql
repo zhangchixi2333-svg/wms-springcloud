@@ -89,6 +89,9 @@ CREATE TABLE IF NOT EXISTS `part` (
   `part_code` VARCHAR(64) NOT NULL,
   `part_name` VARCHAR(128) NOT NULL,
   `unit` VARCHAR(32) NOT NULL,
+  `supplier_id` BIGINT DEFAULT NULL,
+  `default_equipment_code` VARCHAR(64) DEFAULT NULL,
+  `default_package_capacity` DECIMAL(18,3) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_part_code` (`part_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -331,11 +334,14 @@ INSERT INTO `customer` (`customer_code`, `customer_name`) VALUES
 ('CUS-001', '示例客户')
 ON DUPLICATE KEY UPDATE `customer_name` = VALUES(`customer_name`);
 
-INSERT INTO `part` (`part_code`, `part_name`, `unit`) VALUES
-('PART-001', '演示零件', 'PCS')
+INSERT INTO `part` (`part_code`, `part_name`, `unit`, `supplier_id`, `default_equipment_code`, `default_package_capacity`) VALUES
+('PART-001', '演示零件', 'PCS', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001' LIMIT 1), 'EQ-BOX-001', 5.000)
 ON DUPLICATE KEY UPDATE
   `part_name` = VALUES(`part_name`),
-  `unit` = VALUES(`unit`);
+  `unit` = VALUES(`unit`),
+  `supplier_id` = VALUES(`supplier_id`),
+  `default_equipment_code` = VALUES(`default_equipment_code`),
+  `default_package_capacity` = VALUES(`default_package_capacity`);
 
 INSERT INTO `location` (`location_code`, `location_name`, `warehouse_name`, `zone_name`, `warehouse_type`) VALUES
 ('A01-01', '主货位', 'A仓', '一区', 'OWN'),

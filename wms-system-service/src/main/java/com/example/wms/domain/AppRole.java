@@ -1,3 +1,6 @@
+/**
+ * 本文件定义 AppRole 持久化实体。
+ */
 package com.example.wms.domain;
 
 import jakarta.persistence.*;

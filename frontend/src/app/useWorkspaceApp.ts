@@ -1,3 +1,6 @@
+/**
+ * 本文件实现前端应用模块 useWorkspaceApp。
+ */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/wms'
 import { clearAuthToken, getAuthToken, setAuthToken } from '../api/client'
@@ -5,6 +8,13 @@ import { resolvePage } from './pageRegistry'
 import type { AppActions, AppState, FlatMenu, MenuNode, PageModel, WorkspaceTab } from '../types/app'
 
 export function useWorkspaceApp() {
+  /*
+   * state 是整个工作区的核心状态容器：
+   * 1. 认证态决定显示登录页还是工作台。
+   * 2. menuTree / flatMenus 决定左侧菜单、标签页和页面路由来源。
+   * 3. users/roles/.../transactions 保存各业务页面共用的数据快照。
+   * 4. message / error / loading 为顶部状态提示和加载态提供统一入口。
+   */
   const state = reactive<AppState>({
     authenticated: Boolean(getAuthToken()),
     user: null,
@@ -35,6 +45,11 @@ export function useWorkspaceApp() {
     state.error = ''
   }
 
+  /*
+   * 菜单来自后端树结构。
+   * findFirstLeaf 用来在首次进入系统时找到默认可打开的叶子菜单；
+   * findLeaf 用来按 menuKey 在当前菜单树里定位具体节点。
+   */
   function findFirstLeaf(nodes: MenuNode[]): MenuNode {
     for (const node of nodes) {
       if (node.menuType === 'LEAF') return node
@@ -65,6 +80,11 @@ export function useWorkspaceApp() {
     return walk(state.menuTree)
   }
 
+  /*
+   * openLeaf / closeTab 负责维护“当前打开了哪些标签页”。
+   * tabs 保存已打开页签集合，activeMenuKey 指向当前激活页签；
+   * 因此左侧菜单点击、页签切换、页签关闭最终都会收敛到这两个状态。
+   */
   function openLeaf(menu?: MenuNode) {
     if (!menu || menu.menuType !== 'LEAF' || !menu.pageKey) return
     if (!tabs.value.some((tab) => tab.menuKey === menu.menuKey)) {
@@ -86,6 +106,14 @@ export function useWorkspaceApp() {
     }
   }
 
+  /*
+   * 后端菜单可能被角色、权限或菜单管理操作改变。
+   * syncTabsWithMenus 会把“已有页签”和“最新菜单定义”重新对齐：
+   * 1. 菜单已删除的页签会被移除；
+   * 2. 菜单名称 / pageKey 变化后同步更新页签显示；
+   * 3. 保证首页页签始终存在；
+   * 4. 如果当前激活页签失效，就回退到第一个可用页签。
+   */
   function syncTabsWithMenus(flatMenus: FlatMenu[]) {
     const menuMap = new Map(flatMenus.map((item) => [item.menuKey, item]))
     tabs.value = tabs.value
@@ -119,6 +147,11 @@ export function useWorkspaceApp() {
     syncTabsWithMenus(flatMenus)
   }
 
+  /*
+   * 用户、角色、菜单是系统管理侧最常变化的数据。
+   * 单独拆出 refreshSystemSecurity，可以在新增/修改用户角色后局部刷新，
+   * 避免每次都把整套业务数据重新加载一遍。
+   */
   async function refreshSystemSecurity() {
     const [users, roles] = await Promise.all([
       api.listUsers().catch(() => []),
@@ -128,6 +161,16 @@ export function useWorkspaceApp() {
     state.roles = roles
   }
 
+  /*
+   * refreshAll 是整个工作区的总入口：
+   * 1. 先根据 token 判断是否已登录；
+   * 2. 并发拉取用户信息、菜单、系统数据和业务数据；
+   * 3. 用接口结果一次性回填到 state；
+   * 4. 首次进入时自动打开首页；
+   * 5. 统一处理过期登录、错误提示和 loading 收尾。
+   *
+   * 这个函数执行完以后，页面显示所需的大部分状态都已经就绪。
+   */
   async function refreshAll() {
     if (!getAuthToken()) {
       state.authenticated = false
@@ -206,6 +249,15 @@ export function useWorkspaceApp() {
     }
   }
 
+  /*
+   * actions 是页面层唯一直接调用的动作集合。
+   * 每个页面并不自己拼接口和状态回填，而是通过 actions：
+   * 1. 调接口完成增删改查或业务动作；
+   * 2. 按需调用 refreshAll / refreshMenus / refreshSystemSecurity；
+   * 3. 最后写入统一提示信息。
+   *
+   * 这样页面组件主要负责表单和展示，状态收口在这里统一维护。
+   */
   const actions: AppActions = {
     login: async (payload) => {
       const session = await api.login(payload)
@@ -373,11 +425,19 @@ export function useWorkspaceApp() {
 
   const model: PageModel = { state, actions }
 
+  /*
+   * 这几个 computed 把底层状态转换成界面真正使用的“派生状态”：
+   * 1. activeTab：当前激活页签对象；
+   * 2. title：顶部标题；
+   * 3. statusText：优先显示错误，否则显示普通提示；
+   * 4. currentPage：把当前页签映射成真正要渲染的 Vue 页面组件。
+   */
   const activeTab = computed(() => tabs.value.find((tab) => tab.menuKey === activeMenuKey.value) ?? tabs.value[0])
   const title = computed(() => activeTab.value?.title ?? '首页')
   const statusText = computed(() => state.error || state.message)
   const currentPage = computed(() => resolvePage(activeTab.value, state.flatMenus, model))
 
+  // 组件挂载后，如果本地还保留 token，就自动恢复一次完整工作区状态。
   onMounted(() => {
     if (getAuthToken()) {
       refreshAll()

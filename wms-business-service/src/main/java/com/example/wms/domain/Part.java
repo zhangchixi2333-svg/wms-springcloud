@@ -1,39 +1,36 @@
+/**
+ * 本文件定义 Part 持久化实体。
+ */
 package com.example.wms.domain;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 
-/**
- * 物料/零件实体类
- * 对应数据库表part，存储仓库中管理的物料/零件基本信息
- */
 @Entity
 @Table(name = "part")
 public class Part {
 
-    /**
-     * 主键ID，自增
-     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * 物料编码，唯一非空，最大长度64
-     */
     @Column(nullable = false, unique = true, length = 64)
     private String partCode;
 
-    /**
-     * 物料名称，非空，最大长度128
-     */
     @Column(nullable = false, length = 128)
     private String partName;
 
-    /**
-     * 计量单位，非空，最大长度32，如"个"/"件"/"千克"
-     */
     @Column(nullable = false, length = 32)
     private String unit;
+
+    @Column(name = "supplier_id")
+    private Long supplierId;
+
+    @Column(name = "default_equipment_code", length = 64)
+    private String defaultEquipmentCode;
+
+    @Column(name = "default_package_capacity", precision = 18, scale = 3)
+    private BigDecimal defaultPackageCapacity;
 
     public Long getId() {
         return id;
@@ -61,5 +58,29 @@ public class Part {
 
     public void setUnit(String unit) {
         this.unit = unit;
+    }
+
+    public Long getSupplierId() {
+        return supplierId;
+    }
+
+    public void setSupplierId(Long supplierId) {
+        this.supplierId = supplierId;
+    }
+
+    public String getDefaultEquipmentCode() {
+        return defaultEquipmentCode;
+    }
+
+    public void setDefaultEquipmentCode(String defaultEquipmentCode) {
+        this.defaultEquipmentCode = defaultEquipmentCode;
+    }
+
+    public BigDecimal getDefaultPackageCapacity() {
+        return defaultPackageCapacity;
+    }
+
+    public void setDefaultPackageCapacity(BigDecimal defaultPackageCapacity) {
+        this.defaultPackageCapacity = defaultPackageCapacity;
     }
 }

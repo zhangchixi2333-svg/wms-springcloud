@@ -1,3 +1,6 @@
+/**
+ * 本文件实现前端应用模块 pageRegistry。
+ */
 import EquipmentPage from '../components/pages/master-data/EquipmentPage.vue'
 import HomeDashboardPage from '../components/pages/dashboard/HomeDashboardPage.vue'
 import InboundPage from '../components/pages/operations/InboundPage.vue'

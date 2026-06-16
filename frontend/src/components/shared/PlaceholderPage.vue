@@ -1,3 +1,4 @@
+<!-- 本文件实现 PlaceholderPage 共享组件。 -->
 <script setup lang="ts">
 defineProps<{
   title: string

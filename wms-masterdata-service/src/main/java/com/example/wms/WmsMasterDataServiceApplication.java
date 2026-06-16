@@ -1,3 +1,6 @@
+/**
+ * 本文件是 WmsMasterDataServiceApplication Spring Boot 启动入口。
+ */
 package com.example.wms;
 
 import org.springframework.boot.SpringApplication;

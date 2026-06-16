@@ -1,5 +1,6 @@
-﻿<script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+<!-- 本文件实现出库工作台，支持出库单创建、打印和连续扫码出库。 -->
+<script setup lang="ts">
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { kanbanScanOptions, warehouseOptions, zoneOptions } from '../../../app/optionHelpers'
 import QrCodeImage from '../../shared/QrCodeImage.vue'
 import WorkModePage from '../../shared/WorkModePage.vue'
@@ -9,6 +10,7 @@ const props = defineProps<{ model: PageModel }>()
 
 const viewMode = ref<'query' | 'create' | 'manual' | 'print' | 'scan'>('query')
 const printOrder = ref<OutboundOrder | null>(null)
+const scanInputRef = ref<HTMLInputElement | null>(null)
 
 const filters = reactive({
   status: '',
@@ -39,9 +41,7 @@ const form = reactive({
 })
 
 const activeScanOrder = computed(() => props.model.state.outboundOrders.find((order) => order.outboundNo === scanForm.outboundOrderNo) ?? null)
-const outboundOrderOptions = computed(() =>
-  props.model.state.outboundOrders.filter((order) => order.status !== 'COMPLETED'),
-)
+const outboundOrderOptions = computed(() => props.model.state.outboundOrders.filter((order) => order.status !== 'COMPLETED'))
 const outboundKanbanOptions = computed(() => (activeScanOrder.value ? outboundScanOptionsForOrder(activeScanOrder.value) : []))
 const outboundWarehouseOptions = computed(() => warehouseOptions(props.model.state.locations))
 const workModes = computed(() => [
@@ -80,6 +80,9 @@ function addItem() {
 
 function removeItem(index: number) {
   form.items.splice(index, 1)
+  if (!form.items.length) {
+    form.items.push(createDraftItem())
+  }
 }
 
 function resetFilters() {
@@ -105,33 +108,6 @@ function openPrint(order: OutboundOrder) {
   printOrder.value = order
   printedOutboundScanForm.barcode = ''
   viewMode.value = 'print'
-}
-
-async function submitScan() {
-  await props.model.actions.scanOutbound(scanForm)
-  scanForm.barcode = ''
-}
-
-async function submitCreate() {
-  await props.model.actions.createOutboundOrder({
-    customerId: form.customerId || null,
-    inboundOrderNos: form.inboundOrderNos,
-    items: form.items.filter((item) => item.partId > 0 && item.plannedQty > 0),
-  })
-  viewMode.value = 'query'
-}
-
-async function submitManual() {
-  await props.model.actions.manualInventoryEntry(manualForm)
-  manualForm.partId = 0
-  manualForm.locationId = 0
-  manualForm.qty = 1
-  manualForm.remark = ''
-  viewMode.value = 'query'
-}
-
-function formatTime(value: string) {
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
 function browserPrint() {
@@ -163,6 +139,50 @@ function outboundScanOptionsForOrder(order: OutboundOrder) {
   )
 }
 
+async function focusScanInput() {
+  await nextTick()
+  scanInputRef.value?.focus()
+  scanInputRef.value?.select()
+}
+
+function fillFirstOutboundScanCode() {
+  const first = outboundKanbanOptions.value[0]?.value
+  if (first) {
+    scanForm.barcode = first
+  }
+}
+
+async function submitScan() {
+  await props.model.actions.scanOutbound(scanForm)
+  scanForm.barcode = ''
+  await focusScanInput()
+}
+
+async function submitScanByEnter() {
+  if (!scanForm.barcode || !scanForm.outboundOrderNo) {
+    return
+  }
+  await submitScan()
+}
+
+async function submitCreate() {
+  await props.model.actions.createOutboundOrder({
+    customerId: form.customerId || null,
+    inboundOrderNos: form.inboundOrderNos,
+    items: form.items.filter((item) => item.partId > 0 && item.plannedQty > 0 && item.warehouseName && item.zoneName),
+  })
+  viewMode.value = 'query'
+}
+
+async function submitManual() {
+  await props.model.actions.manualInventoryEntry(manualForm)
+  manualForm.partId = 0
+  manualForm.locationId = 0
+  manualForm.qty = 1
+  manualForm.remark = ''
+  viewMode.value = 'query'
+}
+
 async function submitPrintedOutboundScan() {
   if (!printOrder.value) return
   await props.model.actions.scanOutbound({
@@ -170,14 +190,28 @@ async function submitPrintedOutboundScan() {
     outboundOrderNo: printOrder.value.outboundNo,
   })
   printedOutboundScanForm.barcode = ''
+  await focusScanInput()
 }
+
+async function submitPrintedOutboundScanByEnter() {
+  if (!printedOutboundScanForm.barcode || !printOrder.value) {
+    return
+  }
+  await submitPrintedOutboundScan()
+}
+
+watch(viewMode, async (value) => {
+  if (value === 'scan' || value === 'print') {
+    await focusScanInput()
+  }
+})
 </script>
 
 <template>
   <WorkModePage
     v-model="viewMode"
     :modes="workModes"
-    hint="默认先查询；创建、打印、扫码出库和手工入账作为独立工作界面。"
+    hint="默认先查询；创建、打印、扫码出库和手工入账共用统一工作台，也支持连续扫码。"
     @select="handleModeSelect"
   >
     <section v-if="viewMode === 'query'" class="stack">
@@ -185,7 +219,7 @@ async function submitPrintedOutboundScan() {
         <div class="section-head">
           <div>
             <h3>出库筛选</h3>
-          <p>先按条件找到出库单，再执行扫码出库。</p>
+            <p>先按条件找到唯一出库单，再执行扫码出库或打印追踪。</p>
           </div>
         </div>
         <div class="form-grid four">
@@ -227,10 +261,10 @@ async function submitPrintedOutboundScan() {
               <td>{{ order.status }}</td>
               <td>
                 <span v-for="detail in order.items" :key="detail.id" class="inline-tag">
-                  {{ detail.partCode }} / {{ detail.plannedQty }} / 已扫 {{ detail.scannedQty }} / {{ detail.warehouseName }}-{{ detail.zoneName }}
+                  {{ detail.partCode }} / 计划 {{ detail.plannedQty }} / 已扫 {{ detail.scannedQty }} / {{ detail.warehouseName }}-{{ detail.zoneName }}
                 </span>
               </td>
-              <td>{{ formatTime(order.createdAt) }}</td>
+              <td>{{ new Date(order.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
               <td><button class="secondary-button" @click="openPrint(order)">打印</button></td>
             </tr>
           </tbody>
@@ -242,7 +276,7 @@ async function submitPrintedOutboundScan() {
       <div class="section-head">
         <div>
           <h3>扫码出库</h3>
-          <p>先选择唯一出库单，再扫描该出库单绑定入库来源下的看板。</p>
+          <p>先绑定唯一出库单，再扫描二维码内容或条码；回车即可直接执行出库，成功后自动回到扫码框。</p>
         </div>
       </div>
       <div class="scan-action-layout">
@@ -253,13 +287,23 @@ async function submitPrintedOutboundScan() {
               {{ order.outboundNo }} | 来源 {{ sourceText(order) }} | {{ order.status }}
             </option>
           </select>
+          <input
+            ref="scanInputRef"
+            v-model="scanForm.barcode"
+            :disabled="!scanForm.outboundOrderNo"
+            placeholder="扫描枪输入二维码内容或条码"
+            @keydown.enter.prevent="submitScanByEnter"
+          />
+          <button :disabled="!scanForm.outboundOrderNo || !scanForm.barcode" @click="submitScan">确认出库</button>
+        </div>
+        <div class="scan-assist-row two-col">
           <select v-model="scanForm.barcode" :disabled="!scanForm.outboundOrderNo">
-            <option value="">选择看板条码 / 二维码</option>
+            <option value="">辅助选择看板条码 / 二维码</option>
             <option v-for="item in outboundKanbanOptions" :key="item.value" :value="item.value">
               {{ item.label }}
             </option>
           </select>
-          <button :disabled="!scanForm.outboundOrderNo || !scanForm.barcode" @click="submitScan">确认出库</button>
+          <button class="secondary-button" :disabled="!scanForm.outboundOrderNo" @click="fillFirstOutboundScanCode">模拟扫码填充</button>
         </div>
         <div v-if="scanForm.barcode" class="scan-qr-preview">
           <QrCodeImage :text="scanForm.barcode" :size="160" />
@@ -272,7 +316,7 @@ async function submitPrintedOutboundScan() {
       <div class="section-head">
         <div>
           <h3>创建出库单</h3>
-          <p>录入出库零件、计划数量和目标仓库库区，后续扫码时会自动回写执行进度。</p>
+          <p>出库单先绑定一个或多个来源入库单，再配置零件、数量和目标仓库/库区，后续扫码会自动回写执行进度。</p>
         </div>
       </div>
 
@@ -315,7 +359,7 @@ async function submitPrintedOutboundScan() {
               {{ zone }}
             </option>
           </select>
-          <button class="secondary-button" @click="removeItem(index)" :disabled="form.items.length === 1">删除</button>
+          <button class="secondary-button" @click="removeItem(index)">删除</button>
         </div>
       </div>
 
@@ -329,7 +373,7 @@ async function submitPrintedOutboundScan() {
       <div class="section-head">
         <div>
           <h3>出库单打印信息</h3>
-          <p>打印出库单明细，并渲染已关联看板的二维码。</p>
+          <p>打印出库单明细并渲染已关联看板二维码，支持打印后继续连续扫码执行出库。</p>
         </div>
         <div class="action-row">
           <button @click="browserPrint">浏览器打印</button>
@@ -347,7 +391,7 @@ async function submitPrintedOutboundScan() {
           </div>
           <div>
             <p>状态：{{ printOrder.status }}</p>
-            <p>创建时间：{{ formatTime(printOrder.createdAt) }}</p>
+            <p>创建时间：{{ new Date(printOrder.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</p>
           </div>
         </div>
 
@@ -413,16 +457,25 @@ async function submitPrintedOutboundScan() {
         </div>
 
         <div class="print-scan-panel">
-          <h3>根据二维码/条码执行出库</h3>
+          <h3>根据二维码 / 条码执行出库</h3>
           <div class="scan-action-layout">
             <div class="form-grid two">
+              <input
+                ref="scanInputRef"
+                v-model="printedOutboundScanForm.barcode"
+                placeholder="扫描枪输入二维码内容或条码"
+                @keydown.enter.prevent="submitPrintedOutboundScanByEnter"
+              />
+              <button @click="submitPrintedOutboundScan">确认出库</button>
+            </div>
+            <div class="scan-assist-row two-col">
               <select v-model="printedOutboundScanForm.barcode">
-                <option value="">选择看板二维码 / 条码</option>
+                <option value="">辅助选择看板二维码 / 条码</option>
                 <option v-for="item in outboundScanOptionsForOrder(printOrder)" :key="item.value" :value="item.value">
                   {{ item.label }}
                 </option>
               </select>
-              <button @click="submitPrintedOutboundScan">确认出库</button>
+              <button class="secondary-button" @click="printedOutboundScanForm.barcode = outboundScanOptionsForOrder(printOrder)[0]?.value || ''">填充首个待出库码</button>
             </div>
             <div v-if="printedOutboundScanForm.barcode" class="scan-qr-preview">
               <QrCodeImage :text="printedOutboundScanForm.barcode" :size="160" />
@@ -496,12 +549,23 @@ async function submitPrintedOutboundScan() {
   margin: 0;
 }
 
+.scan-assist-row {
+  display: grid;
+  margin-top: 12px;
+  gap: 12px;
+}
+
+.two-col {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .qr-table :deep(.qr-wrap) {
   padding: 6px;
 }
 
 @media (max-width: 1180px) {
-  .detail-grid {
+  .detail-grid,
+  .two-col {
     grid-template-columns: 1fr;
   }
 }

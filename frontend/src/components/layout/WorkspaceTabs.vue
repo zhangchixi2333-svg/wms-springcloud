@@ -1,3 +1,4 @@
+<!-- 本文件实现 WorkspaceTabs 布局组件。 -->
 <script setup lang="ts">
 import type { WorkspaceTab } from '../../types/app'
 

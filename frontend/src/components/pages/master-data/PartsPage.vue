@@ -1,4 +1,5 @@
-﻿<script setup lang="ts">
+<!-- 本文件实现零件主数据页面，支持供应商、默认器具和默认包装容量维护。 -->
+<script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import WorkModePage from '../../shared/WorkModePage.vue'
 import type { PageModel } from '../../../types/app'
@@ -14,33 +15,53 @@ const workModes = [
 const filters = reactive({
   keyword: '',
   unit: '',
+  supplierId: 0,
 })
 
 const form = reactive({
   partCode: '',
   partName: '',
   unit: 'PCS',
+  supplierId: 0,
+  defaultEquipmentCode: '',
+  defaultPackageCapacity: 1,
 })
 
 const rows = computed(() =>
   props.model.state.parts.filter((item) => {
     const keywordMatch = !filters.keyword || `${item.partCode} ${item.partName}`.toLowerCase().includes(filters.keyword.toLowerCase())
     const unitMatch = !filters.unit || item.unit.toLowerCase().includes(filters.unit.toLowerCase())
-    return keywordMatch && unitMatch
+    const supplierMatch = !filters.supplierId || item.supplierId === filters.supplierId
+    return keywordMatch && unitMatch && supplierMatch
   }),
 )
 
 function resetFilters() {
   filters.keyword = ''
   filters.unit = ''
+  filters.supplierId = 0
 }
 
 async function submit() {
-  await props.model.actions.createPart(form)
+  await props.model.actions.createPart({
+    partCode: form.partCode,
+    partName: form.partName,
+    unit: form.unit,
+    supplierId: form.supplierId || null,
+    defaultEquipmentCode: form.defaultEquipmentCode || null,
+    defaultPackageCapacity: form.defaultPackageCapacity || null,
+  })
   form.partCode = ''
   form.partName = ''
   form.unit = 'PCS'
+  form.supplierId = 0
+  form.defaultEquipmentCode = ''
+  form.defaultPackageCapacity = 1
   viewMode.value = 'query'
+}
+
+function supplierName(supplierId: number | null) {
+  return props.model.state.suppliers.find((item) => item.id === supplierId)?.supplierName || '-'
 }
 </script>
 
@@ -51,12 +72,18 @@ async function submit() {
         <div class="section-head">
           <div>
             <h3>零件筛选</h3>
-            <p>支持按零件编码、名称和单位快速过滤。</p>
+            <p>支持按零件编码、名称、单位和供应商过滤，并展示默认绑定信息。</p>
           </div>
         </div>
-        <div class="form-grid three">
+        <div class="form-grid four">
           <input v-model="filters.keyword" placeholder="零件编码 / 名称" />
           <input v-model="filters.unit" placeholder="单位" />
+          <select v-model.number="filters.supplierId">
+            <option :value="0">全部供应商</option>
+            <option v-for="item in model.state.suppliers" :key="item.id" :value="item.id">
+              {{ item.supplierCode }} | {{ item.supplierName }}
+            </option>
+          </select>
           <button class="secondary-button" @click="resetFilters">重置筛选</button>
         </div>
       </section>
@@ -68,6 +95,9 @@ async function submit() {
               <th>编码</th>
               <th>名称</th>
               <th>单位</th>
+              <th>供应商</th>
+              <th>默认器具编码</th>
+              <th>默认包装容量</th>
             </tr>
           </thead>
           <tbody>
@@ -75,6 +105,9 @@ async function submit() {
               <td>{{ item.partCode }}</td>
               <td>{{ item.partName }}</td>
               <td>{{ item.unit }}</td>
+              <td>{{ supplierName(item.supplierId) }}</td>
+              <td>{{ item.defaultEquipmentCode || '-' }}</td>
+              <td>{{ item.defaultPackageCapacity || '-' }}</td>
             </tr>
           </tbody>
         </table>
@@ -85,13 +118,26 @@ async function submit() {
       <div class="section-head">
         <div>
           <h3>新建零件</h3>
-          <p>新建后会同步用于入库单、看板和库存看板。</p>
+          <p>新建后会直接用于入库批量选件、出库计划、看板生成和库存统计。</p>
         </div>
       </div>
       <div class="form-grid three">
         <input v-model="form.partCode" placeholder="零件编码" />
         <input v-model="form.partName" placeholder="零件名称" />
         <input v-model="form.unit" placeholder="单位" />
+        <select v-model.number="form.supplierId">
+          <option :value="0">不绑定供应商</option>
+          <option v-for="item in model.state.suppliers" :key="item.id" :value="item.id">
+            {{ item.supplierCode }} | {{ item.supplierName }}
+          </option>
+        </select>
+        <select v-model="form.defaultEquipmentCode">
+          <option value="">不绑定默认器具</option>
+          <option v-for="item in model.state.equipment" :key="item.id" :value="item.equipmentCode">
+            {{ item.equipmentCode }} | {{ item.equipmentName }} | {{ item.equipmentModel }}
+          </option>
+        </select>
+        <input v-model.number="form.defaultPackageCapacity" type="number" min="0.001" step="0.001" placeholder="默认包装容量" />
       </div>
       <div class="footer-actions">
         <button @click="submit">保存零件</button>

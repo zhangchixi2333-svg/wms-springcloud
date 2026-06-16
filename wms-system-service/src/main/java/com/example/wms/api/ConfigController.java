@@ -1,3 +1,6 @@
+/**
+ * 本文件实现 ConfigController 控制器。
+ */
 package com.example.wms.api;
 
 import com.example.wms.common.ApiResponse;

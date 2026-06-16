@@ -1,3 +1,4 @@
+<!-- 本文件实现 UserManagementPage 页面组件。 -->
 <script setup lang="ts">
 import { computed, onMounted, reactive, watch } from 'vue'
 import type { PageModel, SystemUser } from '../../../types/app'

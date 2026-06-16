@@ -1,3 +1,6 @@
+/**
+ * 本文件实现 WebMvcConfig 公共支撑模块。
+ */
 package com.example.wms.common;
 
 import org.springframework.context.annotation.Configuration;

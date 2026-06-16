@@ -1,3 +1,6 @@
+/**
+ * 本文件定义 AppRoleRepository 数据访问接口。
+ */
 package com.example.wms.repo;
 
 import com.example.wms.domain.AppRole;

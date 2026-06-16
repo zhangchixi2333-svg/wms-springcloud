@@ -1,3 +1,4 @@
+<!-- 本文件实现 TopBar 布局组件。 -->
 <script setup lang="ts">
 import type { CurrentUser } from '../../types/app'
 

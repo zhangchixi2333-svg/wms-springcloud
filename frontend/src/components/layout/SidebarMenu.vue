@@ -1,3 +1,4 @@
+<!-- 本文件实现 SidebarMenu 布局组件。 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { MenuNode } from '../../types/app'

@@ -1,3 +1,4 @@
+<!-- 本文件实现 WorkModePage 共享组件。 -->
 <script setup lang="ts">
 export type WorkMode = {
   key: string

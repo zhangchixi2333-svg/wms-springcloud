@@ -1,3 +1,4 @@
+<!-- 本文件实现 AuthPage 认证组件。 -->
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import type { AppActions } from '../../types/app'

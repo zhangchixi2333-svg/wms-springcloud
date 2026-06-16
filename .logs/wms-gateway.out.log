@@ -35,131 +35,178 @@
 
  :: Spring Boot ::                (v3.5.7)
 
-2026-06-09T02:41:27.970+08:00  INFO 36780 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : Starting WmsGatewayApplication using Java 21.0.10 with PID 36780 (D:\projects\wms-springcloud\wms-gateway\target\classes started by lenovo in D:\projects\wms-springcloud\wms-gateway)
-2026-06-09T02:41:27.978+08:00  INFO 36780 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : No active profile set, falling back to 1 default profile: "default"
-2026-06-09T02:41:28.638+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=f0fe96b5-d084-36f4-80ca-d2f7a702d161
-2026-06-09T02:41:30.111+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
-2026-06-09T02:41:31.036+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [After]
-2026-06-09T02:41:31.037+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Before]
-2026-06-09T02:41:31.038+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Between]
-2026-06-09T02:41:31.038+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Cookie]
-2026-06-09T02:41:31.040+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Header]
-2026-06-09T02:41:31.041+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Host]
-2026-06-09T02:41:31.042+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Method]
-2026-06-09T02:41:31.045+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Path]
-2026-06-09T02:41:31.046+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Query]
-2026-06-09T02:41:31.047+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [ReadBody]
-2026-06-09T02:41:31.050+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [RemoteAddr]
-2026-06-09T02:41:31.052+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [XForwardedRemoteAddr]
-2026-06-09T02:41:31.053+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Weight]
-2026-06-09T02:41:31.055+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [CloudFoundryRouteService]
-2026-06-09T02:41:32.538+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
-2026-06-09T02:41:32.607+08:00  INFO 36780 --- [wms-gateway] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
-2026-06-09T02:41:33.646+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
-2026-06-09T02:41:33.695+08:00  WARN 36780 --- [wms-gateway] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
-2026-06-09T02:41:33.752+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
-2026-06-09T02:41:33.816+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
-2026-06-09T02:41:33.830+08:00  INFO 36780 --- [wms-gateway] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T02:41:33.856+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
-2026-06-09T02:41:33.857+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
-2026-06-09T02:41:33.858+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
-2026-06-09T02:41:33.859+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
-2026-06-09T02:41:33.860+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
-2026-06-09T02:41:33.861+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
-2026-06-09T02:41:33.862+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
-2026-06-09T02:41:34.806+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
-2026-06-09T02:41:34.811+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Starting heartbeat executor: renew interval is: 30
-2026-06-09T02:41:34.814+08:00  INFO 36780 --- [wms-gateway] [           main] c.n.discovery.InstanceInfoReplicator     : InstanceInfoReplicator onDemand update allowed rate per min is 4
-2026-06-09T02:41:34.817+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1780944094816 with initial instances count: 2
-2026-06-09T02:41:34.823+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application WMS-GATEWAY with eureka with status UP
-2026-06-09T02:41:34.825+08:00  INFO 36780 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Saw local status change event StatusChangeEvent [timestamp=1780944094825, current=UP, previous=STARTING]
-2026-06-09T02:41:34.829+08:00  INFO 36780 --- [wms-gateway] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-GATEWAY/localhost:wms-gateway:8080: registering service...
-2026-06-09T02:41:34.937+08:00  INFO 36780 --- [wms-gateway] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-GATEWAY/localhost:wms-gateway:8080 - registration status: 204
-2026-06-09T02:41:35.300+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.b.web.embedded.netty.NettyWebServer  : Netty started on port 8080 (http)
-2026-06-09T02:41:35.302+08:00  INFO 36780 --- [wms-gateway] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8080
-2026-06-09T02:41:36.315+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
-2026-06-09T02:41:37.344+08:00  INFO 36780 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
-2026-06-09T02:41:37.391+08:00  INFO 36780 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : Started WmsGatewayApplication in 10.824 seconds (process running for 11.326)
-2026-06-09T02:46:36.364+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T02:51:36.377+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T02:56:36.395+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:01:36.411+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:06:36.425+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:11:36.440+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:16:36.448+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:21:36.446+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:26:36.452+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:31:36.453+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:36:36.457+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:41:36.476+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:46:36.482+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:51:36.492+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T03:56:36.507+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:01:36.519+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:06:36.531+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:11:36.541+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:16:36.558+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:21:36.572+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:26:36.586+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:31:36.589+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:36:36.600+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:41:36.612+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:46:36.625+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:51:36.638+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T04:56:36.646+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:01:36.650+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:06:36.661+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:11:36.676+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:16:36.690+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:21:36.704+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:26:36.713+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:31:36.725+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:36:36.731+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:41:36.744+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:46:36.750+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:51:36.759+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T05:56:36.775+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:01:36.790+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:06:36.797+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:11:36.817+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:16:36.828+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:21:36.850+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:26:36.865+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:31:36.883+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:36:36.890+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:41:36.904+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:46:36.926+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:51:36.935+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T06:56:36.950+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:01:36.959+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:06:36.965+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:11:36.977+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:16:36.983+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:21:36.994+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:26:37.000+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:31:37.010+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:36:36.999+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:41:36.978+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:46:36.961+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:51:36.946+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T07:56:36.930+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T08:01:36.924+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T08:06:36.906+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T08:11:36.899+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T08:16:36.898+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T08:21:36.894+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T08:26:36.892+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-2026-06-09T08:31:36.890+08:00  INFO 36780 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-[INFO] ------------------------------------------------------------------------
-[INFO] BUILD FAILURE
-[INFO] ------------------------------------------------------------------------
-[INFO] Total time:  06:15 h
-[INFO] Finished at: 2026-06-09T08:56:33+08:00
-[INFO] ------------------------------------------------------------------------
-[ERROR] Failed to execute goal org.springframework.boot:spring-boot-maven-plugin:3.5.7:run (default-cli) on project wms-gateway: Process terminated with exit code: -1 -> [Help 1]
-[ERROR] 
-[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
-[ERROR] Re-run Maven using the -X switch to enable full debug logging.
-[ERROR] 
-[ERROR] For more information about the errors and possible solutions, please read the following articles:
-[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException
+2026-06-16T09:47:34.811+08:00  INFO 29968 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : Starting WmsGatewayApplication using Java 21.0.10 with PID 29968 (D:\projects\wms-springcloud\wms-gateway\target\classes started by lenovo in D:\projects\wms-springcloud\wms-gateway)
+2026-06-16T09:47:34.812+08:00  INFO 29968 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : No active profile set, falling back to 1 default profile: "default"
+2026-06-16T09:47:35.489+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=f0fe96b5-d084-36f4-80ca-d2f7a702d161
+2026-06-16T09:47:37.108+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-06-16T09:47:37.362+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [After]
+2026-06-16T09:47:37.362+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Before]
+2026-06-16T09:47:37.362+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Between]
+2026-06-16T09:47:37.362+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Cookie]
+2026-06-16T09:47:37.362+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Header]
+2026-06-16T09:47:37.362+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Host]
+2026-06-16T09:47:37.363+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Method]
+2026-06-16T09:47:37.363+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Path]
+2026-06-16T09:47:37.363+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Query]
+2026-06-16T09:47:37.363+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [ReadBody]
+2026-06-16T09:47:37.364+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [RemoteAddr]
+2026-06-16T09:47:37.364+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [XForwardedRemoteAddr]
+2026-06-16T09:47:37.364+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [Weight]
+2026-06-16T09:47:37.364+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.g.r.RouteDefinitionRouteLocator    : Loaded RoutePredicateFactory [CloudFoundryRouteService]
+2026-06-16T09:47:38.564+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-06-16T09:47:38.597+08:00  INFO 29968 --- [wms-gateway] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-06-16T09:47:39.627+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-06-16T09:47:39.650+08:00  WARN 29968 --- [wms-gateway] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-06-16T09:47:39.680+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.n.eureka.InstanceInfoFactory       : Setting initial instance status as: STARTING
+2026-06-16T09:47:39.714+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Initializing Eureka in region us-east-1
+2026-06-16T09:47:39.718+08:00  INFO 29968 --- [wms-gateway] [           main] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T09:47:39.726+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-06-16T09:47:39.727+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-06-16T09:47:39.727+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-06-16T09:47:39.727+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-06-16T09:47:39.727+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-06-16T09:47:39.727+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Application version is -1: true
+2026-06-16T09:47:39.727+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-06-16T09:47:40.271+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-06-16T09:47:40.272+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Starting heartbeat executor: renew interval is: 30
+2026-06-16T09:47:40.274+08:00  INFO 29968 --- [wms-gateway] [           main] c.n.discovery.InstanceInfoReplicator     : InstanceInfoReplicator onDemand update allowed rate per min is 4
+2026-06-16T09:47:40.275+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Discovery Client initialized at timestamp 1781574460275 with initial instances count: 0
+2026-06-16T09:47:40.278+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.c.n.e.s.EurekaServiceRegistry        : Registering application WMS-GATEWAY with eureka with status UP
+2026-06-16T09:47:40.279+08:00  INFO 29968 --- [wms-gateway] [           main] com.netflix.discovery.DiscoveryClient    : Saw local status change event StatusChangeEvent [timestamp=1781574460279, current=UP, previous=STARTING]
+2026-06-16T09:47:40.281+08:00  INFO 29968 --- [wms-gateway] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-GATEWAY/localhost:wms-gateway:8080: registering service...
+2026-06-16T09:47:40.393+08:00  INFO 29968 --- [wms-gateway] [foReplicator-%d] com.netflix.discovery.DiscoveryClient    : DiscoveryClient_WMS-GATEWAY/localhost:wms-gateway:8080 - registration status: 204
+2026-06-16T09:47:40.431+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.b.web.embedded.netty.NettyWebServer  : Netty started on port 8080 (http)
+2026-06-16T09:47:40.433+08:00  INFO 29968 --- [wms-gateway] [           main] .s.c.n.e.s.EurekaAutoServiceRegistration : Updating port to 8080
+2026-06-16T09:47:41.441+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-06-16T09:47:42.456+08:00  INFO 29968 --- [wms-gateway] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-06-16T09:47:42.472+08:00  INFO 29968 --- [wms-gateway] [           main] c.e.wms.gateway.WmsGatewayApplication    : Started WmsGatewayApplication in 8.969 seconds (process running for 9.384)
+2026-06-16T09:47:47.920+08:00  WARN 29968 --- [wms-gateway] [ctor-http-nio-2] o.s.c.l.core.RoundRobinLoadBalancer      : No servers available for service: wms-system-service
+2026-06-16T09:48:10.277+08:00  INFO 29968 --- [wms-gateway] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Disable delta property : false
+2026-06-16T09:48:10.277+08:00  INFO 29968 --- [wms-gateway] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Single vip registry refresh property : null
+2026-06-16T09:48:10.278+08:00  INFO 29968 --- [wms-gateway] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Force full registry fetch : false
+2026-06-16T09:48:10.278+08:00  INFO 29968 --- [wms-gateway] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application is null : false
+2026-06-16T09:48:10.278+08:00  INFO 29968 --- [wms-gateway] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Registered Applications size is zero : true
+2026-06-16T09:48:10.278+08:00  INFO 29968 --- [wms-gateway] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Application version is -1: false
+2026-06-16T09:48:10.278+08:00  INFO 29968 --- [wms-gateway] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : Getting all instance registry info from the eureka server
+2026-06-16T09:48:10.308+08:00  INFO 29968 --- [wms-gateway] [reshExecutor-%d] com.netflix.discovery.DiscoveryClient    : The response status is 200
+2026-06-16T09:52:39.702+08:00  INFO 29968 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T09:56:42.595+08:00 ERROR 29968 --- [wms-gateway] [ctor-http-nio-2] a.w.r.e.AbstractErrorWebExceptionHandler : [693f969e-133]  500 Server Error for HTTP POST "/api/inbound-orders"
+
+io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: getsockopt: localhost/127.0.0.1:8084
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ⇢ org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ⇢ HTTP POST "/api/inbound-orders" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+Caused by: java.net.ConnectException: Connection refused: getsockopt
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method) ~[na:na]
+	at java.base/sun.nio.ch.Net.pollConnectNow(Net.java:690) ~[na:na]
+	at java.base/sun.nio.ch.SocketChannelImpl.finishConnect(SocketChannelImpl.java:973) ~[na:na]
+	at io.netty.channel.socket.nio.NioSocketChannel.doFinishConnect(NioSocketChannel.java:336) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.finishConnect(AbstractNioChannel.java:339) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:784) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:732) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:658) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:998) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+2026-06-16T09:56:46.006+08:00 ERROR 29968 --- [wms-gateway] [ctor-http-nio-2] a.w.r.e.AbstractErrorWebExceptionHandler : [693f969e-134]  500 Server Error for HTTP POST "/api/inbound-orders"
+
+io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: getsockopt: localhost/127.0.0.1:8084
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ⇢ org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ⇢ HTTP POST "/api/inbound-orders" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+Caused by: java.net.ConnectException: Connection refused: getsockopt
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method) ~[na:na]
+	at java.base/sun.nio.ch.Net.pollConnectNow(Net.java:690) ~[na:na]
+	at java.base/sun.nio.ch.SocketChannelImpl.finishConnect(SocketChannelImpl.java:973) ~[na:na]
+	at io.netty.channel.socket.nio.NioSocketChannel.doFinishConnect(NioSocketChannel.java:336) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.finishConnect(AbstractNioChannel.java:339) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:784) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:732) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:658) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:998) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+2026-06-16T09:56:46.337+08:00 ERROR 29968 --- [wms-gateway] [ctor-http-nio-2] a.w.r.e.AbstractErrorWebExceptionHandler : [693f969e-135]  500 Server Error for HTTP POST "/api/inbound-orders"
+
+io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: getsockopt: localhost/127.0.0.1:8084
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ⇢ org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ⇢ HTTP POST "/api/inbound-orders" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+Caused by: java.net.ConnectException: Connection refused: getsockopt
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method) ~[na:na]
+	at java.base/sun.nio.ch.Net.pollConnectNow(Net.java:690) ~[na:na]
+	at java.base/sun.nio.ch.SocketChannelImpl.finishConnect(SocketChannelImpl.java:973) ~[na:na]
+	at io.netty.channel.socket.nio.NioSocketChannel.doFinishConnect(NioSocketChannel.java:336) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.finishConnect(AbstractNioChannel.java:339) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:784) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:732) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:658) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:998) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+2026-06-16T09:56:46.514+08:00 ERROR 29968 --- [wms-gateway] [ctor-http-nio-2] a.w.r.e.AbstractErrorWebExceptionHandler : [693f969e-136]  500 Server Error for HTTP POST "/api/inbound-orders"
+
+io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: getsockopt: localhost/127.0.0.1:8084
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ⇢ org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ⇢ HTTP POST "/api/inbound-orders" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+Caused by: java.net.ConnectException: Connection refused: getsockopt
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method) ~[na:na]
+	at java.base/sun.nio.ch.Net.pollConnectNow(Net.java:690) ~[na:na]
+	at java.base/sun.nio.ch.SocketChannelImpl.finishConnect(SocketChannelImpl.java:973) ~[na:na]
+	at io.netty.channel.socket.nio.NioSocketChannel.doFinishConnect(NioSocketChannel.java:336) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.finishConnect(AbstractNioChannel.java:339) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:784) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:732) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:658) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:998) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+2026-06-16T09:56:50.786+08:00 ERROR 29968 --- [wms-gateway] [ctor-http-nio-4] a.w.r.e.AbstractErrorWebExceptionHandler : [0b76c21a-137]  500 Server Error for HTTP GET "/api/inbound-orders"
+
+io.netty.channel.AbstractChannel$AnnotatedConnectException: Connection refused: getsockopt: localhost/127.0.0.1:8084
+	Suppressed: reactor.core.publisher.FluxOnAssembly$OnAssemblyException: 
+Error has been observed at the following site(s):
+	*__checkpoint ⇢ org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter [DefaultWebFilterChain]
+	*__checkpoint ⇢ HTTP GET "/api/inbound-orders" [ExceptionHandlingWebHandler]
+Original Stack Trace:
+Caused by: java.net.ConnectException: Connection refused: getsockopt
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method) ~[na:na]
+	at java.base/sun.nio.ch.Net.pollConnectNow(Net.java:690) ~[na:na]
+	at java.base/sun.nio.ch.SocketChannelImpl.finishConnect(SocketChannelImpl.java:973) ~[na:na]
+	at io.netty.channel.socket.nio.NioSocketChannel.doFinishConnect(NioSocketChannel.java:336) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.finishConnect(AbstractNioChannel.java:339) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:784) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:732) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:658) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:562) ~[netty-transport-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:998) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.128.Final.jar:4.1.128.Final]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+2026-06-16T09:57:39.676+08:00  INFO 29968 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:02:39.655+08:00  INFO 29968 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:07:39.633+08:00  INFO 29968 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:12:39.613+08:00  INFO 29968 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:17:39.603+08:00  INFO 29968 --- [wms-gateway] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration

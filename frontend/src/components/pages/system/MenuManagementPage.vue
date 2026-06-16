@@ -1,3 +1,4 @@
+<!-- 本文件实现 MenuManagementPage 页面组件。 -->
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import type { FlatMenu, PageModel } from '../../../types/app'

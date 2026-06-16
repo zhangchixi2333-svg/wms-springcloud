@@ -1,4 +1,5 @@
-﻿<script setup lang="ts">
+<!-- 本文件实现 PartnersPage 页面组件。 -->
+<script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import WorkModePage from '../../shared/WorkModePage.vue'
 import type { PageModel } from '../../../types/app'

@@ -1,3 +1,4 @@
+<!-- 本文件实现 QrCodeImage 共享组件。 -->
 <script setup lang="ts">
 import QRCode from 'qrcode'
 import { onMounted, ref, watch } from 'vue'
