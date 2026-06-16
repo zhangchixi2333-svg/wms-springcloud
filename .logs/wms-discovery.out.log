@@ -156,3 +156,6 @@
 2026-06-16T10:48:29.293+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 3ms
 2026-06-16T10:49:29.294+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 3ms
 2026-06-16T10:50:29.298+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 2ms
+2026-06-16T10:51:29.300+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 7ms
+2026-06-16T10:52:29.300+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 1ms
+2026-06-16T10:53:29.310+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 12ms
