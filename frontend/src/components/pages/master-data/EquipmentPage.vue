@@ -1,6 +1,7 @@
 <!-- 本文件实现 EquipmentPage 页面组件。 -->
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import { formatEquipmentType, formatStatus } from '../../../app/displayText'
 import { warehouseOptions, zoneOptions } from '../../../app/optionHelpers'
 import WorkModePage from '../../shared/WorkModePage.vue'
 import type { PageModel } from '../../../types/app'
@@ -85,8 +86,8 @@ async function submit() {
           </select>
           <select v-model="filters.status">
             <option value="">全部状态</option>
-            <option value="ENABLED">ENABLED</option>
-            <option value="DISABLED">DISABLED</option>
+            <option value="ENABLED">启用</option>
+            <option value="DISABLED">停用</option>
           </select>
           <button class="secondary-button" @click="resetFilters">重置筛选</button>
         </div>
@@ -110,12 +111,12 @@ async function submit() {
             <tr v-for="item in rows" :key="item.id">
               <td>{{ item.equipmentCode }}</td>
               <td>{{ item.equipmentName }}</td>
-              <td>{{ item.equipmentType }}</td>
+              <td>{{ formatEquipmentType(item.equipmentType) }}</td>
               <td>{{ item.equipmentModel }}</td>
               <td>{{ item.capacity }}</td>
               <td>{{ item.warehouseName || '-' }}</td>
               <td>{{ item.zoneName || '-' }}</td>
-              <td>{{ item.status }}</td>
+              <td>{{ formatStatus(item.status) }}</td>
             </tr>
           </tbody>
         </table>
@@ -147,8 +148,8 @@ async function submit() {
           </option>
         </select>
         <select v-model="form.status">
-          <option value="ENABLED">ENABLED</option>
-          <option value="DISABLED">DISABLED</option>
+          <option value="ENABLED">启用</option>
+          <option value="DISABLED">停用</option>
         </select>
       </div>
       <div class="footer-actions">

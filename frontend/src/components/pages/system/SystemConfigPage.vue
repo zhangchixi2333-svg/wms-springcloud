@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '../../../api/wms'
+import { formatStatus } from '../../../app/displayText'
 import type { ConfigItem, PageModel } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel; moduleKey: string }>()
@@ -84,8 +85,8 @@ watch(() => props.moduleKey, loadRows)
         <input v-model="form.itemCode" :placeholder="meta.code" />
         <input v-model="form.itemName" :placeholder="meta.name" />
         <select v-model="form.status">
-          <option value="ENABLED">ENABLED</option>
-          <option value="DISABLED">DISABLED</option>
+          <option value="ENABLED">启用</option>
+          <option value="DISABLED">停用</option>
         </select>
         <input v-model="form.remark" placeholder="备注 / 参数值" />
       </div>
@@ -114,7 +115,7 @@ watch(() => props.moduleKey, loadRows)
           <tr v-for="item in filteredRows" :key="item.id">
             <td class="mono">{{ item.itemCode }}</td>
             <td>{{ item.itemName }}</td>
-            <td>{{ item.status }}</td>
+            <td>{{ formatStatus(item.status) }}</td>
             <td>{{ item.remark }}</td>
             <td>{{ new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
             <td><button class="danger-button" @click="remove(item.id)">删除</button></td>

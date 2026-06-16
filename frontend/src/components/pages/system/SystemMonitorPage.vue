@@ -1,6 +1,7 @@
 <!-- 本文件实现 SystemMonitorPage 页面组件。 -->
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatBusinessType, formatStatus } from '../../../app/displayText'
 import type { PageModel } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
@@ -49,7 +50,7 @@ const statusRows = computed(() => {
         </thead>
         <tbody>
           <tr v-for="row in statusRows" :key="row.status">
-            <td>{{ row.status }}</td>
+            <td>{{ formatStatus(row.status) }}</td>
             <td>{{ row.count }}</td>
           </tr>
         </tbody>
@@ -76,7 +77,7 @@ const statusRows = computed(() => {
         <tbody>
           <tr v-for="row in model.state.transactions.slice(0, 10)" :key="row.id">
             <td class="mono">{{ row.transactionNo }}</td>
-            <td>{{ row.businessType }}</td>
+            <td>{{ formatBusinessType(row.businessType) }}</td>
             <td class="mono">{{ row.barcode }}</td>
             <td :class="{ inbound: Number(row.qtyChange) > 0, outbound: Number(row.qtyChange) < 0 }">{{ row.qtyChange }}</td>
             <td>{{ new Date(row.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>

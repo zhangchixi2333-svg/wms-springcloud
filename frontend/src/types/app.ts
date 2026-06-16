@@ -78,7 +78,7 @@ export type Part = {
   unit: string;
   supplierId: number | null;
   defaultEquipmentCode: string | null;
-  defaultPackageCapacity: number | null;
+  defaultUnitPerBox: number | null;
 }
 
 export type Equipment = {
@@ -113,7 +113,7 @@ export type InboundOrderItem = {
   boxCount: number;
   pendingRepack: boolean;
   equipmentCode: string;
-  packageCapacity: number;
+  unitPerBox: number;
   warehouseZone: string;
 }
 
@@ -155,6 +155,9 @@ export type Kanban = {
   kanbanNo: string;
   barcode: string;
   qrContent: string;
+  parentKanbanId: number | null;
+  parentKanban: boolean;
+  boxIndex: number;
   inboundNo: string;
   outboundNo: string;
   partCode: string;
@@ -168,7 +171,7 @@ export type Kanban = {
   pendingRepack: boolean;
   equipmentCode: string;
   equipmentModel: string;
-  packageCapacity: number;
+  unitPerBox: number;
   warehouseName: string;
   zoneName: string;
   status: string;
@@ -176,6 +179,7 @@ export type Kanban = {
   createdAt: string;
   inboundTime: string | null;
   outboundTime: string | null;
+  children: Kanban[];
 }
 
 export type InventoryRow = {
@@ -227,7 +231,7 @@ export type InboundDraftItem = {
   boxCount: number;
   pendingRepack: boolean;
   equipmentCode: string;
-  packageCapacity: number;
+  unitPerBox: number;
   warehouseZone: string;
 }
 
@@ -281,7 +285,7 @@ export type AppActions = {
     unit: string;
     supplierId?: number | null;
     defaultEquipmentCode?: string | null;
-    defaultPackageCapacity?: number | null;
+    defaultUnitPerBox?: number | null;
   }) => Promise<void>;
   createEquipment: (payload: {
     equipmentCode: string

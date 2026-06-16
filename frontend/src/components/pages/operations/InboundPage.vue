@@ -1,6 +1,7 @@
-<!-- 本文件实现入库工作台，支持批量选件、批量打印、模拟扫码和连续扫码入库。 -->
+<!-- 本文件实现入库工作台，支持批量选件、父子看板打印，以及按数量和箱数自动计算每箱数量后扫码入库。 -->
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { formatStatus } from '../../../app/displayText'
 import { equipmentCodeOptions, warehouseZoneOptions } from '../../../app/optionHelpers'
 import QrCodeImage from '../../shared/QrCodeImage.vue'
 import WorkModePage from '../../shared/WorkModePage.vue'
@@ -11,6 +12,7 @@ const props = defineProps<{ model: PageModel }>()
 const mode = ref<'query' | 'edit' | 'print' | 'scan'>('query')
 const printOrders = ref<InboundOrder[]>([])
 const selectedOrderIds = reactive<Record<number, boolean>>({})
+const expandedParents = reactive<Record<number, boolean>>({})
 const scanInputRef = ref<HTMLInputElement | null>(null)
 
 const filters = reactive({
@@ -25,7 +27,7 @@ const form = reactive({
 })
 
 const batchSelection = reactive<Record<number, boolean>>({})
-const batchDraft = reactive<Record<number, { plannedQty: number; boxCount: number; pendingRepack: boolean; equipmentCode: string; packageCapacity: number; warehouseZone: string }>>({})
+const batchDraft = reactive<Record<number, { plannedQty: number; boxCount: number; pendingRepack: boolean; equipmentCode: string; warehouseZone: string }>>({})
 
 const printedInboundScanForm = reactive({
   barcode: '',
@@ -59,14 +61,21 @@ const filteredOrders = computed(() =>
 const selectedOrderCount = computed(() => filteredOrders.value.filter((item) => selectedOrderIds[item.id]).length)
 const canBatchPrint = computed(() => selectedOrderCount.value > 0)
 
+function calculateUnitPerBox(plannedQty: number, boxCount: number) {
+  if (!plannedQty || !boxCount || plannedQty <= 0 || boxCount <= 0) return 0
+  return Number((plannedQty / boxCount).toFixed(3))
+}
+
 function createDraftItem(part?: Part): InboundDraftItem {
+  const plannedQty = part?.defaultUnitPerBox ?? 1
+  const boxCount = 1
   return {
     partId: part?.id ?? 0,
-    plannedQty: 1,
-    boxCount: 1,
+    plannedQty,
+    boxCount,
     pendingRepack: false,
     equipmentCode: part?.defaultEquipmentCode ?? '',
-    packageCapacity: part?.defaultPackageCapacity ?? 1,
+    unitPerBox: calculateUnitPerBox(plannedQty, boxCount),
     warehouseZone: '',
   }
 }
@@ -74,15 +83,27 @@ function createDraftItem(part?: Part): InboundDraftItem {
 function ensureBatchDraft(part: Part) {
   if (!batchDraft[part.id]) {
     batchDraft[part.id] = {
-      plannedQty: 1,
+      plannedQty: part.defaultUnitPerBox ?? 1,
       boxCount: 1,
       pendingRepack: false,
       equipmentCode: part.defaultEquipmentCode ?? '',
-      packageCapacity: part.defaultPackageCapacity ?? 1,
       warehouseZone: '',
     }
   }
   return batchDraft[part.id]
+}
+
+function batchUnitPerBox(part: Part) {
+  const draft = ensureBatchDraft(part)
+  return calculateUnitPerBox(draft.plannedQty, draft.boxCount)
+}
+
+function itemUnitPerBox(item: InboundDraftItem) {
+  return calculateUnitPerBox(Number(item.plannedQty), Number(item.boxCount))
+}
+
+function syncItemUnitPerBox(item: InboundDraftItem) {
+  item.unitPerBox = itemUnitPerBox(item)
 }
 
 function addItem() {
@@ -150,7 +171,7 @@ function applyBatchParts() {
         boxCount: draft.boxCount,
         pendingRepack: draft.pendingRepack,
         equipmentCode: draft.equipmentCode,
-        packageCapacity: draft.packageCapacity,
+        unitPerBox: calculateUnitPerBox(draft.plannedQty, draft.boxCount),
         warehouseZone: draft.warehouseZone,
       })
     })
@@ -164,15 +185,20 @@ function handlePartChange(item: InboundDraftItem) {
   if (!item.equipmentCode) {
     item.equipmentCode = part.defaultEquipmentCode ?? ''
   }
-  if (!item.packageCapacity || item.packageCapacity <= 0) {
-    item.packageCapacity = part.defaultPackageCapacity ?? 1
+  if (!item.plannedQty || item.plannedQty <= 0) {
+    item.plannedQty = part.defaultUnitPerBox ?? 1
   }
+  if (!item.boxCount || item.boxCount <= 0) {
+    item.boxCount = 1
+  }
+  syncItemUnitPerBox(item)
 }
 
 async function submit() {
+  form.items.forEach(syncItemUnitPerBox)
   await props.model.actions.createInboundOrder({
     supplierId: form.supplierId,
-    items: form.items.filter((item) => item.partId > 0 && item.plannedQty > 0 && item.boxCount > 0 && item.warehouseZone),
+    items: form.items.filter((item) => item.partId > 0 && item.plannedQty > 0 && item.boxCount > 0 && item.unitPerBox > 0 && item.warehouseZone),
   })
   mode.value = 'query'
 }
@@ -181,8 +207,14 @@ function browserPrint() {
   window.print()
 }
 
-function kanbansForInbound(order: InboundOrder) {
-  return props.model.state.kanbans.filter((item) => item.inboundNo === order.inboundNo)
+function parentKanbansForInbound(order: InboundOrder) {
+  return props.model.state.kanbans
+    .filter((item) => item.inboundNo === order.inboundNo && item.parentKanban)
+    .sort((a, b) => a.kanbanNo.localeCompare(b.kanbanNo))
+}
+
+function toggleExpanded(kanbanId: number) {
+  expandedParents[kanbanId] = !expandedParents[kanbanId]
 }
 
 function normalizeScanCode(value: string) {
@@ -225,7 +257,7 @@ async function focusScanInput() {
 }
 
 function fillFirstInboundScanCode() {
-  const first = props.model.state.kanbans.find((item) => ['CREATED', 'WAIT_SCAN'].includes(item.status))?.qrContent
+  const first = props.model.state.kanbans.find((item) => item.parentKanban && ['CREATED', 'WAIT_SCAN', 'PARTIAL'].includes(item.status))?.qrContent
   if (first) {
     printedInboundScanForm.barcode = first
   }
@@ -244,7 +276,7 @@ async function submitPrintedInboundScan() {
   scanSuccessMap[successCode] = true
   printedInboundScanForm.barcode = ''
   printedInboundScanForm.locationCode = ''
-  scanMatchHint.value = '入库成功，已自动定位到下一次扫码'
+  scanMatchHint.value = '入库成功，已定位到下一次扫码。'
   await focusScanInput()
 }
 
@@ -255,22 +287,8 @@ async function simulateScanKanban(kanban: Kanban) {
 }
 
 async function submitInboundScanByEnter() {
-  if (!printedInboundScanForm.barcode) {
-    return
-  }
-  if (!printedInboundScanForm.locationCode) {
-    printedInboundScanForm.locationCode = findPlannedLocationCode(printedInboundScanForm.barcode)
-  }
-  if (!printedInboundScanForm.locationCode) {
-    await focusScanInput()
-    return
-  }
+  if (!printedInboundScanForm.barcode) return
   await submitPrintedInboundScan()
-}
-
-function isKanbanScanSuccess(kanban: Kanban) {
-  const latest = props.model.state.kanbans.find((item) => item.id === kanban.id)
-  return Boolean(scanSuccessMap[kanban.qrContent] || scanSuccessMap[kanban.barcode] || latest?.status === 'INBOUND')
 }
 
 watch(mode, async (value) => {
@@ -296,28 +314,26 @@ watch(
   <WorkModePage
     v-model="mode"
     :modes="workModes"
-    hint="默认先查询；创建、打印和扫码入库共用统一工作台，也支持打印页直接模拟扫码入库。"
+    hint="入库单生成父看板和箱级子看板；数量和箱数会自动计算每箱数量。"
     @select="handleModeSelect"
   >
     <section v-if="mode === 'query'" class="stack">
       <section class="panel">
         <div class="section-head">
           <div>
-            <h3>入库单查询</h3>
-            <p>支持按状态、供应商和入库单号查询；创建入库单后系统会自动生成看板。</p>
+            <h3>入库筛选</h3>
+            <p>可先查询入库单，再选择打印或直接进入扫码入库。</p>
           </div>
           <div class="action-row">
-            <button class="secondary-button" @click="toggleSelectAllOrders(true)">全选当前结果</button>
-            <button class="secondary-button" @click="toggleSelectAllOrders(false)">取消全选</button>
-            <button @click="openBatchPrint" :disabled="!canBatchPrint">批量打印 {{ selectedOrderCount }}</button>
+            <button :disabled="!canBatchPrint" @click="openBatchPrint">批量打印</button>
           </div>
         </div>
-        <div class="form-grid filters-grid">
+        <div class="form-grid four">
           <select v-model="filters.status">
             <option value="">全部状态</option>
-            <option value="CREATED">CREATED</option>
-            <option value="PARTIAL">PARTIAL</option>
-            <option value="COMPLETED">COMPLETED</option>
+            <option value="CREATED">{{ formatStatus('CREATED') }}</option>
+            <option value="PARTIAL">{{ formatStatus('PARTIAL') }}</option>
+            <option value="COMPLETED">{{ formatStatus('COMPLETED') }}</option>
           </select>
           <select v-model.number="filters.supplierId">
             <option :value="0">全部供应商</option>
@@ -325,7 +341,7 @@ watch(
               {{ item.supplierCode }} | {{ item.supplierName }}
             </option>
           </select>
-          <input v-model="filters.inboundNo" placeholder="输入入库单号筛选" />
+          <input v-model="filters.inboundNo" placeholder="入库单号" />
           <button class="secondary-button" @click="resetFilters">重置筛选</button>
         </div>
       </section>
@@ -334,11 +350,11 @@ watch(
         <table class="table">
           <thead>
             <tr>
-              <th>选择</th>
+              <th><input type="checkbox" :checked="selectedOrderCount === filteredOrders.length && filteredOrders.length > 0" @change="toggleSelectAllOrders(($event.target as HTMLInputElement).checked)" /></th>
               <th>入库单号</th>
               <th>供应商</th>
               <th>状态</th>
-              <th>明细摘要</th>
+              <th>明细数</th>
               <th>创建时间</th>
               <th>操作</th>
             </tr>
@@ -348,17 +364,11 @@ watch(
               <td><input v-model="selectedOrderIds[order.id]" type="checkbox" /></td>
               <td>{{ order.inboundNo }}</td>
               <td>{{ order.supplierName }}</td>
-              <td>{{ order.status }}</td>
-              <td>
-                <span v-for="detail in order.items" :key="detail.id" class="inline-tag">
-                  {{ detail.partCode }} / 计划 {{ detail.plannedQty }} / 已收 {{ detail.receivedQty }} / {{ detail.warehouseZone }}
-                </span>
-              </td>
+              <td>{{ formatStatus(order.status) }}</td>
+              <td>{{ order.items.length }}</td>
               <td>{{ new Date(order.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
-              <td>
-                <div class="action-row">
-                  <button class="secondary-button" @click="openPrint(order)">打印</button>
-                </div>
+              <td class="action-row">
+                <button class="secondary-button" @click="openPrint(order)">打印</button>
               </td>
             </tr>
           </tbody>
@@ -371,68 +381,62 @@ watch(
         <div class="section-head">
           <div>
             <h3>创建入库单</h3>
-            <p>先选择供应商，再批量勾选该供应商的零件带入明细；保存后系统会自动生成看板并进入后续扫码流程。</p>
+            <p>保存后会按箱数自动生成父子看板，每箱数量由数量和箱数自动计算。</p>
           </div>
         </div>
-
-        <div class="form-grid two">
+        <div class="form-grid three">
           <select v-model.number="form.supplierId">
-            <option :value="0" disabled>选择供应商</option>
+            <option :value="0">选择供应商</option>
             <option v-for="item in model.state.suppliers" :key="item.id" :value="item.id">
               {{ item.supplierCode }} | {{ item.supplierName }}
             </option>
           </select>
-          <div class="action-row">
-            <button class="secondary-button" @click="addItem">手工新增明细</button>
-            <button class="secondary-button" @click="applyBatchParts" :disabled="!Object.values(batchSelection).some(Boolean)">批量加入明细</button>
-          </div>
         </div>
       </section>
 
       <section class="panel">
         <div class="section-head">
           <div>
-            <h3>供应商零件批量选择</h3>
-            <p>适合一次选择同一供应商下多种零件后批量生成入库明细。</p>
+            <h3>供应商零件批量加入</h3>
+            <p>批量选件后会自动计算每箱数量，并带出默认器具编码。</p>
+          </div>
+          <div class="action-row">
+            <button class="secondary-button" @click="applyBatchParts">加入选中零件</button>
           </div>
         </div>
         <table class="table">
           <thead>
             <tr>
               <th>选择</th>
-              <th>零件编码</th>
-              <th>零件名称</th>
-              <th>单位</th>
+              <th>零件</th>
               <th>计划数量</th>
               <th>箱数</th>
-              <th>默认器具编码</th>
-              <th>包装容量</th>
-              <th>仓库/库区</th>
-              <th>待转包</th>
+              <th>每箱数量</th>
+              <th>器具编码</th>
+              <th>目标仓区</th>
+              <th>转包</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="part in supplierParts" :key="part.id">
               <td><input v-model="batchSelection[part.id]" type="checkbox" /></td>
-              <td>{{ part.partCode }}</td>
-              <td>{{ part.partName }}</td>
-              <td>{{ part.unit }}</td>
-              <td><input v-model.number="ensureBatchDraft(part).plannedQty" type="number" min="1" /></td>
-              <td><input v-model.number="ensureBatchDraft(part).boxCount" type="number" min="1" /></td>
+              <td>{{ part.partCode }} | {{ part.partName }}</td>
+              <td><input v-model.number="ensureBatchDraft(part).plannedQty" type="number" min="0.001" step="0.001" /></td>
+              <td><input v-model.number="ensureBatchDraft(part).boxCount" type="number" min="1" step="1" /></td>
+              <td><input :value="batchUnitPerBox(part)" type="number" readonly /></td>
               <td>
                 <select v-model="ensureBatchDraft(part).equipmentCode">
-                  <option value="">选择器具编码</option>
-                  <option v-for="equipment in inboundEquipmentOptions" :key="equipment.value" :value="equipment.value">
-                    {{ equipment.label }}
+                  <option value="">选择器具</option>
+                  <option v-for="item in inboundEquipmentOptions" :key="item.value" :value="item.value">
+                    {{ item.label }}
                   </option>
                 </select>
               </td>
-              <td><input v-model.number="ensureBatchDraft(part).packageCapacity" type="number" min="0.001" step="0.001" /></td>
               <td>
                 <select v-model="ensureBatchDraft(part).warehouseZone">
-                  <option value="">选择仓库/库区</option>
-                  <option v-for="zone in inboundWarehouseZoneOptions" :key="zone.value" :value="zone.value">
-                    {{ zone.label }}
+                  <option value="">选择仓区</option>
+                  <option v-for="item in inboundWarehouseZoneOptions" :key="item.value" :value="item.value">
+                    {{ item.label }}
                   </option>
                 </select>
               </td>
@@ -446,133 +450,41 @@ watch(
         <div class="section-head">
           <div>
             <h3>入库明细</h3>
-            <p>可以继续手工补充或修正批量带入的明细。</p>
+          </div>
+          <div class="action-row">
+            <button class="secondary-button" @click="addItem">新增一行</button>
           </div>
         </div>
-
-        <div v-for="(item, index) in form.items" :key="index" class="detail-card">
-          <div class="detail-grid">
+        <div class="detail-stack">
+          <div v-for="(item, index) in form.items" :key="`${item.partId}-${index}`" class="detail-row">
             <select v-model.number="item.partId" @change="handlePartChange(item)">
-              <option :value="0" disabled>选择零件</option>
-              <option v-for="part in model.state.parts.filter((candidate) => !form.supplierId || candidate.supplierId === form.supplierId)" :key="part.id" :value="part.id">
-                {{ part.partCode }} | {{ part.partName }} | {{ part.unit }}
+              <option :value="0">选择零件</option>
+              <option v-for="part in supplierParts" :key="part.id" :value="part.id">
+                {{ part.partCode }} | {{ part.partName }}
               </option>
             </select>
-            <input v-model.number="item.plannedQty" type="number" min="1" placeholder="入库数量" />
-            <input v-model.number="item.boxCount" type="number" min="1" placeholder="箱数" />
+            <input v-model.number="item.plannedQty" type="number" min="0.001" step="0.001" placeholder="计划数量" @input="syncItemUnitPerBox(item)" />
+            <input v-model.number="item.boxCount" type="number" min="1" step="1" placeholder="箱数" @input="syncItemUnitPerBox(item)" />
+            <input :value="itemUnitPerBox(item)" type="number" readonly placeholder="每箱数量自动计算" />
             <select v-model="item.equipmentCode">
-              <option value="">选择器具编码</option>
-              <option v-for="equipment in inboundEquipmentOptions" :key="equipment.value" :value="equipment.value">
-                {{ equipment.label }}
+              <option value="">选择器具</option>
+              <option v-for="opt in inboundEquipmentOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
               </option>
             </select>
-            <input v-model.number="item.packageCapacity" type="number" min="0.001" step="0.001" placeholder="包装容量" />
             <select v-model="item.warehouseZone">
-              <option value="">选择仓库/库区</option>
-              <option v-for="zone in inboundWarehouseZoneOptions" :key="zone.value" :value="zone.value">
-                {{ zone.label }}
+              <option value="">选择仓区</option>
+              <option v-for="opt in inboundWarehouseZoneOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
               </option>
             </select>
-            <label class="checkbox-line">
-              <input v-model="item.pendingRepack" type="checkbox" />
-              <span>待转包</span>
-            </label>
+            <label class="checkbox-line"><input v-model="item.pendingRepack" type="checkbox" /> 转包</label>
             <button class="secondary-button" @click="removeItem(index)">删除</button>
           </div>
         </div>
-
         <div class="footer-actions">
           <button @click="submit">保存入库单</button>
           <button class="secondary-button" @click="mode = 'query'">返回查询</button>
-        </div>
-      </section>
-    </section>
-
-    <section v-else-if="mode === 'print'" class="stack">
-      <section class="panel">
-        <div class="section-head">
-          <div>
-            <h3>入库打印与模拟扫码</h3>
-            <p>支持一次批量打印多个订单，打印页紧凑排版；点击模拟扫码标志后，页面会自动识别并直接入库。</p>
-          </div>
-          <div class="action-row">
-            <button @click="browserPrint">浏览器打印</button>
-            <button class="secondary-button" @click="mode = 'query'">返回查询</button>
-          </div>
-        </div>
-
-        <div class="scan-toolbar">
-          <input
-            ref="scanInputRef"
-            v-model="printedInboundScanForm.barcode"
-            class="scan-toolbar-input"
-            placeholder="浏览器模拟扫码：输入二维码内容或条码后回车"
-            @keydown.enter.prevent="submitInboundScanByEnter"
-          />
-          <select v-model="printedInboundScanForm.locationCode">
-            <option value="">自动匹配入库库位</option>
-            <option v-for="location in model.state.locations" :key="location.id" :value="location.locationCode">
-              {{ location.locationCode }} | {{ location.warehouseName }} / {{ location.zoneName }}
-            </option>
-          </select>
-          <button @click="submitPrintedInboundScan">确认入库</button>
-          <button class="secondary-button" @click="fillFirstInboundScanCode">模拟扫码填充</button>
-        </div>
-        <p v-if="scanMatchHint" class="scan-hint">{{ scanMatchHint }}</p>
-
-        <div class="print-batch-columns">
-          <article v-for="order in printOrders" :key="order.id" class="print-card">
-            <header class="print-card-header">
-              <div>
-                <h2>WMS 入库单</h2>
-                <p>{{ order.inboundNo }}</p>
-              </div>
-              <div class="print-card-meta">
-                <p>{{ order.supplierName }}</p>
-                <p>{{ order.status }}</p>
-              </div>
-            </header>
-
-            <table class="table compact-table">
-              <thead>
-                <tr>
-                  <th>零件</th>
-                  <th>数量</th>
-                  <th>箱数</th>
-                  <th>器具</th>
-                  <th>仓库/库区</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in order.items" :key="item.id">
-                  <td>{{ item.partCode }}</td>
-                  <td>{{ item.plannedQty }}</td>
-                  <td>{{ item.boxCount }}</td>
-                  <td>{{ item.equipmentCode || '-' }}</td>
-                  <td>{{ item.warehouseZone }}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="kanban-compact-list">
-              <section v-for="kanban in kanbansForInbound(order)" :key="kanban.id" class="kanban-compact-card">
-                <div class="kanban-compact-top">
-                  <QrCodeImage :text="kanban.qrContent" :size="84" />
-                  <div class="kanban-compact-info">
-                    <strong>{{ kanban.kanbanNo }}</strong>
-                    <p class="mono">{{ kanban.barcode }}</p>
-                    <p>{{ kanban.partCode }} | {{ kanban.qty }}</p>
-                    <p>{{ kanban.warehouseName }} / {{ kanban.zoneName }}</p>
-                  </div>
-                </div>
-                <div class="kanban-compact-actions">
-                  <button class="secondary-button" @click="simulateScanKanban(kanban)">模拟扫码</button>
-                  <span v-if="isKanbanScanSuccess(kanban)" class="scan-success-badge">入库成功</span>
-                  <span v-else class="scan-pending-badge">待入库</span>
-                </div>
-              </section>
-            </div>
-          </article>
         </div>
       </section>
     </section>
@@ -581,7 +493,7 @@ watch(
       <div class="section-head">
         <div>
           <h3>扫码入库</h3>
-          <p>支持扫描枪直接输入二维码内容或条码并回车提交，成功后自动清空并重新聚焦，适合连续扫码。</p>
+          <p>浏览器中可直接输入二维码内容模拟扫码，扫父看板会自动把全部箱级子看板一起入库。</p>
         </div>
       </div>
       <div class="scan-action-layout">
@@ -593,7 +505,7 @@ watch(
             @keydown.enter.prevent="submitInboundScanByEnter"
           />
           <select v-model="printedInboundScanForm.locationCode">
-            <option value="">自动匹配入库库位</option>
+            <option value="">自动匹配目标库位</option>
             <option v-for="location in model.state.locations" :key="location.id" :value="location.locationCode">
               {{ location.locationCode }} | {{ location.warehouseName }} / {{ location.zoneName }}
             </option>
@@ -602,7 +514,7 @@ watch(
         </div>
         <p v-if="scanMatchHint" class="scan-hint">{{ scanMatchHint }}</p>
         <div class="scan-assist-row two-col">
-          <button class="secondary-button" @click="fillFirstInboundScanCode">模拟扫码填充</button>
+          <button class="secondary-button" @click="fillFirstInboundScanCode">填充首个待入库父看板</button>
         </div>
         <div v-if="printedInboundScanForm.barcode" class="scan-qr-preview">
           <QrCodeImage :text="printedInboundScanForm.barcode" :size="160" />
@@ -610,41 +522,116 @@ watch(
         </div>
       </div>
     </section>
+
+    <section v-else class="panel print-panel">
+      <div class="section-head print-toolbar">
+        <div>
+          <h3>入库打印</h3>
+          <p>每条入库明细会生成一个父看板和若干箱级子看板，打印后可直接扫码入库。</p>
+        </div>
+        <div class="action-row">
+          <button @click="browserPrint">浏览器打印</button>
+          <button class="secondary-button" @click="mode = 'query'">返回查询</button>
+        </div>
+      </div>
+
+      <section class="panel compact-scan-panel">
+        <div class="form-grid three">
+          <input
+            ref="scanInputRef"
+            v-model="printedInboundScanForm.barcode"
+            placeholder="打印后可在这里模拟扫码入库"
+            @keydown.enter.prevent="submitInboundScanByEnter"
+          />
+          <select v-model="printedInboundScanForm.locationCode">
+            <option value="">自动匹配目标库位</option>
+            <option v-for="location in model.state.locations" :key="location.id" :value="location.locationCode">
+              {{ location.locationCode }} | {{ location.warehouseName }} / {{ location.zoneName }}
+            </option>
+          </select>
+          <button @click="submitPrintedInboundScan">执行入库</button>
+        </div>
+        <p v-if="scanMatchHint" class="scan-hint">{{ scanMatchHint }}</p>
+      </section>
+
+      <div class="print-grid">
+        <article v-for="order in printOrders" :key="order.id" class="print-order-card">
+          <header class="order-header">
+            <div>
+              <h4>{{ order.inboundNo }}</h4>
+              <p>{{ order.supplierName }} | {{ formatStatus(order.status) }}</p>
+            </div>
+          </header>
+
+          <div v-for="kanban in parentKanbansForInbound(order)" :key="kanban.id" class="kanban-card">
+            <div class="kanban-main">
+              <div class="kanban-meta">
+                <strong>{{ kanban.kanbanNo }}</strong>
+                <span>{{ kanban.partCode }} | {{ kanban.partName }}</span>
+                <span>箱数 {{ kanban.boxCount }} / 每箱 {{ kanban.unitPerBox }}</span>
+                <span>{{ kanban.warehouseName }} / {{ kanban.zoneName }}</span>
+                <span>状态 {{ formatStatus(kanban.status) }}</span>
+              </div>
+              <div class="kanban-code">
+                <QrCodeImage :text="kanban.qrContent" :size="120" />
+                <p class="mono">{{ kanban.barcode }}</p>
+              </div>
+            </div>
+            <div class="kanban-actions">
+              <button class="secondary-button" @click="toggleExpanded(kanban.id)">
+                {{ expandedParents[kanban.id] ? '收起子看板' : `展开子看板(${kanban.children.length})` }}
+              </button>
+              <button :class="{ success: scanSuccessMap[kanban.qrContent || kanban.barcode] }" @click="simulateScanKanban(kanban)">
+                {{ scanSuccessMap[kanban.qrContent || kanban.barcode] ? '已成功入库' : '模拟扫码入库' }}
+              </button>
+            </div>
+            <div v-if="expandedParents[kanban.id]" class="child-grid">
+              <div v-for="child in kanban.children" :key="child.id" class="child-card">
+                <QrCodeImage :text="child.qrContent" :size="92" />
+                <div class="child-meta">
+                  <strong>{{ child.kanbanNo }}</strong>
+                  <span>第 {{ child.boxIndex }} 箱</span>
+                  <span>数量 {{ child.qty }}</span>
+                  <span>{{ formatStatus(child.status) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
   </WorkModePage>
 </template>
 
 <style scoped>
-.filters-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.detail-stack,
+.print-grid,
+.child-grid {
+  display: grid;
+  gap: 12px;
 }
 
-.detail-grid {
+.detail-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 12px;
+  align-items: center;
 }
 
 .checkbox-line {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 42px;
+  gap: 6px;
 }
 
-.checkbox-line input {
-  width: 18px;
-  min-height: 18px;
-}
-
-.scan-toolbar {
+.scan-assist-row {
   display: grid;
-  grid-template-columns: minmax(240px, 1.4fr) minmax(220px, 1fr) auto auto;
   gap: 12px;
-  align-items: center;
+  margin-top: 12px;
 }
 
-.scan-toolbar-input {
-  min-width: 0;
+.two-col {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .scan-hint {
@@ -652,143 +639,58 @@ watch(
   color: var(--text-secondary);
 }
 
-.print-batch-columns {
-  column-count: 2;
-  column-gap: 16px;
-  margin-top: 16px;
+.print-grid {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
-.print-card {
-  break-inside: avoid;
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  margin-bottom: 16px;
-  border: 1px solid var(--border-color);
-  background: var(--panel-bg);
-}
-
-.print-card-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.print-card-header h2,
-.print-card-header p,
-.print-card-meta p {
-  margin: 0;
-}
-
-.compact-table th,
-.compact-table td {
-  padding: 6px 8px;
-  font-size: 12px;
-}
-
-.kanban-compact-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.kanban-compact-card {
-  display: grid;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.kanban-compact-top {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  gap: 10px;
+.child-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   align-items: start;
 }
 
-.kanban-compact-info {
+.print-order-card,
+.kanban-card,
+.child-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.kanban-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 12px;
+}
+
+.kanban-meta,
+.child-meta,
+.order-header {
   display: grid;
   gap: 4px;
 }
 
-.kanban-compact-info p,
-.kanban-compact-info strong {
-  margin: 0;
+.kanban-code,
+.child-card {
+  justify-items: center;
 }
 
-.kanban-compact-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.child-card {
+  min-height: 180px;
+  align-content: start;
+  text-align: center;
 }
 
-.scan-success-badge,
-.scan-pending-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--border-color);
-  font-size: 12px;
+button.success {
+  background: #16a34a;
 }
 
-.scan-success-badge {
-  color: #0f7b3e;
-  border-color: #0f7b3e;
-}
-
-.scan-pending-badge {
-  color: var(--text-secondary);
-}
-
-.scan-assist-row {
-  display: grid;
-  margin-top: 12px;
-  gap: 12px;
-}
-
-.two-col {
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-@media (max-width: 1180px) {
-  .filters-grid,
-  .detail-grid,
-  .two-col,
-  .scan-toolbar,
-  .kanban-compact-list {
+@media (max-width: 1100px) {
+  .detail-row {
     grid-template-columns: 1fr;
   }
 
-  .print-batch-columns {
-    column-count: 1;
-  }
-
-  .print-card-header,
-  .kanban-compact-top {
+  .kanban-main {
     grid-template-columns: 1fr;
-  }
-}
-
-@media print {
-  .print-batch-columns {
-    column-count: 2;
-    column-gap: 12px;
-  }
-
-  .print-card {
-    padding: 8px;
-    margin-bottom: 12px;
-    box-shadow: none;
-  }
-
-  .kanban-compact-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .kanban-compact-actions button {
-    display: none;
   }
 }
 </style>

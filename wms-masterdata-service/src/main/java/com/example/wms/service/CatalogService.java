@@ -51,7 +51,7 @@ public class CatalogService {
 
     public SupplierView createSupplier(SupplierRequest request) {
         supplierRepository.findBySupplierCode(request.supplierCode()).ifPresent(existing -> {
-            throw new BusinessException("Supplier code already exists");
+            throw new BusinessException("????????");
         });
         Supplier supplier = new Supplier();
         supplier.setSupplierCode(request.supplierCode());
@@ -65,7 +65,7 @@ public class CatalogService {
 
     public CustomerView createCustomer(CustomerRequest request) {
         customerRepository.findByCustomerCode(request.customerCode()).ifPresent(existing -> {
-            throw new BusinessException("Customer code already exists");
+            throw new BusinessException("???????");
         });
         Customer customer = new Customer();
         customer.setCustomerCode(request.customerCode());
@@ -79,7 +79,7 @@ public class CatalogService {
 
     public EquipmentView createEquipment(EquipmentRequest request) {
         equipmentRepository.findByEquipmentCode(request.equipmentCode()).ifPresent(existing -> {
-            throw new BusinessException("Equipment code already exists");
+            throw new BusinessException("???????");
         });
         Equipment equipment = new Equipment();
         equipment.setEquipmentCode(request.equipmentCode());
@@ -99,15 +99,15 @@ public class CatalogService {
 
     public PartView createPart(PartRequest request) {
         partRepository.findByPartCode(request.partCode()).ifPresent(existing -> {
-            throw new BusinessException("Part code already exists");
+            throw new BusinessException("???????");
         });
         if (request.supplierId() != null) {
             supplierRepository.findById(request.supplierId())
-                    .orElseThrow(() -> new BusinessException("Supplier not found"));
+                    .orElseThrow(() -> new BusinessException("??????"));
         }
         if (request.defaultEquipmentCode() != null && !request.defaultEquipmentCode().isBlank()) {
             equipmentRepository.findByEquipmentCode(request.defaultEquipmentCode())
-                    .orElseThrow(() -> new BusinessException("Default equipment code not found"));
+                    .orElseThrow(() -> new BusinessException("?????????"));
         }
         Part part = new Part();
         part.setPartCode(request.partCode());
@@ -115,7 +115,7 @@ public class CatalogService {
         part.setUnit(request.unit());
         part.setSupplierId(request.supplierId());
         part.setDefaultEquipmentCode(blankToNull(request.defaultEquipmentCode()));
-        part.setDefaultPackageCapacity(request.defaultPackageCapacity());
+        part.setDefaultPackageCapacity(request.defaultUnitPerBox());
         return toView(partRepository.save(part));
     }
 
@@ -125,7 +125,7 @@ public class CatalogService {
 
     public LocationView createLocation(LocationRequest request) {
         locationRepository.findByLocationCode(request.locationCode()).ifPresent(existing -> {
-            throw new BusinessException("Location code already exists");
+            throw new BusinessException("???????");
         });
         Location location = new Location();
         location.setLocationCode(request.locationCode());
@@ -191,7 +191,7 @@ public class CatalogService {
         }
         String normalized = value.trim().toUpperCase();
         if (!List.of("OWN", "THIRD_PARTY").contains(normalized)) {
-            throw new BusinessException("Warehouse type must be OWN or THIRD_PARTY");
+            throw new BusinessException("??????? OWN ? THIRD_PARTY");
         }
         return normalized;
     }

@@ -95,10 +95,24 @@
 2026-06-16T10:06:52.918+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
 2026-06-16T10:11:52.906+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
 2026-06-16T10:16:52.893+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
-]
-[ERROR] 
-[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
-[ERROR] Re-run Maven using the -X switch to enable full debug logging.
-[ERROR] 
-[ERROR] For more information about the errors and possible solutions, please read the following articles:
-[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException
+2026-06-16T10:21:52.887+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:26:52.873+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:31:52.865+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:36:52.855+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:41:52.845+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:46:52.848+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:51:52.846+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T10:56:52.841+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:01:52.834+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:06:52.843+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:11:52.840+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:16:52.836+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:21:52.841+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:26:52.849+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:31:52.849+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:36:52.850+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:41:52.854+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:46:52.857+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:51:52.861+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T11:56:52.862+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration
+2026-06-16T12:01:52.864+08:00  INFO 44980 --- [wms-business-service] [rap-executor-%d] c.n.d.s.r.aws.ConfigClusterResolver      : Resolving eureka endpoints via configuration

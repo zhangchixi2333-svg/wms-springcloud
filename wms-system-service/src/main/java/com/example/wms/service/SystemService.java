@@ -68,9 +68,9 @@ public class SystemService {
 
     public AuthSessionView login(LoginRequest request) {
         AppUser user = appUserRepository.findByUsername(request.username())
-                .orElseThrow(() -> new BusinessException("Username or password is incorrect"));
+                .orElseThrow(() -> new BusinessException("????????"));
         if (!hashPassword(request.password()).equals(user.getPasswordHash())) {
-            throw new BusinessException("Username or password is incorrect");
+            throw new BusinessException("????????");
         }
         user.setAuthToken(UUID.randomUUID().toString().replace("-", ""));
         user = appUserRepository.save(user);
@@ -79,11 +79,11 @@ public class SystemService {
 
     public AuthSessionView register(RegisterRequest request) {
         appUserRepository.findByUsername(request.username()).ifPresent(existing -> {
-            throw new BusinessException("Username already exists");
+            throw new BusinessException("??????");
         });
         String roleName = normalizeRole(request.roleName(), "WAREHOUSE_OPERATOR");
         if ("SUPER_ADMIN".equals(roleName)) {
-            throw new BusinessException("Super admin cannot be self-registered");
+            throw new BusinessException("????????????");
         }
         AppUser user = new AppUser();
         user.setUsername(request.username());
@@ -114,7 +114,7 @@ public class SystemService {
     public UserView createUser(UserSaveRequest request) {
         requireAdmin();
         appUserRepository.findByUsername(request.username()).ifPresent(existing -> {
-            throw new BusinessException("Username already exists");
+            throw new BusinessException("??????");
         });
         AppUser user = new AppUser();
         user.setUsername(request.username());
@@ -125,10 +125,10 @@ public class SystemService {
     public UserView updateUser(Long id, UserSaveRequest request) {
         requireAdmin();
         AppUser user = appUserRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+                .orElseThrow(() -> new NotFoundException("?????"));
         appUserRepository.findByUsername(request.username()).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
-                throw new BusinessException("Username already exists");
+                throw new BusinessException("??????");
             }
         });
         user.setUsername(request.username());
@@ -140,10 +140,10 @@ public class SystemService {
         requireAdmin();
         AppUser currentUser = AuthContext.getUser();
         if (currentUser.getId().equals(id)) {
-            throw new BusinessException("Current user cannot be deleted");
+            throw new BusinessException("??????????");
         }
         if (!appUserRepository.existsById(id)) {
-            throw new NotFoundException("User not found");
+            throw new NotFoundException("?????");
         }
         appUserRepository.deleteById(id);
     }
@@ -157,7 +157,7 @@ public class SystemService {
         requireAdmin();
         String roleCode = normalizeCode(request.roleCode());
         appRoleRepository.findByRoleCode(roleCode).ifPresent(existing -> {
-            throw new BusinessException("Role code already exists");
+            throw new BusinessException("???????");
         });
         AppRole role = new AppRole();
         role.setRoleCode(roleCode);
@@ -170,11 +170,11 @@ public class SystemService {
     public RoleView updateRole(Long id, RoleSaveRequest request) {
         requireAdmin();
         AppRole role = appRoleRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Role not found"));
+                .orElseThrow(() -> new NotFoundException("?????"));
         String roleCode = normalizeCode(request.roleCode());
         appRoleRepository.findByRoleCode(roleCode).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
-                throw new BusinessException("Role code already exists");
+                throw new BusinessException("???????");
             }
         });
         String oldCode = role.getRoleCode();
@@ -202,12 +202,12 @@ public class SystemService {
     public void deleteRole(Long id) {
         requireAdmin();
         AppRole role = appRoleRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Role not found"));
+                .orElseThrow(() -> new NotFoundException("?????"));
         if ("SUPER_ADMIN".equals(role.getRoleCode())) {
-            throw new BusinessException("Built-in super admin role cannot be deleted");
+            throw new BusinessException("?????????????");
         }
         if (appUserRepository.countByRoleName(role.getRoleCode()) > 0) {
-            throw new BusinessException("Role is used by users");
+            throw new BusinessException("??????????????");
         }
         roleMenuRepository.deleteByRoleCode(role.getRoleCode());
         appRoleRepository.deleteById(id);
@@ -216,7 +216,7 @@ public class SystemService {
     public RoleView assignRoleMenus(String roleCode, RoleMenuAssignRequest request) {
         requireAdmin();
         AppRole role = appRoleRepository.findByRoleCode(normalizeCode(roleCode))
-                .orElseThrow(() -> new NotFoundException("Role not found"));
+                .orElseThrow(() -> new NotFoundException("?????"));
         saveRoleMenus(role.getRoleCode(), request.menuIds());
         return toRoleView(role);
     }
@@ -268,7 +268,7 @@ public class SystemService {
     public MenuView createMenu(MenuSaveRequest request) {
         requireAdmin();
         menuItemRepository.findByMenuKey(request.menuKey()).ifPresent(existing -> {
-            throw new BusinessException("Menu key already exists");
+            throw new BusinessException("???????");
         });
         MenuItem menu = menuItemRepository.save(fromRequest(new MenuItem(), request));
         grantMenuToAdmins(menu.getId());
@@ -278,10 +278,10 @@ public class SystemService {
     public MenuView updateMenu(Long id, MenuSaveRequest request) {
         requireAdmin();
         MenuItem menuItem = menuItemRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Menu not found"));
+                .orElseThrow(() -> new NotFoundException("?????"));
         menuItemRepository.findByMenuKey(request.menuKey()).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
-                throw new BusinessException("Menu key already exists");
+                throw new BusinessException("???????");
             }
         });
         return toView(menuItemRepository.save(fromRequest(menuItem, request)));
@@ -291,7 +291,7 @@ public class SystemService {
         requireAdmin();
         boolean hasChildren = menuItemRepository.findAll().stream().anyMatch(item -> id.equals(item.getParentId()));
         if (hasChildren) {
-            throw new BusinessException("Please delete child menus first");
+            throw new BusinessException("???????");
         }
         roleMenuRepository.deleteByMenuId(id);
         menuItemRepository.deleteById(id);

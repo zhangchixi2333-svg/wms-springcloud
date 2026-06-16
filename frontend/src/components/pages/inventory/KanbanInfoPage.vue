@@ -1,7 +1,7 @@
-<!-- 本文件实现看板生命周期查询与浏览器模拟扫码入库页面。 -->
+<!-- 本文件实现看板生命周期查询与打印，支持父子看板展开查看以及浏览器模拟扫码入库。 -->
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { kanbanScanOptions } from '../../../app/optionHelpers'
+import { formatStatus } from '../../../app/displayText'
 import QrCodeImage from '../../shared/QrCodeImage.vue'
 import WorkModePage from '../../shared/WorkModePage.vue'
 import type { Kanban, PageModel } from '../../../types/app'
@@ -15,6 +15,7 @@ const scanForm = reactive({
 })
 
 const scanMatchHint = ref('')
+const expandedParents = reactive<Record<number, boolean>>({})
 
 const filters = reactive({
   status: '',
@@ -27,39 +28,36 @@ const filters = reactive({
 
 const viewMode = ref<'query' | 'print'>('query')
 const selectedKanban = ref<Kanban | null>(null)
-const inboundKanbanOptions = computed(() => kanbanScanOptions(props.model.state.kanbans, ['CREATED', 'WAIT_SCAN']))
 const workModes = computed(() => [
   { key: 'query', label: '查看看板' },
-  { key: 'print', label: '打印单', disabled: !selectedKanban.value },
+  { key: 'print', label: '打印看板', disabled: !selectedKanban.value },
 ])
 
 const statusOptions = [
-  { value: '', label: '全部' },
-  { value: 'NOT_INBOUND', label: '未入库' },
-  { value: 'WAIT_SCAN', label: '待扫描' },
-  { value: 'INBOUND', label: '已入库' },
-  { value: 'OUTBOUND', label: '已出库' },
-  { value: 'FROZEN', label: '封存' },
-  { value: 'REPACK_OUTBOUND', label: '转包出库' },
-  { value: 'REPACK_INBOUND', label: '转包入库' },
-  { value: 'RETURNED', label: '已退库' },
-  { value: 'VOID', label: '已作废' },
+  { value: '', label: '????' },
+  { value: 'CREATED', label: formatStatus('CREATED') },
+  { value: 'WAIT_SCAN', label: formatStatus('WAIT_SCAN') },
+  { value: 'PARTIAL', label: formatStatus('PARTIAL') },
+  { value: 'INBOUND', label: formatStatus('INBOUND') },
+  { value: 'OUTBOUND', label: formatStatus('OUTBOUND') },
+  { value: 'FROZEN', label: formatStatus('FROZEN') },
+  { value: 'REPACK_OUTBOUND', label: formatStatus('REPACK_OUTBOUND') },
+  { value: 'REPACK_INBOUND', label: formatStatus('REPACK_INBOUND') },
+  { value: 'RETURNED', label: formatStatus('RETURNED') },
+  { value: 'VOID', label: formatStatus('VOID') },
 ]
-
 const filteredRows = computed(() =>
-  props.model.state.kanbans.filter((item) => {
-    const statusMatch =
-      !filters.status ||
-      (filters.status === 'NOT_INBOUND'
-        ? item.status === 'WAIT_SCAN' || (!item.inboundTime && item.status !== 'INBOUND')
-        : item.status === filters.status)
-    const inboundMatch = !filters.inboundNo || item.inboundNo.toLowerCase().includes(filters.inboundNo.toLowerCase())
-    const outboundMatch = !filters.outboundNo || item.outboundNo.toLowerCase().includes(filters.outboundNo.toLowerCase())
-    const kanbanMatch = !filters.kanbanNo || item.kanbanNo.toLowerCase().includes(filters.kanbanNo.toLowerCase())
-    const supplierMatch = !filters.supplierId || item.supplierId === filters.supplierId
-    const partMatch = !filters.partCode || item.partCode.toLowerCase().includes(filters.partCode.toLowerCase())
-    return statusMatch && inboundMatch && outboundMatch && kanbanMatch && supplierMatch && partMatch
-  }),
+  props.model.state.kanbans
+    .filter((item) => item.parentKanban)
+    .filter((item) => {
+      const statusMatch = !filters.status || item.status === filters.status
+      const inboundMatch = !filters.inboundNo || item.inboundNo.toLowerCase().includes(filters.inboundNo.toLowerCase())
+      const outboundMatch = !filters.outboundNo || item.outboundNo.toLowerCase().includes(filters.outboundNo.toLowerCase())
+      const kanbanMatch = !filters.kanbanNo || item.kanbanNo.toLowerCase().includes(filters.kanbanNo.toLowerCase())
+      const supplierMatch = !filters.supplierId || item.supplierId === filters.supplierId
+      const partMatch = !filters.partCode || item.partCode.toLowerCase().includes(filters.partCode.toLowerCase())
+      return statusMatch && inboundMatch && outboundMatch && kanbanMatch && supplierMatch && partMatch
+    }),
 )
 
 function normalizeScanCode(value: string) {
@@ -88,7 +86,7 @@ function findPlannedLocationCode(scanCode: string) {
     (item) => item.warehouseName === kanban.warehouseName && item.zoneName === kanban.zoneName,
   )
   if (!location) {
-    scanMatchHint.value = `已识别看板 ${kanban.kanbanNo}，但未找到 ${kanban.warehouseName} / ${kanban.zoneName} 对应库位`
+    scanMatchHint.value = `已识别看板 ${kanban.kanbanNo}，但未找到规划库位`
     return ''
   }
   scanMatchHint.value = `已识别看板 ${kanban.kanbanNo}，自动匹配库位 ${location.locationCode}`
@@ -99,13 +97,6 @@ async function focusScanInput() {
   await nextTick()
   scanInputRef.value?.focus()
   scanInputRef.value?.select()
-}
-
-function fillFirstKanbanScanCode() {
-  const first = inboundKanbanOptions.value[0]?.value
-  if (first) {
-    scanForm.barcode = first
-  }
 }
 
 async function submitScan() {
@@ -119,20 +110,12 @@ async function submitScan() {
   await props.model.actions.scanInbound(scanForm)
   scanForm.barcode = ''
   scanForm.locationCode = ''
-  scanMatchHint.value = '入库成功，已自动定位到下一次扫码'
+  scanMatchHint.value = '入库成功，父看板会联动子看板状态。'
   await focusScanInput()
 }
 
 async function submitScanByEnter() {
-  if (!scanForm.barcode) {
-    return
-  }
-  if (!scanForm.locationCode) {
-    scanForm.locationCode = findPlannedLocationCode(scanForm.barcode)
-  }
-  if (!scanForm.locationCode) {
-    return
-  }
+  if (!scanForm.barcode) return
   await submitScan()
 }
 
@@ -154,24 +137,12 @@ function browserPrint() {
   window.print()
 }
 
-function showStatus(status: string) {
-  return (
-    {
-      CREATED: '未入库',
-      WAIT_SCAN: '待扫描',
-      INBOUND: '已入库',
-      OUTBOUND: '已出库',
-      FROZEN: '封存',
-      REPACK_OUTBOUND: '转包出库',
-      REPACK_INBOUND: '转包入库',
-      RETURNED: '已退库',
-      VOID: '已作废',
-    }[status] ?? status
-  )
-}
-
 function formatTime(value: string | null) {
   return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
+}
+
+function toggleExpanded(kanbanId: number) {
+  expandedParents[kanbanId] = !expandedParents[kanbanId]
 }
 
 watch(
@@ -203,7 +174,7 @@ watch(
       <div class="section-head">
         <div>
           <h3>扫码入库</h3>
-          <p>浏览器里可以直接用“输入二维码内容或条码 + 回车”模拟扫码枪，成功后自动回到扫码框。</p>
+          <p>浏览器里可直接录入二维码内容或条码回车模拟扫码枪，父看板入库时会自动带上全部子箱。</p>
         </div>
       </div>
       <div class="scan-action-layout">
@@ -223,15 +194,6 @@ watch(
           <button @click="submitScan">确认入库</button>
         </div>
         <p v-if="scanMatchHint" class="scan-hint">{{ scanMatchHint }}</p>
-        <div class="scan-assist-row two-col">
-          <select v-model="scanForm.barcode">
-            <option value="">辅助选择看板条码 / 二维码</option>
-            <option v-for="item in inboundKanbanOptions" :key="item.value" :value="item.value">
-              {{ item.label }}
-            </option>
-          </select>
-          <button class="secondary-button" @click="fillFirstKanbanScanCode">模拟扫码填充</button>
-        </div>
         <div v-if="scanForm.barcode" class="scan-qr-preview">
           <QrCodeImage :text="scanForm.barcode" :size="160" />
           <p class="mono">{{ scanForm.barcode }}</p>
@@ -242,14 +204,14 @@ watch(
     <WorkModePage
       v-model="viewMode"
       :modes="workModes"
-      hint="二维码内容与条码保持一一对应，方便打印、扫码、追溯和浏览器模拟测试。"
+      hint="查询时按父看板展示，可展开查看每个箱级子看板；打印时同时渲染父看板和全部子看板。"
     >
       <section v-if="viewMode === 'query'" class="stack">
         <section class="panel">
           <div class="section-head">
             <div>
               <h3>看板筛选</h3>
-              <p>按状态、入库单、出库单、看板号、供应商和零件号追踪每张看板的生命周期。</p>
+              <p>按状态、入库单、出库单、看板号、供应商与零件号追踪父子看板生命周期。</p>
             </div>
           </div>
           <div class="form-grid six">
@@ -284,33 +246,49 @@ watch(
                 <th>零件号</th>
                 <th>供应商</th>
                 <th>状态</th>
-                <th>数量</th>
-                <th>仓库</th>
-                <th>库区</th>
-                <th>器具型号</th>
-                <th>是否转包</th>
-                <th>创建/入库时间</th>
+                <th>总数量</th>
+                <th>箱数</th>
+                <th>仓库 / 库区</th>
+                <th>器具</th>
+                <th>时间</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in filteredRows" :key="item.id">
-                <td>{{ item.kanbanNo }}</td>
-                <td>{{ item.inboundNo }}</td>
-                <td>{{ item.outboundNo || '-' }}</td>
-                <td>{{ item.partCode }}</td>
-                <td>{{ item.supplierName }}</td>
-                <td>{{ showStatus(item.status) }}</td>
-                <td>{{ item.qty }}</td>
-                <td>{{ item.warehouseName }}</td>
-                <td>{{ item.zoneName }}</td>
-                <td>{{ item.equipmentModel || item.equipmentCode || '-' }}</td>
-                <td>{{ item.pendingRepack ? '是' : '否' }}</td>
-                <td>{{ formatTime(item.inboundTime || item.createdAt) }}</td>
-                <td>
-                  <button class="secondary-button" @click="openPrint(item)">打印</button>
-                </td>
-              </tr>
+              <template v-for="item in filteredRows" :key="item.id">
+                <tr>
+                  <td>{{ item.kanbanNo }}</td>
+                  <td>{{ item.inboundNo }}</td>
+                  <td>{{ item.outboundNo || '-' }}</td>
+                  <td>{{ item.partCode }}</td>
+                  <td>{{ item.supplierName }}</td>
+                  <td>{{ formatStatus(item.status) }}</td>
+                  <td>{{ item.qty }}</td>
+                  <td>{{ item.boxCount }}</td>
+                  <td>{{ item.warehouseName }} / {{ item.zoneName }}</td>
+                  <td>{{ item.equipmentModel || item.equipmentCode || '-' }}</td>
+                  <td>{{ formatTime(item.inboundTime || item.createdAt) }}</td>
+                  <td class="action-row">
+                    <button class="secondary-button" @click="toggleExpanded(item.id)">
+                      {{ expandedParents[item.id] ? '收起' : `展开(${item.children.length})` }}
+                    </button>
+                    <button class="secondary-button" @click="openPrint(item)">打印</button>
+                  </td>
+                </tr>
+                <tr v-if="expandedParents[item.id]">
+                  <td colspan="12">
+                    <div class="child-grid">
+                      <div v-for="child in item.children" :key="child.id" class="child-row">
+                        <strong>{{ child.kanbanNo }}</strong>
+                        <span>第 {{ child.boxIndex }} 箱</span>
+                        <span>数量 {{ child.qty }}</span>
+                        <span>状态 {{ formatStatus(child.status) }}</span>
+                        <span>条码 {{ child.barcode }}</span>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </section>
@@ -319,8 +297,8 @@ watch(
       <section v-else-if="selectedKanban" class="panel">
         <div class="section-head">
           <div>
-            <h3>看板打印单</h3>
-            <p>打印页同时展示条码、二维码和完整生命周期字段。</p>
+            <h3>看板打印</h3>
+            <p>打印页同时展示父看板详情、二维码和所有箱级子看板。</p>
           </div>
           <div class="action-row">
             <button @click="browserPrint">浏览器打印</button>
@@ -341,14 +319,14 @@ watch(
                 <tr><th>零件名称</th><td>{{ selectedKanban.partName }}</td></tr>
                 <tr><th>单位</th><td>{{ selectedKanban.unit }}</td></tr>
                 <tr><th>批次</th><td>{{ selectedKanban.batchNo }}</td></tr>
-                <tr><th>数量</th><td>{{ selectedKanban.qty }}</td></tr>
+                <tr><th>总数量</th><td>{{ selectedKanban.qty }}</td></tr>
                 <tr><th>箱数</th><td>{{ selectedKanban.boxCount }}</td></tr>
+                <tr><th>每箱数量</th><td>{{ selectedKanban.unitPerBox }}</td></tr>
                 <tr><th>是否转包</th><td>{{ selectedKanban.pendingRepack ? '是' : '否' }}</td></tr>
                 <tr><th>器具编码</th><td>{{ selectedKanban.equipmentCode || '-' }}</td></tr>
                 <tr><th>器具型号</th><td>{{ selectedKanban.equipmentModel || '-' }}</td></tr>
-                <tr><th>包装容量</th><td>{{ selectedKanban.packageCapacity }}</td></tr>
                 <tr><th>仓库 / 库区</th><td>{{ selectedKanban.warehouseName }} / {{ selectedKanban.zoneName }}</td></tr>
-                <tr><th>状态</th><td>{{ showStatus(selectedKanban.status) }}</td></tr>
+                <tr><th>状态</th><td>{{ formatStatus(selectedKanban.status) }}</td></tr>
                 <tr><th>库位</th><td>{{ selectedKanban.locationCode }}</td></tr>
                 <tr><th>创建时间</th><td>{{ formatTime(selectedKanban.createdAt) }}</td></tr>
                 <tr><th>入库时间</th><td>{{ formatTime(selectedKanban.inboundTime) }}</td></tr>
@@ -359,6 +337,17 @@ watch(
           <div class="print-right">
             <QrCodeImage :text="selectedKanban.qrContent" :size="220" />
             <p class="mono qr-text">{{ selectedKanban.qrContent }}</p>
+          </div>
+        </div>
+
+        <div class="child-grid print-child-grid">
+          <div v-for="child in selectedKanban.children" :key="child.id" class="child-card">
+            <QrCodeImage :text="child.qrContent" :size="108" />
+            <strong>{{ child.kanbanNo }}</strong>
+            <span>第 {{ child.boxIndex }} 箱</span>
+            <span>数量 {{ child.qty }}</span>
+            <span>状态 {{ formatStatus(child.status) }}</span>
+            <span class="mono">{{ child.barcode }}</span>
           </div>
         </div>
       </section>
@@ -374,30 +363,15 @@ watch(
   margin-top: 12px;
 }
 
-.scan-assist-row {
-  display: grid;
-  margin-top: 12px;
-  gap: 12px;
-}
-
 .scan-hint {
   margin: 8px 0 0;
   color: var(--text-secondary);
-}
-
-.two-col {
-  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .kanban-print {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) 280px;
   gap: 24px;
-}
-
-.print-left h2,
-.print-left p {
-  margin: 0 0 8px;
 }
 
 .print-detail-table th {
@@ -417,9 +391,34 @@ watch(
   text-align: center;
 }
 
+.child-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.child-row,
+.child-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.child-row {
+  min-height: 116px;
+  align-content: start;
+}
+
+.print-child-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 16px;
+}
+
 @media (max-width: 1100px) {
-  .kanban-print,
-  .two-col {
+  .kanban-print {
     grid-template-columns: 1fr;
   }
 }

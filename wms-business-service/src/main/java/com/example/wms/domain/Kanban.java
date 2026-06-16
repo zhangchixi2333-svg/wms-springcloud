@@ -1,5 +1,5 @@
 /**
- * 本文件定义 Kanban 持久化实体。
+ * 本文件定义看板实体，支持父看板与箱级子看板的层级关系。
  */
 package com.example.wms.domain;
 
@@ -30,6 +30,14 @@ public class Kanban {
 
     @Column(nullable = false)
     private Long inboundOrderItemId;
+
+    private Long parentKanbanId;
+
+    @Column(nullable = false)
+    private boolean parentKanban;
+
+    @Column(nullable = false)
+    private Integer boxIndex;
 
     @Column(nullable = false)
     private Long partId;
@@ -103,6 +111,30 @@ public class Kanban {
 
     public void setInboundOrderItemId(Long inboundOrderItemId) {
         this.inboundOrderItemId = inboundOrderItemId;
+    }
+
+    public Long getParentKanbanId() {
+        return parentKanbanId;
+    }
+
+    public void setParentKanbanId(Long parentKanbanId) {
+        this.parentKanbanId = parentKanbanId;
+    }
+
+    public boolean isParentKanban() {
+        return parentKanban;
+    }
+
+    public void setParentKanban(boolean parentKanban) {
+        this.parentKanban = parentKanban;
+    }
+
+    public Integer getBoxIndex() {
+        return boxIndex;
+    }
+
+    public void setBoxIndex(Integer boxIndex) {
+        this.boxIndex = boxIndex;
     }
 
     public Long getPartId() {

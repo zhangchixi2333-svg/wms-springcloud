@@ -102,7 +102,7 @@ export const api = {
     unit: string
     supplierId?: number | null
     defaultEquipmentCode?: string | null
-    defaultPackageCapacity?: number | null
+    defaultUnitPerBox?: number | null
   }) =>
     request<Part>('/parts', { method: 'POST', body: JSON.stringify(payload) }),
 
@@ -196,6 +196,14 @@ export const api = {
     status: string
     remark: string
   }) => request<ConfigItem>('/config-items', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateConfigItem: (id: number, payload: {
+    moduleKey: string
+    itemCode: string
+    itemName: string
+    status: string
+    remark: string
+  }) => request<ConfigItem>(`/config-items/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
 
   deleteConfigItem: (id: number) => request<void>(`/config-items/${id}`, { method: 'DELETE' }),
 }

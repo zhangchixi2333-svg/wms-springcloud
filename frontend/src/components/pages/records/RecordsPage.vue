@@ -1,6 +1,7 @@
 <!-- 本文件实现出入库流水历史页，支持按业务类型、单号、条码、零件和库位过滤。 -->
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
+import { formatBusinessType } from '../../../app/displayText'
 import type { PageModel } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
@@ -47,7 +48,7 @@ function resetFilters() {
       <div class="form-grid five">
         <select v-model="filters.businessType">
           <option value="">全部业务类型</option>
-          <option v-for="item in businessTypes" :key="item" :value="item">{{ item }}</option>
+          <option v-for="item in businessTypes" :key="item" :value="item">{{ formatBusinessType(item) }}</option>
         </select>
         <input v-model="filters.businessNo" placeholder="业务单号 / 看板号" />
         <input v-model="filters.barcode" placeholder="条码 / 二维码内容" />
@@ -77,7 +78,7 @@ function resetFilters() {
         <tbody>
           <tr v-for="row in rows" :key="row.id">
             <td class="mono">{{ row.transactionNo }}</td>
-            <td>{{ row.businessType }}</td>
+            <td>{{ formatBusinessType(row.businessType) }}</td>
             <td>{{ row.businessNo }}</td>
             <td class="mono">{{ row.barcode }}</td>
             <td>{{ row.partCode }}</td>

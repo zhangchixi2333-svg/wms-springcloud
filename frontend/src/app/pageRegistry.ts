@@ -8,6 +8,7 @@ import InventoryOpsPage from '../components/pages/operations/InventoryOpsPage.vu
 import InventoryBoardPage from '../components/pages/inventory/InventoryBoardPage.vue'
 import KanbanInfoPage from '../components/pages/inventory/KanbanInfoPage.vue'
 import MenuManagementPage from '../components/pages/system/MenuManagementPage.vue'
+import MobileScanPage from '../components/pages/operations/MobileScanPage.vue'
 import OutboundPage from '../components/pages/operations/OutboundPage.vue'
 import PartnersPage from '../components/pages/partners/PartnersPage.vue'
 import PartsPage from '../components/pages/master-data/PartsPage.vue'
@@ -53,6 +54,8 @@ export function resolvePage(tab: WorkspaceTab | undefined, flatMenus: FlatMenu[]
       return { component: RoleManagementPage, props: { model } }
     case 'outbound':
       return { component: OutboundPage, props: { model } }
+    case 'mobileScan':
+      return { component: MobileScanPage, props: { model } }
     case 'equipmentNormal':
       return { component: EquipmentPage, props: { model, mode: 'normal' } }
     case 'equipmentRepack':
@@ -76,6 +79,9 @@ export function resolvePage(tab: WorkspaceTab | undefined, flatMenus: FlatMenu[]
       const menu = flatMenuMap.get(tab?.menuKey ?? '')
       if (pageKey === 'inboundScan') {
         return { component: KanbanInfoPage, props: { model, mode: 'inbound-scan' } }
+      }
+      if (pageKey === 'mobileScan') {
+        return { component: MobileScanPage, props: { model } }
       }
       return {
         component: PlaceholderPage,

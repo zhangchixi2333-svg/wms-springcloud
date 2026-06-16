@@ -1,5 +1,5 @@
 /**
- * 本文件定义 InboundOrderItem 持久化实体。
+ * 本文件定义入库明细实体，按“总数量 + 箱数 + 每箱数量”组织入库数据。
  */
 package com.example.wms.domain;
 
@@ -36,8 +36,8 @@ public class InboundOrderItem {
     @Column(length = 64)
     private String equipmentCode;
 
-    @Column(precision = 18, scale = 3)
-    private BigDecimal packageCapacity;
+    @Column(name = "unit_per_box", precision = 18, scale = 3)
+    private BigDecimal unitPerBox;
 
     @Column(length = 128)
     private String warehouseZone;
@@ -102,12 +102,12 @@ public class InboundOrderItem {
         this.equipmentCode = equipmentCode;
     }
 
-    public BigDecimal getPackageCapacity() {
-        return packageCapacity;
+    public BigDecimal getUnitPerBox() {
+        return unitPerBox;
     }
 
-    public void setPackageCapacity(BigDecimal packageCapacity) {
-        this.packageCapacity = packageCapacity;
+    public void setUnitPerBox(BigDecimal unitPerBox) {
+        this.unitPerBox = unitPerBox;
     }
 
     public String getWarehouseZone() {

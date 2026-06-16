@@ -1,16 +1,18 @@
-<!-- 本文件实现出库工作台，支持出库单创建、打印和连续扫码出库。 -->
+<!-- 本文件实现出库工作台，支持先建出库单、绑定入库来源、按父子看板扫码出库。 -->
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { kanbanScanOptions, warehouseOptions, zoneOptions } from '../../../app/optionHelpers'
+import { formatStatus } from '../../../app/displayText'
+import { warehouseOptions, zoneOptions } from '../../../app/optionHelpers'
 import QrCodeImage from '../../shared/QrCodeImage.vue'
 import WorkModePage from '../../shared/WorkModePage.vue'
-import type { OutboundDraftItem, OutboundOrder, PageModel } from '../../../types/app'
+import type { Kanban, OutboundDraftItem, OutboundOrder, PageModel } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
 
 const viewMode = ref<'query' | 'create' | 'manual' | 'print' | 'scan'>('query')
 const printOrder = ref<OutboundOrder | null>(null)
 const scanInputRef = ref<HTMLInputElement | null>(null)
+const expandedParents = reactive<Record<number, boolean>>({})
 
 const filters = reactive({
   status: '',
@@ -42,7 +44,6 @@ const form = reactive({
 
 const activeScanOrder = computed(() => props.model.state.outboundOrders.find((order) => order.outboundNo === scanForm.outboundOrderNo) ?? null)
 const outboundOrderOptions = computed(() => props.model.state.outboundOrders.filter((order) => order.status !== 'COMPLETED'))
-const outboundKanbanOptions = computed(() => (activeScanOrder.value ? outboundScanOptionsForOrder(activeScanOrder.value) : []))
 const outboundWarehouseOptions = computed(() => warehouseOptions(props.model.state.locations))
 const workModes = computed(() => [
   { key: 'query', label: '查看出库' },
@@ -115,7 +116,7 @@ function browserPrint() {
 }
 
 function sourceText(order: OutboundOrder) {
-  return order.inboundOrderNos.length ? order.inboundOrderNos.join('、') : '-'
+  return order.inboundOrderNos.length ? order.inboundOrderNos.join('，') : '-'
 }
 
 function inboundOrderLabel(inboundNo: string) {
@@ -127,16 +128,19 @@ function handleScanOrderChange() {
   scanForm.barcode = ''
 }
 
-function kanbansForOutbound(order: OutboundOrder) {
-  return props.model.state.kanbans.filter((item) => item.outboundNo === order.outboundNo)
+function parentKanbansForOutbound(order: OutboundOrder) {
+  const partCodes = new Set(order.items.map((item) => item.partCode))
+  const inboundNos = new Set(order.inboundOrderNos)
+  return props.model.state.kanbans
+    .filter((item) => item.parentKanban && item.status === 'INBOUND' && partCodes.has(item.partCode) && inboundNos.has(item.inboundNo))
+    .sort((a, b) => (a.inboundTime ?? a.createdAt).localeCompare(b.inboundTime ?? b.createdAt))
 }
 
 function outboundScanOptionsForOrder(order: OutboundOrder) {
-  const partCodes = new Set(order.items.map((item) => item.partCode))
-  const inboundNos = new Set(order.inboundOrderNos)
-  return kanbanScanOptions(
-    props.model.state.kanbans.filter((item) => item.status === 'INBOUND' && partCodes.has(item.partCode) && inboundNos.has(item.inboundNo)),
-  )
+  return parentKanbansForOutbound(order).map((item) => ({
+    label: `${item.kanbanNo} | ${item.partCode} | ${item.barcode}`,
+    value: item.qrContent || item.barcode,
+  }))
 }
 
 async function focusScanInput() {
@@ -146,7 +150,7 @@ async function focusScanInput() {
 }
 
 function fillFirstOutboundScanCode() {
-  const first = outboundKanbanOptions.value[0]?.value
+  const first = activeScanOrder.value ? outboundScanOptionsForOrder(activeScanOrder.value)[0]?.value : ''
   if (first) {
     scanForm.barcode = first
   }
@@ -159,9 +163,7 @@ async function submitScan() {
 }
 
 async function submitScanByEnter() {
-  if (!scanForm.barcode || !scanForm.outboundOrderNo) {
-    return
-  }
+  if (!scanForm.barcode || !scanForm.outboundOrderNo) return
   await submitScan()
 }
 
@@ -194,9 +196,17 @@ async function submitPrintedOutboundScan() {
 }
 
 async function submitPrintedOutboundScanByEnter() {
-  if (!printedOutboundScanForm.barcode || !printOrder.value) {
-    return
-  }
+  if (!printedOutboundScanForm.barcode || !printOrder.value) return
+  await submitPrintedOutboundScan()
+}
+
+function toggleExpanded(kanbanId: number) {
+  expandedParents[kanbanId] = !expandedParents[kanbanId]
+}
+
+async function simulatePrintScan(kanban: Kanban) {
+  if (!printOrder.value) return
+  printedOutboundScanForm.barcode = kanban.qrContent || kanban.barcode
   await submitPrintedOutboundScan()
 }
 
@@ -211,7 +221,7 @@ watch(viewMode, async (value) => {
   <WorkModePage
     v-model="viewMode"
     :modes="workModes"
-    hint="默认先查询；创建、打印、扫码出库和手工入账共用统一工作台，也支持连续扫码。"
+    hint="出库必须绑定唯一出库单；出库单可绑定一个或多个入库单来源，扫码时默认优先父看板整批处理。"
     @select="handleModeSelect"
   >
     <section v-if="viewMode === 'query'" class="stack">
@@ -219,15 +229,15 @@ watch(viewMode, async (value) => {
         <div class="section-head">
           <div>
             <h3>出库筛选</h3>
-            <p>先按条件找到唯一出库单，再执行扫码出库或打印追踪。</p>
+            <p>先定位唯一出库单，再进行扫码出库或打印追踪。</p>
           </div>
         </div>
         <div class="form-grid four">
           <select v-model="filters.status">
             <option value="">全部状态</option>
-            <option value="CREATED">CREATED</option>
-            <option value="PARTIAL">PARTIAL</option>
-            <option value="COMPLETED">COMPLETED</option>
+            <option value="CREATED">{{ formatStatus('CREATED') }}</option>
+            <option value="PARTIAL">{{ formatStatus('PARTIAL') }}</option>
+            <option value="COMPLETED">{{ formatStatus('COMPLETED') }}</option>
           </select>
           <select v-model.number="filters.customerId">
             <option :value="0">全部客户</option>
@@ -258,12 +268,8 @@ watch(viewMode, async (value) => {
               <td>{{ order.outboundNo }}</td>
               <td>{{ order.customerName }}</td>
               <td class="source-cell">{{ sourceText(order) }}</td>
-              <td>{{ order.status }}</td>
-              <td>
-                <span v-for="detail in order.items" :key="detail.id" class="inline-tag">
-                  {{ detail.partCode }} / 计划 {{ detail.plannedQty }} / 已扫 {{ detail.scannedQty }} / {{ detail.warehouseName }}-{{ detail.zoneName }}
-                </span>
-              </td>
+              <td>{{ formatStatus(order.status) }}</td>
+              <td>{{ order.items.length }} 条</td>
               <td>{{ new Date(order.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
               <td><button class="secondary-button" @click="openPrint(order)">打印</button></td>
             </tr>
@@ -276,104 +282,128 @@ watch(viewMode, async (value) => {
       <div class="section-head">
         <div>
           <h3>扫码出库</h3>
-          <p>先绑定唯一出库单，再扫描二维码内容或条码；回车即可直接执行出库，成功后自动回到扫码框。</p>
+          <p>先选出库单，再扫父看板或箱级子看板执行出库。父看板会联动处理全部子箱。</p>
         </div>
       </div>
-      <div class="scan-action-layout">
+      <div class="form-grid three">
+        <select v-model="scanForm.outboundOrderNo" @change="handleScanOrderChange">
+          <option value="">选择出库单</option>
+          <option v-for="order in outboundOrderOptions" :key="order.id" :value="order.outboundNo">
+            {{ order.outboundNo }} | 来源 {{ sourceText(order) }} | {{ formatStatus(order.status) }}
+          </option>
+        </select>
+        <input
+          ref="scanInputRef"
+          v-model="scanForm.barcode"
+          placeholder="扫描二维码内容或条码"
+          :disabled="!scanForm.outboundOrderNo"
+          @keydown.enter.prevent="submitScanByEnter"
+        />
+        <button :disabled="!scanForm.outboundOrderNo || !scanForm.barcode" @click="submitScan">确认出库</button>
+      </div>
+      <div class="scan-assist-row two-col">
+        <select v-model="scanForm.barcode" :disabled="!scanForm.outboundOrderNo">
+          <option value="">辅助选择待出库父看板</option>
+          <option v-for="item in activeScanOrder ? outboundScanOptionsForOrder(activeScanOrder) : []" :key="item.value" :value="item.value">
+            {{ item.label }}
+          </option>
+        </select>
+        <button class="secondary-button" :disabled="!scanForm.outboundOrderNo" @click="fillFirstOutboundScanCode">填充首个待出库码</button>
+      </div>
+    </section>
+
+    <section v-else-if="viewMode === 'create'" class="stack">
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <h3>创建出库单</h3>
+            <p>出库单可绑定一个或多个入库单来源，用于说明本次出库消耗了哪些入库批次。</p>
+          </div>
+        </div>
         <div class="form-grid three">
-          <select v-model="scanForm.outboundOrderNo" @change="handleScanOrderChange">
-            <option value="">选择出库单</option>
-            <option v-for="order in outboundOrderOptions" :key="order.id" :value="order.outboundNo">
-              {{ order.outboundNo }} | 来源 {{ sourceText(order) }} | {{ order.status }}
+          <select v-model.number="form.customerId">
+            <option :value="0">未绑定客户</option>
+            <option v-for="item in model.state.customers" :key="item.id" :value="item.id">
+              {{ item.customerCode }} | {{ item.customerName }}
             </option>
           </select>
-          <input
-            ref="scanInputRef"
-            v-model="scanForm.barcode"
-            :disabled="!scanForm.outboundOrderNo"
-            placeholder="扫描枪输入二维码内容或条码"
-            @keydown.enter.prevent="submitScanByEnter"
-          />
-          <button :disabled="!scanForm.outboundOrderNo || !scanForm.barcode" @click="submitScan">确认出库</button>
-        </div>
-        <div class="scan-assist-row two-col">
-          <select v-model="scanForm.barcode" :disabled="!scanForm.outboundOrderNo">
-            <option value="">辅助选择看板条码 / 二维码</option>
-            <option v-for="item in outboundKanbanOptions" :key="item.value" :value="item.value">
-              {{ item.label }}
+          <select v-model="form.inboundOrderNos" multiple>
+            <option v-for="item in model.state.inboundOrders" :key="item.id" :value="item.inboundNo">
+              {{ inboundOrderLabel(item.inboundNo) }}
             </option>
           </select>
-          <button class="secondary-button" :disabled="!scanForm.outboundOrderNo" @click="fillFirstOutboundScanCode">模拟扫码填充</button>
         </div>
-        <div v-if="scanForm.barcode" class="scan-qr-preview">
-          <QrCodeImage :text="scanForm.barcode" :size="160" />
-          <p class="mono">{{ scanForm.barcode }}</p>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div><h3>出库明细</h3></div>
+          <div class="action-row"><button class="secondary-button" @click="addItem">新增一行</button></div>
         </div>
-      </div>
+        <div class="detail-stack">
+          <div v-for="(item, index) in form.items" :key="index" class="detail-row">
+            <select v-model.number="item.partId">
+              <option :value="0">选择零件</option>
+              <option v-for="part in model.state.parts" :key="part.id" :value="part.id">
+                {{ part.partCode }} | {{ part.partName }}
+              </option>
+            </select>
+            <input v-model.number="item.plannedQty" type="number" min="0.001" step="0.001" placeholder="计划数量" />
+            <select v-model="item.warehouseName">
+              <option value="">仓库</option>
+              <option v-for="warehouse in outboundWarehouseOptions" :key="warehouse" :value="warehouse">
+                {{ warehouse }}
+              </option>
+            </select>
+            <select v-model="item.zoneName">
+              <option value="">库区</option>
+              <option v-for="zone in outboundZoneOptions(item.warehouseName)" :key="zone" :value="zone">
+                {{ zone }}
+              </option>
+            </select>
+            <button class="secondary-button" @click="removeItem(index)">删除</button>
+          </div>
+        </div>
+        <div class="footer-actions">
+          <button @click="submitCreate">保存出库单</button>
+          <button class="secondary-button" @click="viewMode = 'query'">返回查询</button>
+        </div>
+      </section>
     </section>
 
-    <section v-else-if="viewMode === 'create'" class="panel">
+    <section v-else-if="viewMode === 'manual'" class="panel">
       <div class="section-head">
         <div>
-          <h3>创建出库单</h3>
-          <p>出库单先绑定一个或多个来源入库单，再配置零件、数量和目标仓库/库区，后续扫码会自动回写执行进度。</p>
+          <h3>手工入账</h3>
+          <p>用于补录库存调整，不替代正常扫码出入库流程。</p>
         </div>
       </div>
-
-      <div class="form-grid two">
-        <select v-model.number="form.customerId">
-          <option :value="0">不绑定客户</option>
-          <option v-for="item in model.state.customers" :key="item.id" :value="item.id">
-            {{ item.customerCode }} | {{ item.customerName }}
+      <div class="form-grid four">
+        <select v-model.number="manualForm.partId">
+          <option :value="0">选择零件</option>
+          <option v-for="part in model.state.parts" :key="part.id" :value="part.id">
+            {{ part.partCode }} | {{ part.partName }}
           </option>
         </select>
-        <select v-model="form.inboundOrderNos" multiple size="4">
-          <option v-for="order in model.state.inboundOrders" :key="order.id" :value="order.inboundNo">
-            {{ order.inboundNo }} | {{ order.supplierName }} | {{ order.status }}
+        <select v-model.number="manualForm.locationId">
+          <option :value="0">选择库位</option>
+          <option v-for="item in model.state.locations" :key="item.id" :value="item.id">
+            {{ item.locationCode }} | {{ item.warehouseName }} / {{ item.zoneName }}
           </option>
         </select>
+        <input v-model.number="manualForm.qty" type="number" step="0.001" placeholder="数量" />
+        <input v-model="manualForm.remark" placeholder="备注" />
       </div>
-      <div class="footer-actions compact">
-        <span class="muted">已绑定来源：{{ form.inboundOrderNos.length ? form.inboundOrderNos.join('、') : '未选择' }}</span>
-        <button class="secondary-button" @click="addItem">新增零件明细</button>
-      </div>
-
-      <div v-for="(item, index) in form.items" :key="index" class="detail-card">
-        <div class="detail-grid">
-          <select v-model.number="item.partId">
-            <option :value="0" disabled>选择零件</option>
-            <option v-for="part in model.state.parts" :key="part.id" :value="part.id">
-              {{ part.partCode }} | {{ part.partName }}
-            </option>
-          </select>
-          <input v-model.number="item.plannedQty" type="number" min="1" placeholder="计划数量" />
-          <select v-model="item.warehouseName" @change="item.zoneName = ''">
-            <option value="">选择仓库</option>
-            <option v-for="warehouse in outboundWarehouseOptions" :key="warehouse" :value="warehouse">
-              {{ warehouse }}
-            </option>
-          </select>
-          <select v-model="item.zoneName">
-            <option value="">选择库区</option>
-            <option v-for="zone in outboundZoneOptions(item.warehouseName)" :key="zone" :value="zone">
-              {{ zone }}
-            </option>
-          </select>
-          <button class="secondary-button" @click="removeItem(index)">删除</button>
-        </div>
-      </div>
-
       <div class="footer-actions">
-        <button @click="submitCreate">保存出库单</button>
-        <button class="secondary-button" @click="viewMode = 'query'">返回查询</button>
+        <button @click="submitManual">保存手工入账</button>
       </div>
     </section>
 
-    <section v-else-if="viewMode === 'print' && printOrder" class="panel">
-      <div class="section-head">
+    <section v-else-if="printOrder" class="panel print-panel">
+      <div class="section-head print-toolbar">
         <div>
-          <h3>出库单打印信息</h3>
-          <p>打印出库单明细并渲染已关联看板二维码，支持打印后继续连续扫码执行出库。</p>
+          <h3>出库打印</h3>
+          <p>打印页可直接模拟扫码出库，并展开查看每个父看板下的箱级子看板。</p>
         </div>
         <div class="action-row">
           <button @click="browserPrint">浏览器打印</button>
@@ -381,172 +411,78 @@ watch(viewMode, async (value) => {
         </div>
       </div>
 
-      <div class="print-sheet">
-        <div class="print-header">
-          <div>
-            <h2>WMS 出库单</h2>
-            <p>出库单号：{{ printOrder.outboundNo }}</p>
-            <p>客户：{{ printOrder.customerName }}</p>
-            <p>来源入库单：{{ sourceText(printOrder) }}</p>
-          </div>
-          <div>
-            <p>状态：{{ printOrder.status }}</p>
-            <p>创建时间：{{ new Date(printOrder.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</p>
-          </div>
+      <section class="panel compact-scan-panel">
+        <div class="form-grid two">
+          <input
+            ref="scanInputRef"
+            v-model="printedOutboundScanForm.barcode"
+            placeholder="打印后可直接模拟扫码出库"
+            @keydown.enter.prevent="submitPrintedOutboundScanByEnter"
+          />
+          <button @click="submitPrintedOutboundScan">执行出库</button>
         </div>
+      </section>
 
-        <table class="table">
-          <thead>
-            <tr>
-              <th>零件号</th>
-              <th>零件名称</th>
-              <th>单位</th>
-              <th>计划数量</th>
-              <th>已扫数量</th>
-              <th>仓库</th>
-              <th>库区</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in printOrder.items" :key="item.id">
-              <td>{{ item.partCode }}</td>
-              <td>{{ item.partName }}</td>
-              <td>{{ item.unit }}</td>
-              <td>{{ item.plannedQty }}</td>
-              <td>{{ item.scannedQty }}</td>
-              <td>{{ item.warehouseName }}</td>
-              <td>{{ item.zoneName }}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="print-qr-section">
-          <h3>来源入库单</h3>
-          <div class="tag-row">
-            <span v-for="inboundNo in printOrder.inboundOrderNos" :key="inboundNo" class="inline-tag">
-              {{ inboundOrderLabel(inboundNo) }}
-            </span>
-            <span v-if="!printOrder.inboundOrderNos.length" class="inline-tag">未绑定</span>
-          </div>
-        </div>
-
-        <div v-if="kanbansForOutbound(printOrder).length" class="print-qr-section">
-          <h3>看板二维码明细</h3>
-          <table class="table qr-table">
-            <thead>
-              <tr>
-                <th>二维码</th>
-                <th>看板号</th>
-                <th>条码</th>
-                <th>零件</th>
-                <th>数量</th>
-                <th>库位</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="kanban in kanbansForOutbound(printOrder)" :key="kanban.id">
-                <td><QrCodeImage :text="kanban.qrContent" :size="96" /></td>
-                <td>{{ kanban.kanbanNo }}</td>
-                <td class="mono">{{ kanban.barcode }}</td>
-                <td>{{ kanban.partCode }} | {{ kanban.partName }}</td>
-                <td>{{ kanban.qty }}</td>
-                <td>{{ kanban.locationCode }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="print-scan-panel">
-          <h3>根据二维码 / 条码执行出库</h3>
-          <div class="scan-action-layout">
-            <div class="form-grid two">
-              <input
-                ref="scanInputRef"
-                v-model="printedOutboundScanForm.barcode"
-                placeholder="扫描枪输入二维码内容或条码"
-                @keydown.enter.prevent="submitPrintedOutboundScanByEnter"
-              />
-              <button @click="submitPrintedOutboundScan">确认出库</button>
+      <div class="print-grid">
+        <article class="print-order-card">
+          <header class="order-header">
+            <div>
+              <h4>{{ printOrder.outboundNo }}</h4>
+              <p>来源入库单：{{ sourceText(printOrder) }}</p>
+              <p>客户：{{ printOrder.customerName || '未绑定客户' }} | 状态：{{ printOrder.status }}</p>
             </div>
-            <div class="scan-assist-row two-col">
-              <select v-model="printedOutboundScanForm.barcode">
-                <option value="">辅助选择看板二维码 / 条码</option>
-                <option v-for="item in outboundScanOptionsForOrder(printOrder)" :key="item.value" :value="item.value">
-                  {{ item.label }}
-                </option>
-              </select>
-              <button class="secondary-button" @click="printedOutboundScanForm.barcode = outboundScanOptionsForOrder(printOrder)[0]?.value || ''">填充首个待出库码</button>
+          </header>
+
+          <div v-for="kanban in parentKanbansForOutbound(printOrder)" :key="kanban.id" class="kanban-card">
+            <div class="kanban-main">
+              <div class="kanban-meta">
+                <strong>{{ kanban.kanbanNo }}</strong>
+                <span>{{ kanban.partCode }} | {{ kanban.partName }}</span>
+                <span>箱数 {{ kanban.boxCount }} / 每箱 {{ kanban.unitPerBox }}</span>
+                <span>{{ kanban.warehouseName }} / {{ kanban.zoneName }}</span>
+              </div>
+              <div class="kanban-code">
+                <QrCodeImage :text="kanban.qrContent" :size="120" />
+                <p class="mono">{{ kanban.barcode }}</p>
+              </div>
             </div>
-            <div v-if="printedOutboundScanForm.barcode" class="scan-qr-preview">
-              <QrCodeImage :text="printedOutboundScanForm.barcode" :size="160" />
-              <p class="mono">{{ printedOutboundScanForm.barcode }}</p>
+            <div class="kanban-actions">
+              <button class="secondary-button" @click="toggleExpanded(kanban.id)">
+                {{ expandedParents[kanban.id] ? '收起子看板' : `展开子看板(${kanban.children.length})` }}
+              </button>
+              <button @click="simulatePrintScan(kanban)">模拟扫码出库</button>
+            </div>
+            <div v-if="expandedParents[kanban.id]" class="child-grid">
+              <div v-for="child in kanban.children" :key="child.id" class="child-card">
+                <QrCodeImage :text="child.qrContent" :size="92" />
+                <div class="child-meta">
+                  <strong>{{ child.kanbanNo }}</strong>
+                  <span>第 {{ child.boxIndex }} 箱</span>
+                  <span>数量 {{ child.qty }}</span>
+                  <span>{{ formatStatus(child.status) }}</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section v-else-if="viewMode === 'manual'" class="panel">
-      <div class="section-head">
-        <div>
-          <h3>手工入账</h3>
-          <p>用于补录库存，不绑定看板条码，但会写入库存流水。</p>
-        </div>
-      </div>
-      <div class="form-grid four">
-        <select v-model.number="manualForm.partId">
-          <option :value="0" disabled>选择零件</option>
-          <option v-for="part in model.state.parts" :key="part.id" :value="part.id">
-            {{ part.partCode }} | {{ part.partName }}
-          </option>
-        </select>
-        <select v-model.number="manualForm.locationId">
-          <option :value="0" disabled>选择库位</option>
-          <option v-for="location in model.state.locations" :key="location.id" :value="location.id">
-            {{ location.locationCode }} | {{ location.warehouseName }} / {{ location.zoneName }}
-          </option>
-        </select>
-        <input v-model.number="manualForm.qty" type="number" min="0.001" step="0.001" placeholder="数量" />
-        <input v-model="manualForm.remark" placeholder="备注" />
-      </div>
-      <div class="footer-actions">
-        <button @click="submitManual">确认入账</button>
-        <button class="secondary-button" @click="viewMode = 'query'">返回查询</button>
+        </article>
       </div>
     </section>
   </WorkModePage>
 </template>
 
 <style scoped>
-.detail-grid {
+.detail-stack,
+.print-grid,
+.child-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
-}
-
-.print-sheet {
-  display: grid;
-  gap: 18px;
-}
-
-.print-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.print-header h2,
-.print-header p {
-  margin: 0 0 6px;
-}
-
-.print-qr-section {
-  display: grid;
-  gap: 12px;
-}
-
-.print-qr-section h3 {
-  margin: 0;
+  align-items: center;
 }
 
 .scan-assist-row {
@@ -559,13 +495,41 @@ watch(viewMode, async (value) => {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.qr-table :deep(.qr-wrap) {
-  padding: 6px;
+.print-grid {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-@media (max-width: 1180px) {
-  .detail-grid,
-  .two-col {
+.print-order-card,
+.kanban-card,
+.child-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.kanban-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 12px;
+}
+
+.kanban-meta,
+.child-meta,
+.order-header {
+  display: grid;
+  gap: 4px;
+}
+
+.kanban-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+@media (max-width: 1100px) {
+  .detail-row,
+  .kanban-main {
     grid-template-columns: 1fr;
   }
 }

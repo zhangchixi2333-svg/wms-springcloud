@@ -34,7 +34,7 @@ public class ConfigController {
     @PostMapping
     public ApiResponse<ConfigItemView> create(@Valid @RequestBody ConfigItemRequest request) {
         configItemRepository.findByModuleKeyAndItemCode(request.moduleKey(), request.itemCode()).ifPresent(existing -> {
-            throw new BusinessException("Config item code already exists in this module");
+            throw new BusinessException("????????????");
         });
         ConfigItem item = new ConfigItem();
         item.setModuleKey(request.moduleKey());
@@ -43,6 +43,23 @@ public class ConfigController {
         item.setStatus(request.status() == null || request.status().isBlank() ? "ENABLED" : request.status());
         item.setRemark(request.remark());
         item.setCreatedAt(LocalDateTime.now());
+        return ApiResponse.ok(toView(configItemRepository.save(item)));
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<ConfigItemView> update(@PathVariable Long id, @Valid @RequestBody ConfigItemRequest request) {
+        ConfigItem item = configItemRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("??????"));
+        configItemRepository.findByModuleKeyAndItemCode(request.moduleKey(), request.itemCode()).ifPresent(existing -> {
+            if (!existing.getId().equals(id)) {
+                throw new BusinessException("????????????");
+            }
+        });
+        item.setModuleKey(request.moduleKey());
+        item.setItemCode(request.itemCode());
+        item.setItemName(request.itemName());
+        item.setStatus(request.status() == null || request.status().isBlank() ? "ENABLED" : request.status());
+        item.setRemark(request.remark());
         return ApiResponse.ok(toView(configItemRepository.save(item)));
     }
 

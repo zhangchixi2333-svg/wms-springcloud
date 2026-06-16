@@ -115,7 +115,7 @@ public class MasterDataController {
                               @NotBlank String unit,
                               Long supplierId,
                               String defaultEquipmentCode,
-                              @DecimalMin("0.001") BigDecimal defaultPackageCapacity) {
+                              @DecimalMin("0.001") BigDecimal defaultUnitPerBox) {
     }
 
     public record PartView(Long id,
@@ -124,7 +124,7 @@ public class MasterDataController {
                            String unit,
                            Long supplierId,
                            String defaultEquipmentCode,
-                           BigDecimal defaultPackageCapacity) {
+                           BigDecimal defaultUnitPerBox) {
     }
 
     public record LocationRequest(@NotBlank String locationCode,

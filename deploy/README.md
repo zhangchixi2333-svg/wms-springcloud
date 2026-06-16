@@ -1,59 +1,72 @@
-# WMS Kubernetes 和 Helm 部署说明
+# WMS Kubernetes 与 Helm 部署说明
 
-更新时间：2026-06-08
+更新时间：2026-06-24
 
-本文说明如何把 `D:\projects\wms-springcloud` 部署到 Kubernetes。部署方式提供两套：
+本文说明如何将 `D:\projects\wms-springcloud` 部署到 Kubernetes，并说明当前数据库初始化、镜像构建、服务暴露、排障方式。
 
-- 原生 Kubernetes YAML：`deploy/kubernetes`
-- Helm Chart：`deploy/helm/wms`
-
-两种方式二选一即可，不要同时部署到同一个 `wms` namespace，避免资源名冲突。
-
-## 1. 当前部署架构
+## 一、部署目录结构
 
 ```text
-Browser
-  |
-  | NodePort 30081
-  v
-wms-frontend (nginx)
-  |
-  | /api -> wms-gateway:8080
-  v
-wms-gateway
-  |
-  | Eureka service discovery
-  v
-+------------------------+---------------------------+
-| wms-system-service     | auth/user/role/menu/config |
-| wms-masterdata-service | supplier/customer/part/... |
-| wms-business-service   | inbound/outbound/kanban    |
-+------------------------+---------------------------+
-  |
-  v
-mysql StatefulSet -> wms_cloud
+deploy
+├─ docker
+│  ├─ Dockerfile.frontend
+│  ├─ Dockerfile.service
+│  └─ build-images.ps1
+├─ helm
+│  └─ wms
+│     ├─ Chart.yaml
+│     ├─ values.yaml
+│     ├─ files
+│     │  └─ wms-cloud-init.sql
+│     └─ templates
+│        ├─ mysql.yaml
+│        ├─ mysql-init-configmap.yaml
+│        ├─ mysql-init-job.yaml
+│        ├─ discovery.yaml
+│        ├─ gateway.yaml
+│        ├─ system-service.yaml
+│        ├─ masterdata-service.yaml
+│        ├─ business-service.yaml
+│        └─ frontend.yaml
+└─ kubernetes
+   ├─ kustomization.yaml
+   ├─ mysql
+   │  ├─ mysql.yaml
+   │  └─ wms-cloud-init.sql
+   └─ ...
 ```
 
-对外入口：
+## 二、当前部署链路
 
-| 入口 | 默认端口 | 作用 |
-| --- | --- | --- |
-| `wms-frontend` | `NodePort 30081` | 浏览器访问系统 |
-| `wms-gateway` | `NodePort 30080` | API 调试入口 |
+```text
+浏览器
+  -> wms-frontend Service
+  -> nginx
+  -> /api 转发到 wms-gateway Service
+  -> Spring Cloud Gateway
+  -> Eureka 注册发现
+  -> system/masterdata/business 微服务
+  -> mysql Service
+  -> mysql StatefulSet
+```
 
-集群内部：
+对外默认端口：
 
-| 服务 | 端口 |
-| --- | --- |
-| `wms-discovery` | `8761` |
-| `wms-system-service` | `8082` |
-| `wms-masterdata-service` | `8083` |
-| `wms-business-service` | `8084` |
-| `mysql` | `3306` |
+- 前端：`NodePort 30081`
+- 网关：`NodePort 30080`
 
-## 2. 前置条件
+集群内部 Service：
 
-本机需要有：
+- `wms-discovery:8761`
+- `wms-gateway:8080`
+- `wms-system-service:8082`
+- `wms-masterdata-service:8083`
+- `wms-business-service:8084`
+- `mysql:3306`
+
+## 三、部署前准备
+
+本地或服务器需要具备：
 
 ```powershell
 docker version
@@ -61,16 +74,14 @@ kubectl version --client
 helm version
 ```
 
-并且已经有可用 Kubernetes 集群，例如 Docker Desktop Kubernetes、kind、minikube 或远程集群。
-
-确认当前 kubectl 指向正确集群：
+确认 `kubectl` 已连接到目标集群：
 
 ```powershell
 kubectl config current-context
 kubectl get nodes
 ```
 
-## 3. 构建镜像
+## 四、本地构建镜像
 
 在项目根目录执行：
 
@@ -79,7 +90,7 @@ cd D:\projects\wms-springcloud
 .\deploy\docker\build-images.ps1
 ```
 
-默认生成这些镜像：
+默认镜像：
 
 ```text
 wms/wms-discovery:0.0.1
@@ -90,7 +101,7 @@ wms/wms-business-service:0.0.1
 wms/wms-frontend:0.0.1
 ```
 
-如果你使用远程镜像仓库，可以设置前缀和版本：
+如需使用远端仓库前缀：
 
 ```powershell
 $env:WMS_IMAGE_PREFIX = 'registry.example.com/wms'
@@ -98,69 +109,151 @@ $env:WMS_IMAGE_TAG = '0.0.1'
 .\deploy\docker\build-images.ps1
 ```
 
-然后推送镜像：
-
-```powershell
-docker push registry.example.com/wms/wms-discovery:0.0.1
-docker push registry.example.com/wms/wms-gateway:0.0.1
-docker push registry.example.com/wms/wms-system-service:0.0.1
-docker push registry.example.com/wms/wms-masterdata-service:0.0.1
-docker push registry.example.com/wms/wms-business-service:0.0.1
-docker push registry.example.com/wms/wms-frontend:0.0.1
-```
-
-如果使用 kind，需要把本地镜像导入 kind 集群：
-
-```powershell
-kind load docker-image wms/wms-discovery:0.0.1
-kind load docker-image wms/wms-gateway:0.0.1
-kind load docker-image wms/wms-system-service:0.0.1
-kind load docker-image wms/wms-masterdata-service:0.0.1
-kind load docker-image wms/wms-business-service:0.0.1
-kind load docker-image wms/wms-frontend:0.0.1
-```
-
-## 4. 方式一：使用原生 Kubernetes YAML
-
-部署：
+## 五、使用原生 Kubernetes YAML 部署
 
 ```powershell
 cd D:\projects\wms-springcloud
 kubectl apply -k deploy/kubernetes
-```
-
-查看资源：
-
-```powershell
 kubectl get pods -n wms
 kubectl get svc -n wms
-```
-
-等待所有 Pod Ready：
-
-```powershell
 kubectl wait --for=condition=Ready pod --all -n wms --timeout=300s
 ```
 
-访问前端：
+访问地址：
 
-```text
-http://<NodeIP>:30081
+- 前端：`http://<NodeIP>:30081`
+- 网关：`http://<NodeIP>:30080/api`
+
+清理：
+
+```powershell
+kubectl delete -k deploy/kubernetes
+kubectl delete pvc -n wms -l app=mysql
 ```
 
-Docker Desktop 或 minikube 常见情况下可以使用：
+## 六、使用 Helm 部署
 
-```text
-http://localhost:30081
+首次创建命名空间：
+
+```powershell
+kubectl create namespace wms
 ```
 
-访问网关：
+安装：
 
-```text
-http://<NodeIP>:30080/api
+```powershell
+cd D:\projects\wms-springcloud
+helm install wms deploy/helm/wms -n wms
 ```
 
-验证登录：
+自定义镜像仓库与版本：
+
+```powershell
+helm upgrade --install wms deploy/helm/wms -n wms `
+  --set image.repository=registry.example.com/wms-cloud `
+  --set image.tag=v1 `
+  --set mysql.image=registry.example.com/wms-cloud:mysql-8.0
+```
+
+查看状态：
+
+```powershell
+helm status wms -n wms
+kubectl get pods -n wms
+kubectl get svc -n wms
+kubectl get job -n wms
+```
+
+卸载：
+
+```powershell
+helm uninstall wms -n wms
+kubectl delete pvc -n wms -l app=mysql
+```
+
+## 七、数据库初始化机制
+
+### 1. 初始化 SQL 文件位置
+
+- `sql/wms-cloud-init.sql`
+- `deploy/helm/wms/files/wms-cloud-init.sql`
+- `deploy/kubernetes/mysql/wms-cloud-init.sql`
+
+这三份 SQL 现在已经保持一致。
+
+### 2. 初始化触发方式
+
+有两条初始化链路：
+
+1. MySQL 容器首次启动时，如果数据目录为空，会执行挂载到 `/docker-entrypoint-initdb.d` 的 SQL。
+2. Helm 部署时还会执行 `wms-mysql-init` Job，再次幂等执行同一份 SQL，确保升级场景也能补齐结构和系统基础数据。
+
+Helm 初始化 Job 模板文件：
+
+- `deploy/helm/wms/templates/mysql-init-job.yaml`
+
+### 3. 当前初始化内容
+
+当前初始化 SQL 只保留以下内容：
+
+- 数据库与表结构
+- 用户、角色、菜单、角色菜单
+- 系统配置表基础数据
+- 默认库存预警模板
+
+默认库存预警模板内容：
+
+```json
+{"critical":10,"low":30,"attention":60}
+```
+
+对应 `config_item`：
+
+- `module_key = inventoryWarning`
+- `item_code = DEFAULT`
+
+### 4. 当前不会再初始化的内容
+
+当前初始化 SQL 不再写入任何业务演示数据，包括但不限于：
+
+- 供应商
+- 客户
+- 零件
+- 库区
+- 器具
+- 入库单
+- 出库单
+- 看板
+- 库存
+- 库存流水
+
+也就是说，新库初始化后是“干净库”，后续业务数据全部由系统实际操作产生。
+
+## 八、镜像与数据库配置
+
+Helm 默认值文件：
+
+- `deploy/helm/wms/values.yaml`
+
+当前关键默认值：
+
+- 业务镜像仓库：`image.repository`
+- 业务镜像版本：`image.tag`
+- MySQL 镜像：`mysql.image`
+- MySQL 库名：`mysql.database`
+- MySQL 存储：`mysql.storage`
+
+MySQL 在 Helm 中由以下模板定义：
+
+- `deploy/helm/wms/templates/mysql.yaml`
+
+MySQL 初始化 SQL 在 Helm 中通过 ConfigMap 注入：
+
+- `deploy/helm/wms/templates/mysql-init-configmap.yaml`
+
+## 九、访问与验证
+
+验证登录接口：
 
 ```powershell
 $body = @{
@@ -174,133 +267,13 @@ Invoke-RestMethod 'http://localhost:30080/api/auth/login' `
   -Body $body
 ```
 
-清理：
-
-```powershell
-kubectl delete -k deploy/kubernetes
-```
-
-如果需要删除 MySQL 数据卷，还要删除 PVC：
-
-```powershell
-kubectl delete pvc -n wms -l app=mysql
-```
-
-## 5. 方式二：使用 Helm
-
-创建 namespace：
-
-```powershell
-kubectl create namespace wms
-```
-
-安装：
-
-```powershell
-cd D:\projects\wms-springcloud
-helm install wms deploy/helm/wms -n wms
-```
-
-如果镜像前缀或版本不同：
-
-```powershell
-helm install wms deploy/helm/wms -n wms `
-  --set image.repository=registry.example.com/wms-cloud `
-  --set image.tag=v1
-```
-
-查看状态：
-
-```powershell
-helm status wms -n wms
-kubectl get pods -n wms
-kubectl get svc -n wms
-```
-
-升级：
-
-```powershell
-helm upgrade wms deploy/helm/wms -n wms
-```
-
-卸载：
-
-```powershell
-helm uninstall wms -n wms
-```
-
-删除 namespace 和 PVC：
-
-```powershell
-kubectl delete namespace wms
-```
-
-## 6. 数据库初始化机制
-
-MySQL 使用 `StatefulSet` 和 PVC 保存数据。
-
-初始化 SQL 来自：
+验证前端：
 
 ```text
-deploy/kubernetes/mysql/wms-cloud-init.sql
-deploy/helm/wms/files/wms-cloud-init.sql
+http://localhost:30081
 ```
 
-MySQL 官方镜像只会在数据库目录为空时执行 `/docker-entrypoint-initdb.d` 下的 SQL。也就是说：
-
-- 第一次部署会自动创建 `wms_cloud`、表和默认数据。
-- Pod 重启不会重复清库。
-- 如果 PVC 已经存在，修改 SQL 后不会自动重新执行。
-
-如果只是补齐默认数据，可以手动执行：
-
-```powershell
-kubectl cp deploy/kubernetes/mysql/wms-cloud-init.sql wms/mysql-0:/tmp/wms-cloud-init.sql
-kubectl exec -n wms mysql-0 -- sh -c "mysql -uwms -pwms123456 --default-character-set=utf8mb4 wms_cloud < /tmp/wms-cloud-init.sql"
-```
-
-## 7. 常见问题
-
-### 7.1 Pod 一直 ImagePullBackOff
-
-原因：
-
-- 集群节点没有这些本地镜像。
-- 镜像仓库地址写错。
-- 私有仓库没有 imagePullSecret。
-
-处理：
-
-```powershell
-kubectl describe pod <pod-name> -n wms
-```
-
-如果使用 kind，把镜像导入 kind：
-
-```powershell
-kind load docker-image wms/wms-gateway:0.0.1
-```
-
-### 7.2 服务启动失败，提示数据库连接失败
-
-检查 MySQL：
-
-```powershell
-kubectl get pod mysql-0 -n wms
-kubectl logs mysql-0 -n wms
-```
-
-进入业务 Pod 检查环境变量：
-
-```powershell
-kubectl exec -n wms deploy/wms-system-service -- printenv | Select-String DB_
-```
-
-### 7.3 网关 503
-
-原因通常是服务还没注册到 Eureka。
-
-检查 Eureka：
+验证 Eureka：
 
 ```powershell
 kubectl port-forward -n wms svc/wms-discovery 8761:8761
@@ -312,14 +285,51 @@ kubectl port-forward -n wms svc/wms-discovery 8761:8761
 http://127.0.0.1:8761
 ```
 
-确认 `WMS-SYSTEM-SERVICE`、`WMS-MASTERDATA-SERVICE`、`WMS-BUSINESS-SERVICE`、`WMS-GATEWAY` 都是 UP。
+## 十、常见问题
 
-### 7.4 CORS 重复
+### 1. Pod 卡在 `ImagePullBackOff`
 
-当前设计是只由 `wms-gateway` 处理 CORS，下游服务不再配置 CORS。若再次出现：
+排查：
+
+```powershell
+kubectl describe pod <pod-name> -n wms
+```
+
+重点检查：
+
+- 镜像地址是否正确
+- 私有仓库拉取密钥是否存在
+- 集群节点是否能访问镜像仓库
+
+### 2. MySQL 正常但系统服务起不来
+
+排查：
+
+```powershell
+kubectl get pod mysql-0 -n wms
+kubectl logs mysql-0 -n wms
+kubectl logs job/wms-mysql-init -n wms
+kubectl exec -n wms deploy/wms-system-service -- printenv
+```
+
+### 3. 网关返回 503
+
+通常表示下游服务尚未注册到 Eureka。
+
+排查：
+
+```powershell
+kubectl get pods -n wms
+kubectl logs deploy/wms-gateway -n wms --tail=200
+kubectl logs deploy/wms-discovery -n wms --tail=200
+```
+
+### 4. CORS 重复
+
+当前设计为只在网关处理 CORS。若再次出现：
 
 ```text
 Access-Control-Allow-Origin contains multiple values
 ```
 
-检查是否有人给下游服务重新添加了 CORS 配置。
+说明某个下游服务又单独加了 CORS 配置，需要删除重复配置。

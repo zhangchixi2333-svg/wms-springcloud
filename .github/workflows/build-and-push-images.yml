@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: wms-master-deploy
+  group: wms-master-build-deploy
   cancel-in-progress: false
 
 env:
@@ -161,7 +161,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           script_stop: true
           command_timeout: 30m
-          envs: IMAGE_REPOSITORY,DEPLOY_NAMESPACE,DEPLOY_RELEASE,DEPLOY_PATH
+          envs: IMAGE_REPOSITORY,MYSQL_ACR_TAG,DEPLOY_NAMESPACE,DEPLOY_RELEASE,DEPLOY_PATH
           script: |
             set -e
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
@@ -171,7 +171,8 @@ jobs:
               STATUS_LINE=$(grep '^STATUS:' /tmp/helm-status.txt | awk '{print $2}')
               if echo "${STATUS_LINE}" | grep -Eq '^pending-(install|upgrade|rollback)$'; then
                 echo "Helm release is in pending state: ${STATUS_LINE}"
-                LAST_GOOD_REVISION=$(helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" | awk '$3 ~ /deployed|superseded/ { rev=$1 } END { print rev }')
+                helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" || true
+                LAST_GOOD_REVISION=$(helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" -o json | python3 -c 'import json,sys; data=json.load(sys.stdin); good=[str(item.get("revision","")) for item in data if item.get("status") in ("deployed","superseded") and item.get("revision") is not None]; print(good[-1] if good else "")')
                 if [ -n "${LAST_GOOD_REVISION}" ]; then
                   echo "Rollback to revision ${LAST_GOOD_REVISION}"
                   helm rollback "${DEPLOY_RELEASE}" "${LAST_GOOD_REVISION}" -n "${DEPLOY_NAMESPACE}" --wait --timeout 10m

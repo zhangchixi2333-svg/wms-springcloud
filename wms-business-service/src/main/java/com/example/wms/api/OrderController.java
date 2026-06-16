@@ -1,5 +1,5 @@
 /**
- * 本文件实现 OrderController 控制器。
+ * 本文件实现订单与看板接口，返回父子看板结构和按箱扫码所需字段。
  */
 package com.example.wms.api;
 
@@ -79,7 +79,7 @@ public class OrderController {
                                           @NotNull Integer boxCount,
                                           boolean pendingRepack,
                                           String equipmentCode,
-                                          @NotNull @DecimalMin("0.001") BigDecimal packageCapacity,
+                                          @NotNull @DecimalMin("0.001") BigDecimal unitPerBox,
                                           @NotBlank String warehouseZone) {
     }
 
@@ -112,7 +112,7 @@ public class OrderController {
                                Integer boxCount,
                                boolean pendingRepack,
                                String equipmentCode,
-                               BigDecimal packageCapacity,
+                               BigDecimal unitPerBox,
                                String warehouseZone) {
         }
     }
@@ -142,6 +142,9 @@ public class OrderController {
                              String kanbanNo,
                              String barcode,
                              String qrContent,
+                             Long parentKanbanId,
+                             boolean parentKanban,
+                             Integer boxIndex,
                              String inboundNo,
                              String outboundNo,
                              String partCode,
@@ -155,13 +158,14 @@ public class OrderController {
                              boolean pendingRepack,
                              String equipmentCode,
                              String equipmentModel,
-                             BigDecimal packageCapacity,
+                             BigDecimal unitPerBox,
                              String warehouseName,
                              String zoneName,
                              String status,
                              String locationCode,
                              LocalDateTime createdAt,
                              LocalDateTime inboundTime,
-                             LocalDateTime outboundTime) {
+                             LocalDateTime outboundTime,
+                             List<KanbanView> children) {
     }
 }

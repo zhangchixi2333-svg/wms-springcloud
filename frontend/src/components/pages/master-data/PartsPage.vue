@@ -1,4 +1,4 @@
-<!-- 本文件实现零件主数据页面，支持供应商、默认器具和默认包装容量维护。 -->
+<!-- 本文件实现零件主数据页面，统一维护供应商、默认器具和每箱数量。 -->
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import WorkModePage from '../../shared/WorkModePage.vue'
@@ -24,7 +24,7 @@ const form = reactive({
   unit: 'PCS',
   supplierId: 0,
   defaultEquipmentCode: '',
-  defaultPackageCapacity: 1,
+  defaultUnitPerBox: 1,
 })
 
 const rows = computed(() =>
@@ -49,14 +49,14 @@ async function submit() {
     unit: form.unit,
     supplierId: form.supplierId || null,
     defaultEquipmentCode: form.defaultEquipmentCode || null,
-    defaultPackageCapacity: form.defaultPackageCapacity || null,
+    defaultUnitPerBox: form.defaultUnitPerBox || null,
   })
   form.partCode = ''
   form.partName = ''
   form.unit = 'PCS'
   form.supplierId = 0
   form.defaultEquipmentCode = ''
-  form.defaultPackageCapacity = 1
+  form.defaultUnitPerBox = 1
   viewMode.value = 'query'
 }
 
@@ -66,13 +66,13 @@ function supplierName(supplierId: number | null) {
 </script>
 
 <template>
-  <WorkModePage v-model="viewMode" :modes="workModes">
+  <WorkModePage v-model="viewMode" :modes="workModes" hint="这里维护零件与供应商、器具编码、每箱数量的默认绑定关系。">
     <section v-if="viewMode === 'query'" class="stack">
       <section class="panel">
         <div class="section-head">
           <div>
             <h3>零件筛选</h3>
-            <p>支持按零件编码、名称、单位和供应商过滤，并展示默认绑定信息。</p>
+            <p>可按编码、名称、单位和供应商快速查询，入库时会自动带出默认每箱数量与器具编码。</p>
           </div>
         </div>
         <div class="form-grid four">
@@ -97,7 +97,7 @@ function supplierName(supplierId: number | null) {
               <th>单位</th>
               <th>供应商</th>
               <th>默认器具编码</th>
-              <th>默认包装容量</th>
+              <th>默认每箱数量</th>
             </tr>
           </thead>
           <tbody>
@@ -107,7 +107,7 @@ function supplierName(supplierId: number | null) {
               <td>{{ item.unit }}</td>
               <td>{{ supplierName(item.supplierId) }}</td>
               <td>{{ item.defaultEquipmentCode || '-' }}</td>
-              <td>{{ item.defaultPackageCapacity || '-' }}</td>
+              <td>{{ item.defaultUnitPerBox || '-' }}</td>
             </tr>
           </tbody>
         </table>
@@ -118,7 +118,7 @@ function supplierName(supplierId: number | null) {
       <div class="section-head">
         <div>
           <h3>新建零件</h3>
-          <p>新建后会直接用于入库批量选件、出库计划、看板生成和库存统计。</p>
+          <p>创建后会被入库批量选件、出库计划、箱级看板生成与库存统计共同使用。</p>
         </div>
       </div>
       <div class="form-grid three">
@@ -137,7 +137,7 @@ function supplierName(supplierId: number | null) {
             {{ item.equipmentCode }} | {{ item.equipmentName }} | {{ item.equipmentModel }}
           </option>
         </select>
-        <input v-model.number="form.defaultPackageCapacity" type="number" min="0.001" step="0.001" placeholder="默认包装容量" />
+        <input v-model.number="form.defaultUnitPerBox" type="number" min="0.001" step="0.001" placeholder="每箱数量" />
       </div>
       <div class="footer-actions">
         <button @click="submit">保存零件</button>

@@ -1,6 +1,6 @@
-# GitHub Actions 镜像构建推送说明
+# GitHub Actions 镜像构建与自动部署说明
 
-更新时间：2026-06-08
+更新时间：2026-06-24
 
 工作流文件：
 
@@ -8,121 +8,176 @@
 .github/workflows/build-and-push-images.yml
 ```
 
-## 1. 触发方式
+## 一、触发方式
 
-推送到 `master` 分支时自动触发构建和推送。
+当前保留两种触发方式：
 
-工作流不再保留手动触发入口，这样版本号可以尽量对应“第 N 次推送 master 分支”。
+- 推送到 `master` 分支时自动触发
+- 在 GitHub Actions 页面手动执行 `workflow_dispatch`
 
-## 2. 镜像仓库
-
-当前使用一个阿里云 ACR 仓库保存所有服务镜像：
-
-```text
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud
-```
-
-因为是单仓库，所以不同服务通过 tag 区分。
-
-## 3. Tag 规则
-
-每次推送 `master` 后，所有服务使用同一个版本号：
+其中自动版本号仍然使用：
 
 ```text
 v${GITHUB_RUN_NUMBER}
 ```
 
-`GITHUB_RUN_NUMBER` 是 GitHub Actions 对当前 workflow 的运行序号。由于当前 workflow 只在 `master` push 时触发，所以它可以作为 `master` 推送构建版本号使用。
+这表示本工作流第 N 次运行对应版本 `vN`。
 
-每个服务会生成两个 tag：
+## 二、镜像仓库
+
+当前统一推送到阿里云 ACR：
+
+```text
+crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud
+```
+
+因为使用单仓库，所以通过 tag 区分不同服务。
+
+## 三、镜像 tag 规则
+
+每个服务会生成两类 tag：
 
 ```text
 服务名-v运行序号
 服务名-master
 ```
 
-示例：第 12 次触发 workflow 时，会生成：
+例如第 18 次运行，会生成：
 
 ```text
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-discovery-v12
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-gateway-v12
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-system-service-v12
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-masterdata-service-v12
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-business-service-v12
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-frontend-v12
+wms-discovery-v18
+wms-gateway-v18
+wms-system-service-v18
+wms-masterdata-service-v18
+wms-business-service-v18
+wms-frontend-v18
 ```
 
-滚动最新版本 tag：
+同时还会更新：
 
 ```text
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-discovery-master
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-gateway-master
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-system-service-master
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-masterdata-service-master
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-business-service-master
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-frontend-master
+wms-discovery-master
+wms-gateway-master
+wms-system-service-master
+wms-masterdata-service-master
+wms-business-service-master
+wms-frontend-master
 ```
 
-生产或测试部署建议使用 `服务名-v运行序号` 固定版本，方便回滚。`服务名-master` 适合临时测试环境跟随最新构建。
-
-## 4. GitHub Secrets
-
-仓库需要配置以下 Secrets：
+MySQL 额外镜像 tag：
 
 ```text
-ACR_REGISTRY=crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com
-ACR_IMAGE_REPOSITORY=crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud
-ACR_USERNAME=你的阿里云镜像仓库用户名
-ACR_PASSWORD=你的阿里云镜像仓库密码或访问凭证
+mysql-8.0
 ```
 
-## 5. 后续云服务器自动部署
+## 四、Secrets 配置
 
-购买云服务器后，可以继续增加 deploy job：
-
-```text
-GitHub Actions -> SSH 登录云服务器 -> docker compose pull/up 或 helm upgrade
-```
-
-常见新增 Secrets：
+GitHub 仓库至少需要以下 Secrets：
 
 ```text
+ACR_REGISTRY
+ACR_IMAGE_REPOSITORY
+ACR_USERNAME
+ACR_PASSWORD
 SERVER_HOST
 SERVER_USER
 SERVER_SSH_KEY
 SERVER_PORT
 ```
 
-当前 workflow 已经包含自动部署 job。部署 job 会在镜像全部推送成功后执行：
+示例：
 
 ```text
-SSH 登录云服务器
--> 清理 /opt/wms-springcloud/deploy/helm/wms
+ACR_REGISTRY=crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com
+ACR_IMAGE_REPOSITORY=crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud
+```
+
+## 五、工作流执行阶段
+
+### 1. Prepare version
+
+生成：
+
+```text
+v${GITHUB_RUN_NUMBER}
+```
+
+### 2. Build and push Docker images
+
+分别构建并推送：
+
+- `wms-discovery`
+- `wms-gateway`
+- `wms-system-service`
+- `wms-masterdata-service`
+- `wms-business-service`
+- `wms-frontend`
+
+### 3. Mirror MySQL image
+
+将官方 `mysql:8.0` 拉取后重新打 tag 推送到 ACR：
+
+```text
+${IMAGE_REPOSITORY}:mysql-8.0
+```
+
+这样云端集群只需要从同一个 ACR 拉取镜像。
+
+### 4. Deploy
+
+部署阶段会做这些事情：
+
+```text
+SSH 登录服务器
 -> 上传 deploy/helm/wms
--> helm upgrade --install wms
--> 等待 mysql StatefulSet 和 mysql-0 Ready
--> Helm post-install/post-upgrade Job 执行数据库初始化 SQL
--> workflow 直接在 mysql-0 内再次幂等执行数据库初始化 SQL 并验证 app_user
--> 等待 6 个 Deployment rollout 完成
+-> 检查 Helm release 是否处于 pending 状态
+-> 如有需要自动回滚到最近一个可用 revision
+-> helm upgrade --install
+-> 等待 mysql StatefulSet Ready
+-> 等待 wms-mysql-init Job 完成
+-> 查看初始化 Job 日志
+-> 等待所有业务 Deployment rollout 完成
 ```
 
-Helm 部署使用 `--server-side true --force-conflicts`，用于接管曾经被 `kubectl set image` 修改过的镜像字段，避免后续升级时出现 field manager 冲突。SSH action 同时开启 `script_stop`，部署脚本任一步失败都会立即停止。
+## 六、数据库初始化说明
 
-服务器需要提前安装并配置好：
+当前部署链路使用 Helm Job 初始化数据库：
+
+- 模板：`deploy/helm/wms/templates/mysql-init-job.yaml`
+- SQL：`deploy/helm/wms/files/wms-cloud-init.sql`
+
+初始化 SQL 现在是干净初始化，只包含：
+
+- 表结构
+- 用户、角色、菜单、权限基础数据
+- 系统配置
+- 默认库存预警模板
+
+不会再写入任何入库、出库、库存、供应商、零件等演示业务数据。
+
+默认库存预警模板：
+
+```json
+{"critical":10,"low":30,"attention":60}
+```
+
+对应配置项：
 
 ```text
-kubectl
-helm
-可用的 Kubernetes 集群，例如 k3s
+module_key = inventoryWarning
+item_code = DEFAULT
 ```
 
-如果使用 k3s，workflow 默认读取：
+## 七、服务器前置要求
 
-```text
-/etc/rancher/k3s/k3s.yaml
-```
+服务器需要提前安装并配置：
 
-首次部署前，需要在服务器 Kubernetes 集群里创建命名空间和阿里云 ACR 拉取密钥：
+- `kubectl`
+- `helm`
+- 可用的 Kubernetes 集群
+- k3s 场景下可访问 `/etc/rancher/k3s/k3s.yaml`
+
+还需要在集群中提前创建镜像拉取密钥：
 
 ```bash
 kubectl create namespace wms
@@ -130,13 +185,41 @@ kubectl create namespace wms
 kubectl create secret docker-registry aliyun-acr \
   -n wms \
   --docker-server=crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com \
-  --docker-username='你的阿里云 ACR 用户名' \
-  --docker-password='你的阿里云 ACR 密码或访问凭证'
+  --docker-username='你的 ACR 用户名' \
+  --docker-password='你的 ACR 密码或访问凭证'
 ```
 
-部署时 Helm 会使用当前 workflow 版本号，例如第 12 次 master 推送会部署：
+## 八、当前工作流重点实现
 
-```text
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-gateway-v12
-crpi-i0bdeprulhtq3581.cn-guangzhou.personal.cr.aliyuncs.com/fuliang-hub/wms-cloud:wms-frontend-v12
+当前工作流已经对以下问题做了处理：
+
+- 避免并发部署互相覆盖：`concurrency.group = wms-master-build-deploy`
+- Helm release 若卡在 `pending-*`，会先尝试回滚
+- 部署后等待 MySQL、初始化 Job、各微服务全部 Ready
+- MySQL 镜像与业务镜像统一从 ACR 拉取
+
+## 九、常见问题
+
+### 1. `another operation (install/upgrade/rollback) is in progress`
+
+说明上一轮 Helm 操作未结束或卡住。当前工作流已经增加 pending 状态检查与自动回滚。
+
+### 2. `Run Command Timeout`
+
+说明远端部署脚本整体超时，常见原因：
+
+- 镜像拉取太慢
+- MySQL 首次初始化耗时较长
+- 某个 Deployment 一直未 Ready
+
+建议检查：
+
+```bash
+kubectl get pods -n wms
+kubectl describe pod <pod-name> -n wms
+kubectl logs job/wms-mysql-init -n wms
 ```
+
+### 3. MySQL 初始化后没有业务数据
+
+这是当前设计目标，不是故障。初始化库现在只保留系统骨架数据，业务数据需要后续在系统中真实录入。
