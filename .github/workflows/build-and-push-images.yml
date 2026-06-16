@@ -167,6 +167,24 @@ jobs:
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             VERSION="${{ needs.prepare-version.outputs.version }}"
 
+            if helm status "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" >/tmp/helm-status.txt 2>/tmp/helm-status.err; then
+              STATUS_LINE=$(grep '^STATUS:' /tmp/helm-status.txt | awk '{print $2}')
+              if echo "${STATUS_LINE}" | grep -Eq '^pending-(install|upgrade|rollback)$'; then
+                echo "Helm release is in pending state: ${STATUS_LINE}"
+                LAST_GOOD_REVISION=$(helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" | awk '$3 ~ /deployed|superseded/ { rev=$1 } END { print rev }')
+                if [ -n "${LAST_GOOD_REVISION}" ]; then
+                  echo "Rollback to revision ${LAST_GOOD_REVISION}"
+                  helm rollback "${DEPLOY_RELEASE}" "${LAST_GOOD_REVISION}" -n "${DEPLOY_NAMESPACE}" --wait --timeout 10m
+                else
+                  echo "No usable revision found for rollback"
+                  cat /tmp/helm-status.txt || true
+                  exit 1
+                fi
+              fi
+            else
+              cat /tmp/helm-status.err || true
+            fi
+
             helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
               -n "${DEPLOY_NAMESPACE}" \
               --create-namespace \
