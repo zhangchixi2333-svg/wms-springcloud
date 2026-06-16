@@ -121,3 +121,4 @@
 2026-06-16T10:16:29.179+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 5ms
 2026-06-16T10:17:28.989+08:00  INFO 25952 --- [wms-discovery] [hresholdUpdater] c.n.e.r.PeerAwareInstanceRegistryImpl    : Current renewal threshold is : 0
 2026-06-16T10:17:29.184+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 9ms
+2026-06-16T10:18:29.191+08:00  INFO 25952 --- [wms-discovery] [a-EvictionTimer] c.n.e.registry.AbstractInstanceRegistry  : Running the evict task with compensationTime 11ms
