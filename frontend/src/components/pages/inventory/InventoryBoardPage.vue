@@ -148,6 +148,17 @@ function thresholdConfig(partCode: string) {
   return thresholdDrafts[partCode] ?? parseThresholdConfig(thresholdMap.value.get(partCode)?.remark)
 }
 
+function ensureThresholdDraft(partCode: string) {
+  if (!thresholdDrafts[partCode]) {
+    thresholdDrafts[partCode] = parseThresholdConfig(thresholdMap.value.get(partCode)?.remark)
+  }
+  return thresholdDrafts[partCode]
+}
+
+function updateThresholdDraft(partCode: string, key: WarningLevelKey, value: string) {
+  ensureThresholdDraft(partCode)[key] = Math.max(0, Number(value) || 0)
+}
+
 function warningLevel(partCode: string, totalQty: number) {
   const config = thresholdConfig(partCode)
   if (config.critical > 0 && totalQty <= config.critical) return 'critical'
@@ -304,12 +315,13 @@ function toggleSelectAll(checked: boolean) {
 async function saveThresholdForPart(row: { partCode: string; partName: string }) {
   thresholdSaving.value = true
   try {
+    const draft = ensureThresholdDraft(row.partCode)
     const payload = {
       moduleKey: WARNING_MODULE_KEY,
       itemCode: row.partCode,
       itemName: row.partName,
       status: 'ENABLED',
-      remark: JSON.stringify(normalizeThresholdConfig(thresholdDrafts[row.partCode])),
+      remark: JSON.stringify(normalizeThresholdConfig(draft)),
     }
     const existing = thresholdMap.value.get(row.partCode)
     if (existing) {
@@ -429,10 +441,19 @@ onMounted(async () => {
           <h3>批量设置预警阈值</h3>
           <p>可统一设置严重不足、低库存、关注三档阈值。</p>
         </div>
-        <div class="action-row warning-actions">
-          <input v-model.number="batchThresholdDraft.critical" type="number" min="0" step="0.001" placeholder="严重不足阈值" />
-          <input v-model.number="batchThresholdDraft.low" type="number" min="0" step="0.001" placeholder="低库存阈值" />
-          <input v-model.number="batchThresholdDraft.attention" type="number" min="0" step="0.001" placeholder="关注阈值" />
+        <div class="warning-actions">
+          <label class="threshold-field critical">
+            <span>严重不足阈值</span>
+            <input v-model.number="batchThresholdDraft.critical" type="number" min="0" step="0.001" />
+          </label>
+          <label class="threshold-field low">
+            <span>低库存阈值</span>
+            <input v-model.number="batchThresholdDraft.low" type="number" min="0" step="0.001" />
+          </label>
+          <label class="threshold-field attention">
+            <span>关注阈值</span>
+            <input v-model.number="batchThresholdDraft.attention" type="number" min="0" step="0.001" />
+          </label>
           <button :disabled="thresholdSaving" @click="batchSaveThreshold">批量保存</button>
         </div>
       </div>
@@ -463,9 +484,18 @@ onMounted(async () => {
               <td>{{ row.totalQty }}</td>
               <td>
                 <div class="threshold-grid">
-                  <input v-model.number="thresholdDrafts[row.partCode].critical" type="number" min="0" step="0.001" placeholder="严重不足" />
-                  <input v-model.number="thresholdDrafts[row.partCode].low" type="number" min="0" step="0.001" placeholder="低库存" />
-                  <input v-model.number="thresholdDrafts[row.partCode].attention" type="number" min="0" step="0.001" placeholder="关注" />
+                  <label class="threshold-field critical">
+                    <span>严重不足</span>
+                    <input :value="ensureThresholdDraft(row.partCode).critical" type="number" min="0" step="0.001" @input="updateThresholdDraft(row.partCode, 'critical', ($event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="threshold-field low">
+                    <span>低库存</span>
+                    <input :value="ensureThresholdDraft(row.partCode).low" type="number" min="0" step="0.001" @input="updateThresholdDraft(row.partCode, 'low', ($event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="threshold-field attention">
+                    <span>关注</span>
+                    <input :value="ensureThresholdDraft(row.partCode).attention" type="number" min="0" step="0.001" @input="updateThresholdDraft(row.partCode, 'attention', ($event.target as HTMLInputElement).value)" />
+                  </label>
                   <button class="secondary-button" :disabled="thresholdSaving" @click="saveThresholdForPart(row)">保存</button>
                 </div>
               </td>
@@ -499,7 +529,7 @@ onMounted(async () => {
                             <strong>{{ kanban.kanbanNo }}</strong>
                             <p>{{ kanban.warehouseName }} / {{ kanban.zoneName }}</p>
                           </div>
-                          <QrCodeImage :text="kanban.qrContent" :size="80" />
+                          <QrCodeImage :text="kanban.qrContent || kanban.barcode" :size="80" />
                         </div>
                         <div class="kanban-meta">
                           <span>状态 {{ formatStatus(kanban.status) }}</span>
@@ -507,11 +537,11 @@ onMounted(async () => {
                           <span>数量 {{ kanban.qty }}</span>
                         </div>
                         <div class="action-row">
-                          <button class="secondary-button" @click="toggleKanbanExpand(kanban.id)">{{ expandedKanbanIds[kanban.id] ? '收起子看板' : `展开子看板(${kanban.children.length})` }}</button>
+                          <button class="secondary-button" @click="toggleKanbanExpand(kanban.id)">{{ expandedKanbanIds[kanban.id] ? '收起子看板' : `展开子看板(${(kanban.children ?? []).length})` }}</button>
                         </div>
                         <div v-if="expandedKanbanIds[kanban.id]" class="child-grid">
-                          <div v-for="child in kanban.children" :key="child.id" class="child-card">
-                            <QrCodeImage :text="child.qrContent" :size="72" />
+                          <div v-for="child in kanban.children ?? []" :key="child.id" class="child-card">
+                            <QrCodeImage :text="child.qrContent || child.barcode" :size="72" />
                             <strong>{{ child.kanbanNo }}</strong>
                             <span>第 {{ child.boxIndex }} 箱</span>
                             <span>数量 {{ child.qty }}</span>
@@ -619,13 +649,37 @@ onMounted(async () => {
 
 .threshold-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(88px, 1fr)) auto;
+  grid-template-columns: repeat(3, minmax(96px, 1fr)) auto;
   gap: 8px;
-  align-items: center;
+  align-items: end;
 }
 
 .warning-actions {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(132px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.threshold-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.threshold-field span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.threshold-field.critical span { color: #dc2626; }
+.threshold-field.low span { color: #ea580c; }
+.threshold-field.attention span { color: #d97706; }
+
+.threshold-field input {
+  min-width: 0;
 }
 
 .warning-badge {
@@ -752,9 +806,9 @@ tr.active td {
     grid-template-columns: 1fr;
   }
 
-  .threshold-grid {
+  .threshold-grid,
+  .warning-actions {
     grid-template-columns: 1fr;
   }
 }
 </style>
-

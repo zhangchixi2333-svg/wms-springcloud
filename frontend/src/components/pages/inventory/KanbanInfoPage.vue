@@ -51,11 +51,11 @@ const filteredRows = computed(() =>
     .filter((item) => item.parentKanban)
     .filter((item) => {
       const statusMatch = !filters.status || item.status === filters.status
-      const inboundMatch = !filters.inboundNo || item.inboundNo.toLowerCase().includes(filters.inboundNo.toLowerCase())
-      const outboundMatch = !filters.outboundNo || item.outboundNo.toLowerCase().includes(filters.outboundNo.toLowerCase())
-      const kanbanMatch = !filters.kanbanNo || item.kanbanNo.toLowerCase().includes(filters.kanbanNo.toLowerCase())
+      const inboundMatch = !filters.inboundNo || (item.inboundNo ?? '').toLowerCase().includes(filters.inboundNo.toLowerCase())
+      const outboundMatch = !filters.outboundNo || (item.outboundNo ?? '').toLowerCase().includes(filters.outboundNo.toLowerCase())
+      const kanbanMatch = !filters.kanbanNo || (item.kanbanNo ?? '').toLowerCase().includes(filters.kanbanNo.toLowerCase())
       const supplierMatch = !filters.supplierId || item.supplierId === filters.supplierId
-      const partMatch = !filters.partCode || item.partCode.toLowerCase().includes(filters.partCode.toLowerCase())
+      const partMatch = !filters.partCode || (item.partCode ?? '').toLowerCase().includes(filters.partCode.toLowerCase())
       return statusMatch && inboundMatch && outboundMatch && kanbanMatch && supplierMatch && partMatch
     }),
 )
@@ -270,7 +270,7 @@ watch(
                   <td>{{ formatTime(item.inboundTime || item.createdAt) }}</td>
                   <td class="action-row">
                     <button class="secondary-button" @click="toggleExpanded(item.id)">
-                      {{ expandedParents[item.id] ? '收起' : `展开(${item.children.length})` }}
+                      {{ expandedParents[item.id] ? '收起' : `展开(${(item.children ?? []).length})` }}
                     </button>
                     <button class="secondary-button" @click="openPrint(item)">打印</button>
                   </td>
@@ -278,7 +278,7 @@ watch(
                 <tr v-if="expandedParents[item.id]">
                   <td colspan="12">
                     <div class="child-grid">
-                      <div v-for="child in item.children" :key="child.id" class="child-row">
+                      <div v-for="child in item.children ?? []" :key="child.id" class="child-row">
                         <strong>{{ child.kanbanNo }}</strong>
                         <span>第 {{ child.boxIndex }} 箱</span>
                         <span>数量 {{ child.qty }}</span>
@@ -335,14 +335,14 @@ watch(
             </table>
           </div>
           <div class="print-right">
-            <QrCodeImage :text="selectedKanban.qrContent" :size="220" />
-            <p class="mono qr-text">{{ selectedKanban.qrContent }}</p>
+            <QrCodeImage :text="selectedKanban.qrContent || selectedKanban.barcode" :size="220" />
+            <p class="mono qr-text">{{ selectedKanban.qrContent || selectedKanban.barcode }}</p>
           </div>
         </div>
 
         <div class="child-grid print-child-grid">
-          <div v-for="child in selectedKanban.children" :key="child.id" class="child-card">
-            <QrCodeImage :text="child.qrContent" :size="108" />
+          <div v-for="child in selectedKanban.children ?? []" :key="child.id" class="child-card">
+            <QrCodeImage :text="child.qrContent || child.barcode" :size="108" />
             <strong>{{ child.kanbanNo }}</strong>
             <span>第 {{ child.boxIndex }} 箱</span>
             <span>数量 {{ child.qty }}</span>

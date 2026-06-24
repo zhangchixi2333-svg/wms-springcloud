@@ -10,12 +10,14 @@ const props = defineProps<{ model: PageModel }>()
 
 const mode = ref<'inbound' | 'outbound'>('inbound')
 const videoRef = ref<HTMLVideoElement | null>(null)
+const imageInputRef = ref<HTMLInputElement | null>(null)
 const scanner = new BrowserMultiFormatReader()
 const scannerControls = ref<IScannerControls | null>(null)
 const scannerActive = ref(false)
 const scannerError = ref('')
 const message = ref('请先选择模式，然后启动摄像头扫码。')
 const busy = ref(false)
+const imageScanBusy = ref(false)
 const autoExecute = ref(true)
 const feedbackList = ref<Array<{
   success: boolean
@@ -161,18 +163,22 @@ async function executeScan(code: string) {
   }
 }
 
+function isLocalCameraHost(hostname: string) {
+  return ['localhost', '127.0.0.1', '::1'].includes(hostname)
+}
+
 function checkCameraSupport() {
   if (typeof navigator === 'undefined') {
     return '当前环境不支持浏览器摄像头。'
   }
+  if (typeof window !== 'undefined' && !window.isSecureContext && !isLocalCameraHost(window.location.hostname)) {
+    return '当前页面不是 HTTPS 安全页面，手机浏览器会隐藏实时摄像头能力。请使用“拍照识别二维码”，或改用 HTTPS 域名访问。'
+  }
   if (!navigator.mediaDevices) {
-    return '当前浏览器没有 mediaDevices，通常是浏览器过旧或页面环境不安全。'
+    return '当前浏览器没有 mediaDevices，通常是浏览器过旧或页面不是 HTTPS。请使用“拍照识别二维码”继续操作。'
   }
   if (!navigator.mediaDevices.getUserMedia) {
-    return '当前浏览器不支持 getUserMedia，无法调用摄像头。'
-  }
-  if (typeof window !== 'undefined' && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return '当前页面不是 HTTPS，部分手机浏览器会拒绝摄像头。'
+    return '当前浏览器不支持 getUserMedia，无法实时调用摄像头。请使用“拍照识别二维码”继续操作。'
   }
   return ''
 }
@@ -219,6 +225,41 @@ function stopScanner() {
   scannerActive.value = false
 }
 
+function triggerImageScan() {
+  if (busy.value || imageScanBusy.value) return
+  stopScanner()
+  scannerError.value = ''
+  imageInputRef.value?.click()
+}
+
+async function handleImagePicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  imageScanBusy.value = true
+  scannerError.value = ''
+  const imageUrl = URL.createObjectURL(file)
+  try {
+    const result = await scanner.decodeFromImageUrl(imageUrl)
+    const text = result.getText()
+    if (autoExecute.value) {
+      await executeScan(text)
+    } else {
+      scanForm.barcode = text
+      message.value = '已从图片识别二维码内容，可手动确认执行。'
+      pushFeedback(true, '图片识别成功', '已识别二维码内容，等待手动执行业务。')
+    }
+  } catch (error) {
+    scannerError.value = '未能从图片中识别二维码，请重新拍摄清晰的二维码或手动输入条码。'
+    pushFeedback(false, '图片识别失败', error instanceof Error ? `${scannerError.value} 原因：${error.message}` : scannerError.value)
+  } finally {
+    URL.revokeObjectURL(imageUrl)
+    imageScanBusy.value = false
+  }
+}
+
 async function submitScan() {
   if (!canSubmit.value || !scanForm.barcode) return
   await executeScan(scanForm.barcode)
@@ -249,7 +290,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <WorkModePage v-model="mode" :modes="modes" hint="移动端扫码识别后会直接执行入库或出库；如摄像头不可用，可粘贴二维码内容后手动执行。">
+  <WorkModePage v-model="mode" :modes="modes" hint="移动端扫码识别后会直接执行入库或出库；实时摄像头需要 HTTPS 或 localhost，公网 HTTP 可使用拍照识别。">
     <section class="mobile-scan-page">
       <section class="panel">
         <div class="section-head">
@@ -260,10 +301,22 @@ onBeforeUnmount(() => {
           <div class="action-row">
             <button @click="startScanner">{{ scannerActive ? '重新启动摄像头' : '启动摄像头' }}</button>
             <button class="secondary-button" @click="stopScanner">停止摄像头</button>
+            <button class="secondary-button" :disabled="imageScanBusy || busy" @click="triggerImageScan">
+              {{ imageScanBusy ? '识别中...' : '拍照识别二维码' }}
+            </button>
             <button class="secondary-button" @click="simulateFirst">模拟扫码执行</button>
           </div>
         </div>
+        <input
+          ref="imageInputRef"
+          class="hidden-file-input"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          @change="handleImagePicked"
+        />
         <video ref="videoRef" class="scan-video" autoplay muted playsinline />
+        <p class="scan-support-note">公网 IP 或 HTTP 访问时，手机浏览器通常不会开放实时摄像头；点击“拍照识别二维码”可拍照解码并直接执行当前模式业务。</p>
         <p class="scan-message">{{ message }}</p>
         <p v-if="scannerError" class="scan-error">{{ scannerError }}</p>
       </section>
@@ -342,6 +395,16 @@ onBeforeUnmount(() => {
   background: #111827;
   border-radius: 8px;
   object-fit: cover;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.scan-support-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .scan-message {

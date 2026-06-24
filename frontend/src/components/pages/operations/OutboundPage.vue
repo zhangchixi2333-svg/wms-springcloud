@@ -442,19 +442,19 @@ watch(viewMode, async (value) => {
                 <span>{{ kanban.warehouseName }} / {{ kanban.zoneName }}</span>
               </div>
               <div class="kanban-code">
-                <QrCodeImage :text="kanban.qrContent" :size="120" />
+                <QrCodeImage :text="kanban.qrContent || kanban.barcode" :size="120" />
                 <p class="mono">{{ kanban.barcode }}</p>
               </div>
             </div>
             <div class="kanban-actions">
               <button class="secondary-button" @click="toggleExpanded(kanban.id)">
-                {{ expandedParents[kanban.id] ? '收起子看板' : `展开子看板(${kanban.children.length})` }}
+                {{ expandedParents[kanban.id] ? '收起子看板' : `展开子看板(${(kanban.children ?? []).length})` }}
               </button>
               <button @click="simulatePrintScan(kanban)">模拟扫码出库</button>
             </div>
             <div v-if="expandedParents[kanban.id]" class="child-grid">
-              <div v-for="child in kanban.children" :key="child.id" class="child-card">
-                <QrCodeImage :text="child.qrContent" :size="92" />
+              <div v-for="child in kanban.children ?? []" :key="child.id" class="child-card">
+                <QrCodeImage :text="child.qrContent || child.barcode" :size="92" />
                 <div class="child-meta">
                   <strong>{{ child.kanbanNo }}</strong>
                   <span>第 {{ child.boxIndex }} 箱</span>
