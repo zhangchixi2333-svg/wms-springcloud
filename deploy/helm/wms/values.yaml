@@ -18,6 +18,14 @@ service:
   gatewayNodePort: 30080
   frontendNodePort: 30081
 
+ingress:
+  enabled: false
+  className: traefik
+  host: ""
+  tls:
+    enabled: false
+    secretName: wms-frontend-tls
+
 replicaCount:
   discovery: 1
   gateway: 1

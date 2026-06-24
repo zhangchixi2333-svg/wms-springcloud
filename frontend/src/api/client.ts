@@ -1,7 +1,7 @@
 /** 本文件封装前端通用 API 请求客户端。 */
 const API_BASE =
   import.meta.env.VITE_API_BASE ??
-  (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8080/api` : 'https://127.0.0.1:8080/api')
+  '/api'
 
 const TOKEN_KEY = 'wms-auth-token'
 
@@ -48,4 +48,3 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
 
   return payload.data as T
 }
-
