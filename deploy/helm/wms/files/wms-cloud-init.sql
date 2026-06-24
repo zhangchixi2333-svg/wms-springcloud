@@ -105,44 +105,12 @@ SET @part_default_equipment_code_exists := (
 );
 SET @part_default_equipment_code_sql := IF(
   @part_default_equipment_code_exists = 0,
-  'ALTER TABLE `part` ADD COLUMN `default_equipment_code` VARCHAR(64) DEFAULT NULL AFTER `unit`',
+  'ALTER TABLE `part` ADD COLUMN `default_equipment_code` VARCHAR(64) DEFAULT NULL AFTER `supplier_id`',
   'SELECT 1'
 );
 PREPARE stmt_part_default_equipment_code FROM @part_default_equipment_code_sql;
 EXECUTE stmt_part_default_equipment_code;
 DEALLOCATE PREPARE stmt_part_default_equipment_code;
-
-SET @part_supplier_id_exists := (
-  SELECT COUNT(*)
-  FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA = 'wms_cloud'
-    AND TABLE_NAME = 'part'
-    AND COLUMN_NAME = 'supplier_id'
-);
-SET @part_supplier_id_sql := IF(
-  @part_supplier_id_exists = 0,
-  'ALTER TABLE `part` ADD COLUMN `supplier_id` BIGINT DEFAULT NULL AFTER `unit`',
-  'SELECT 1'
-);
-PREPARE stmt_part_supplier_id FROM @part_supplier_id_sql;
-EXECUTE stmt_part_supplier_id;
-DEALLOCATE PREPARE stmt_part_supplier_id;
-
-SET @part_default_package_capacity_exists := (
-  SELECT COUNT(*)
-  FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA = 'wms_cloud'
-    AND TABLE_NAME = 'part'
-    AND COLUMN_NAME = 'default_package_capacity'
-);
-SET @part_default_package_capacity_sql := IF(
-  @part_default_package_capacity_exists = 0,
-  'ALTER TABLE `part` ADD COLUMN `default_package_capacity` DECIMAL(18,3) DEFAULT NULL AFTER `default_equipment_code`',
-  'SELECT 1'
-);
-PREPARE stmt_part_default_package_capacity FROM @part_default_package_capacity_sql;
-EXECUTE stmt_part_default_package_capacity;
-DEALLOCATE PREPARE stmt_part_default_package_capacity;
 
 CREATE TABLE IF NOT EXISTS `equipment` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -193,22 +161,6 @@ CREATE TABLE IF NOT EXISTS `inbound_order_item` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SET @inbound_order_item_unit_per_box_exists := (
-  SELECT COUNT(*)
-  FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA = 'wms_cloud'
-    AND TABLE_NAME = 'inbound_order_item'
-    AND COLUMN_NAME = 'unit_per_box'
-);
-SET @inbound_order_item_unit_per_box_sql := IF(
-  @inbound_order_item_unit_per_box_exists = 0,
-  'ALTER TABLE `inbound_order_item` ADD COLUMN `unit_per_box` DECIMAL(18,3) DEFAULT NULL AFTER `equipment_code`',
-  'SELECT 1'
-);
-PREPARE stmt_inbound_order_item_unit_per_box FROM @inbound_order_item_unit_per_box_sql;
-EXECUTE stmt_inbound_order_item_unit_per_box;
-DEALLOCATE PREPARE stmt_inbound_order_item_unit_per_box;
-
 CREATE TABLE IF NOT EXISTS `outbound_order` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `created_at` DATETIME(6) NOT NULL,
@@ -235,6 +187,7 @@ CREATE TABLE IF NOT EXISTS `kanban` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `barcode` VARCHAR(128) NOT NULL,
   `batch_no` VARCHAR(64) DEFAULT NULL,
+  `box_index` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME(6) NOT NULL,
   `frozen` BIT(1) NOT NULL,
   `inbound_order_id` BIGINT NOT NULL,
@@ -243,6 +196,8 @@ CREATE TABLE IF NOT EXISTS `kanban` (
   `kanban_no` VARCHAR(64) NOT NULL,
   `location_id` BIGINT DEFAULT NULL,
   `outbound_time` DATETIME(6) DEFAULT NULL,
+  `parent_kanban` BIT(1) NOT NULL DEFAULT b'0',
+  `parent_kanban_id` BIGINT DEFAULT NULL,
   `part_id` BIGINT NOT NULL,
   `qty` DECIMAL(18,3) NOT NULL,
   `status` VARCHAR(32) NOT NULL,
@@ -254,6 +209,91 @@ CREATE TABLE IF NOT EXISTS `kanban` (
   UNIQUE KEY `uk_kanban_no` (`kanban_no`),
   UNIQUE KEY `uk_kanban_qr_content` (`qr_content`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'inbound_order_item'
+        AND COLUMN_NAME = 'unit_per_box'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inbound_order_item` ADD COLUMN `unit_per_box` DECIMAL(18,3) DEFAULT NULL'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'parent_kanban_id'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `parent_kanban_id` BIGINT DEFAULT NULL'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'parent_kanban'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `parent_kanban` BIT(1) NOT NULL DEFAULT b''0'''
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'box_index'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `box_index` INT NOT NULL DEFAULT 0'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'inbound_order_item'
+        AND COLUMN_NAME = 'package_capacity'
+    ),
+    'UPDATE `inbound_order_item` SET `unit_per_box` = COALESCE(`unit_per_box`, `package_capacity`) WHERE `unit_per_box` IS NULL',
+    'SELECT 1'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS `inventory` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -325,6 +365,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `menu_item` (`parent_id`, `menu_key`, `menu_name`, `menu_type`, `path_key`, `page_key`, `icon_key`, `sort_order`, `visible`) VALUES
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'inbound', '入库', 'LEAF', 'inbound', 'inbound', 'inbound', 21, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'outbound', '出库', 'LEAF', 'outbound', 'outbound', 'outbound', 22, b'1'),
+((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'mobile-scan', '移动扫码', 'LEAF', 'mobile-scan', 'mobileScan', 'scan', 23, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'repack', '转包', 'LEAF', 'repack', 'repack', 'repack', 23, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'repack-balance', '转包结余', 'LEAF', 'repack-balance', 'repackBalance', 'balance', 24, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'transfer-freeze', '移库/封存', 'LEAF', 'transfer-freeze', 'transferFreeze', 'transfer', 25, b'1'),
