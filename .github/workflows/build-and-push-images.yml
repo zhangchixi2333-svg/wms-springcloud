@@ -15,7 +15,10 @@ env:
   ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
   ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
   IMAGE_REPOSITORY: ${{ secrets.ACR_IMAGE_REPOSITORY }}
-  MYSQL_SOURCE_IMAGE: mysql:8.0
+  MAVEN_ACR_TAG: wms-maven-3.9.11-eclipse-temurin-21
+  JRE_ACR_TAG: wms-eclipse-temurin-21-jre
+  NODE_ACR_TAG: wms-node-24-alpine
+  NGINX_ACR_TAG: wms-nginx-1.27-alpine
   MYSQL_ACR_TAG: wms-mysql-8.0
   DEPLOY_NAMESPACE: wms
   DEPLOY_RELEASE: wms
@@ -39,10 +42,65 @@ jobs:
           VERSION="v${GITHUB_RUN_NUMBER}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+  mirror-base-images:
+    name: Mirror base images to ACR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - source: maven:3.9.11-eclipse-temurin-21
+            tag: wms-maven-3.9.11-eclipse-temurin-21
+          - source: eclipse-temurin:21-jre
+            tag: wms-eclipse-temurin-21-jre
+          - source: node:24-alpine
+            tag: wms-node-24-alpine
+          - source: nginx:1.27-alpine
+            tag: wms-nginx-1.27-alpine
+          - source: mysql:8.0
+            tag: wms-mysql-8.0
+    steps:
+      - name: Login to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Pull tag and push ${{ matrix.tag }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TARGET_IMAGE="${IMAGE_REPOSITORY}:${{ matrix.tag }}"
+          if docker pull "${TARGET_IMAGE}"; then
+            echo "Base image already exists in ACR: ${TARGET_IMAGE}"
+            exit 0
+          fi
+
+          pulled=false
+          for attempt in 1 2 3; do
+            if docker pull "${{ matrix.source }}"; then
+              pulled=true
+              break
+            fi
+            echo "Pull failed, retry ${attempt}/3"
+            sleep $((attempt * 10))
+          done
+          if [ "${pulled}" != "true" ]; then
+            echo "Failed to pull ${{ matrix.source }}"
+            exit 1
+          fi
+          docker tag "${{ matrix.source }}" "${TARGET_IMAGE}"
+          docker push "${TARGET_IMAGE}"
+
   build-and-push:
     name: Build and push Docker images
     runs-on: ubuntu-latest
-    needs: prepare-version
+    needs:
+      - prepare-version
+      - mirror-base-images
     permissions:
       contents: read
     strategy:
@@ -93,41 +151,25 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
-          build-args: ${{ matrix.build_args }}
+          build-args: |
+            ${{ matrix.build_args }}
+            MAVEN_IMAGE=${{ env.IMAGE_REPOSITORY }}:${{ env.MAVEN_ACR_TAG }}
+            JRE_IMAGE=${{ env.IMAGE_REPOSITORY }}:${{ env.JRE_ACR_TAG }}
+            NODE_IMAGE=${{ env.IMAGE_REPOSITORY }}:${{ env.NODE_ACR_TAG }}
+            NGINX_IMAGE=${{ env.IMAGE_REPOSITORY }}:${{ env.NGINX_ACR_TAG }}
           tags: |
             ${{ env.IMAGE_REPOSITORY }}:${{ matrix.image_name }}-${{ needs.prepare-version.outputs.version }}
             ${{ env.IMAGE_REPOSITORY }}:${{ matrix.image_name }}-master
           cache-from: type=gha,scope=${{ matrix.image_name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image_name }}
 
-  mirror-mysql:
-    name: Mirror MySQL image to ACR
-    runs-on: ubuntu-latest
-    needs: prepare-version
-    permissions:
-      contents: read
-    steps:
-      - name: Login to Aliyun Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.ACR_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Pull tag and push MySQL
-        shell: bash
-        run: |
-          docker pull "${MYSQL_SOURCE_IMAGE}"
-          docker tag "${MYSQL_SOURCE_IMAGE}" "${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}"
-          docker push "${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}"
-
   deploy:
     name: Deploy to k3s by Helm
     runs-on: ubuntu-latest
     needs:
       - prepare-version
+      - mirror-base-images
       - build-and-push
-      - mirror-mysql
     permissions:
       contents: read
     steps:
@@ -243,7 +285,7 @@ jobs:
             cat "${DEPLOY_PATH}/deploy/helm/wms/Chart.yaml"
             echo "===== Helm lint ====="
             helm lint "${DEPLOY_PATH}/deploy/helm/wms"
-            echo "===== Helm upgrade ====="
+
             HELM_INGRESS_ARGS=""
             if [ "${WMS_INGRESS_ENABLED:-false}" = "true" ]; then
               HELM_INGRESS_ARGS="${HELM_INGRESS_ARGS} --set ingress.enabled=true"
@@ -257,6 +299,8 @@ jobs:
                 fi
               fi
             fi
+
+            echo "===== Helm upgrade ====="
             set +e
             helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
               -n "${DEPLOY_NAMESPACE}" \
@@ -272,7 +316,6 @@ jobs:
             cat /tmp/helm-upgrade.log
             if [ "${HELM_EXIT}" -ne 0 ]; then
               echo "Helm upgrade failed with exit code ${HELM_EXIT}"
-              cat /tmp/helm-upgrade.log || true
               exit "${HELM_EXIT}"
             fi
 
