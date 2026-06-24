@@ -89,9 +89,13 @@ CREATE TABLE IF NOT EXISTS `part` (
   `part_code` VARCHAR(64) NOT NULL,
   `part_name` VARCHAR(128) NOT NULL,
   `unit` VARCHAR(32) NOT NULL,
+  `default_equipment_code` VARCHAR(64) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_part_code` (`part_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `part`
+  ADD COLUMN IF NOT EXISTS `default_equipment_code` VARCHAR(64) DEFAULT NULL AFTER `unit`;
 
 CREATE TABLE IF NOT EXISTS `equipment` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,

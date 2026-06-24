@@ -96,6 +96,9 @@ CREATE TABLE IF NOT EXISTS `part` (
   UNIQUE KEY `uk_part_code` (`part_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+ALTER TABLE `part`
+  ADD COLUMN IF NOT EXISTS `default_equipment_code` VARCHAR(64) DEFAULT NULL AFTER `supplier_id`;
+
 CREATE TABLE IF NOT EXISTS `equipment` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `capacity` DECIMAL(18,3) DEFAULT NULL,

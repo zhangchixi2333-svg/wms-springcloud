@@ -237,9 +237,10 @@ jobs:
               --set "image.tag=\${VERSION}" \
               --set "mysql.image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" \
               --set "image.pullSecrets[0].name=aliyun-acr" \
-              2>&1 | tee /tmp/helm-upgrade.log
-            HELM_EXIT=\${PIPESTATUS[0]}
+              >/tmp/helm-upgrade.log 2>&1
+            HELM_EXIT=\$?
             set -e
+            cat /tmp/helm-upgrade.log
             if [ "\${HELM_EXIT}" -ne 0 ]; then
               echo "Helm upgrade failed with exit code \${HELM_EXIT}"
               cat /tmp/helm-upgrade.log || true

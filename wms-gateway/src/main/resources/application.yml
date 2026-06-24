@@ -1,10 +1,10 @@
 server:
   port: 8080
   ssl:
-    enabled: true
-    key-store: ${WMS_GATEWAY_SSL_KEY_STORE:D:/projects/wms-springcloud/frontend/certs/wms-local-dev.pfx}
-    key-store-password: ${WMS_GATEWAY_SSL_KEY_STORE_PASSWORD:wms-dev-cert}
-    key-store-type: PKCS12
+    enabled: ${WMS_GATEWAY_SSL_ENABLED:false}
+    key-store: ${WMS_GATEWAY_SSL_KEY_STORE:}
+    key-store-password: ${WMS_GATEWAY_SSL_KEY_STORE_PASSWORD:}
+    key-store-type: ${WMS_GATEWAY_SSL_KEY_STORE_TYPE:PKCS12}
 
 spring:
   application:
