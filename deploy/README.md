@@ -152,7 +152,7 @@ helm install wms deploy/helm/wms -n wms
 helm upgrade --install wms deploy/helm/wms -n wms `
   --set image.repository=registry.example.com/wms-cloud `
   --set image.tag=v1 `
-  --set mysql.image=registry.example.com/wms-cloud:mysql-8.0
+  --set mysql.image=registry.example.com/wms-cloud:wms-mysql-8.0
 ```
 
 查看状态：

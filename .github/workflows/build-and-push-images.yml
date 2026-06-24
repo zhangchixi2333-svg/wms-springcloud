@@ -13,7 +13,7 @@ concurrency:
 env:
   IMAGE_REPOSITORY: ${{ secrets.ACR_IMAGE_REPOSITORY }}
   MYSQL_SOURCE_IMAGE: mysql:8.0
-  MYSQL_ACR_TAG: mysql-8.0
+  MYSQL_ACR_TAG: wms-mysql-8.0
   DEPLOY_NAMESPACE: wms
   DEPLOY_RELEASE: wms
   DEPLOY_PATH: /opt/wms-springcloud

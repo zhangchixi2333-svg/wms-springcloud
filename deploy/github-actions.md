@@ -67,7 +67,7 @@ wms-frontend-master
 MySQL 额外镜像 tag：
 
 ```text
-mysql-8.0
+wms-mysql-8.0
 ```
 
 ## 四、Secrets 配置
@@ -118,7 +118,7 @@ v${GITHUB_RUN_NUMBER}
 将官方 `mysql:8.0` 拉取后重新打 tag 推送到 ACR：
 
 ```text
-${IMAGE_REPOSITORY}:mysql-8.0
+${IMAGE_REPOSITORY}:wms-mysql-8.0
 ```
 
 这样云端集群只需要从同一个 ACR 拉取镜像。
