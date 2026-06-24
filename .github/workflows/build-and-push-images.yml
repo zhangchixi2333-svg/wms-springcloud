@@ -203,7 +203,7 @@ jobs:
             echo "Helm chart path: ${DEPLOY_PATH}/deploy/helm/wms"
 
             if helm status "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" >/tmp/helm-status.txt 2>/tmp/helm-status.err; then
-              STATUS_LINE=$(grep '^STATUS:' /tmp/helm-status.txt | awk '{print $2}')
+              STATUS_LINE=$(awk '/^STATUS:/ {print $2}' /tmp/helm-status.txt | head -n 1)
               if echo "${STATUS_LINE}" | grep -Eq '^pending-(install|upgrade|rollback)$'; then
                 echo "Helm release is in pending state: ${STATUS_LINE}"
                 helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" || true
@@ -222,13 +222,27 @@ jobs:
             fi
 
             test -d "${DEPLOY_PATH}/deploy/helm/wms"
+            ls -la "${DEPLOY_PATH}/deploy/helm/wms"
+            cat "${DEPLOY_PATH}/deploy/helm/wms/Chart.yaml"
+            echo "===== Helm lint ====="
+            helm lint "${DEPLOY_PATH}/deploy/helm/wms"
+            echo "===== Helm upgrade ====="
+            set +e
             helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
               -n "${DEPLOY_NAMESPACE}" \
               --create-namespace \
               --set "image.repository=${IMAGE_REPOSITORY}" \
               --set "image.tag=${VERSION}" \
               --set "mysql.image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" \
-              --set "image.pullSecrets[0].name=aliyun-acr"
+              --set "image.pullSecrets[0].name=aliyun-acr" \
+              2>&1 | tee /tmp/helm-upgrade.log
+            HELM_EXIT=${PIPESTATUS[0]}
+            set -e
+            if [ "${HELM_EXIT}" -ne 0 ]; then
+              echo "Helm upgrade failed with exit code ${HELM_EXIT}"
+              cat /tmp/helm-upgrade.log || true
+              exit "${HELM_EXIT}"
+            fi
 
             kubectl get pods -n "${DEPLOY_NAMESPACE}" || true
             kubectl get statefulset mysql -n "${DEPLOY_NAMESPACE}" -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
