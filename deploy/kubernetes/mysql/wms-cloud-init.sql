@@ -89,7 +89,9 @@ CREATE TABLE IF NOT EXISTS `part` (
   `part_code` VARCHAR(64) NOT NULL,
   `part_name` VARCHAR(128) NOT NULL,
   `unit` VARCHAR(32) NOT NULL,
+  `supplier_id` BIGINT DEFAULT NULL,
   `default_equipment_code` VARCHAR(64) DEFAULT NULL,
+  `default_package_capacity` DECIMAL(18,3) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_part_code` (`part_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -109,6 +111,38 @@ SET @part_default_equipment_code_sql := IF(
 PREPARE stmt_part_default_equipment_code FROM @part_default_equipment_code_sql;
 EXECUTE stmt_part_default_equipment_code;
 DEALLOCATE PREPARE stmt_part_default_equipment_code;
+
+SET @part_supplier_id_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = 'wms_cloud'
+    AND TABLE_NAME = 'part'
+    AND COLUMN_NAME = 'supplier_id'
+);
+SET @part_supplier_id_sql := IF(
+  @part_supplier_id_exists = 0,
+  'ALTER TABLE `part` ADD COLUMN `supplier_id` BIGINT DEFAULT NULL AFTER `unit`',
+  'SELECT 1'
+);
+PREPARE stmt_part_supplier_id FROM @part_supplier_id_sql;
+EXECUTE stmt_part_supplier_id;
+DEALLOCATE PREPARE stmt_part_supplier_id;
+
+SET @part_default_package_capacity_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = 'wms_cloud'
+    AND TABLE_NAME = 'part'
+    AND COLUMN_NAME = 'default_package_capacity'
+);
+SET @part_default_package_capacity_sql := IF(
+  @part_default_package_capacity_exists = 0,
+  'ALTER TABLE `part` ADD COLUMN `default_package_capacity` DECIMAL(18,3) DEFAULT NULL AFTER `default_equipment_code`',
+  'SELECT 1'
+);
+PREPARE stmt_part_default_package_capacity FROM @part_default_package_capacity_sql;
+EXECUTE stmt_part_default_package_capacity;
+DEALLOCATE PREPARE stmt_part_default_package_capacity;
 
 CREATE TABLE IF NOT EXISTS `equipment` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -153,11 +187,27 @@ CREATE TABLE IF NOT EXISTS `inbound_order_item` (
   `received_qty` DECIMAL(18,3) NOT NULL,
   `box_count` INT NOT NULL,
   `equipment_code` VARCHAR(64) DEFAULT NULL,
-  `package_capacity` DECIMAL(18,3) DEFAULT NULL,
+  `unit_per_box` DECIMAL(18,3) DEFAULT NULL,
   `pending_repack` BIT(1) NOT NULL,
   `warehouse_zone` VARCHAR(128) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @inbound_order_item_unit_per_box_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = 'wms_cloud'
+    AND TABLE_NAME = 'inbound_order_item'
+    AND COLUMN_NAME = 'unit_per_box'
+);
+SET @inbound_order_item_unit_per_box_sql := IF(
+  @inbound_order_item_unit_per_box_exists = 0,
+  'ALTER TABLE `inbound_order_item` ADD COLUMN `unit_per_box` DECIMAL(18,3) DEFAULT NULL AFTER `equipment_code`',
+  'SELECT 1'
+);
+PREPARE stmt_inbound_order_item_unit_per_box FROM @inbound_order_item_unit_per_box_sql;
+EXECUTE stmt_inbound_order_item_unit_per_box;
+DEALLOCATE PREPARE stmt_inbound_order_item_unit_per_box;
 
 CREATE TABLE IF NOT EXISTS `outbound_order` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
