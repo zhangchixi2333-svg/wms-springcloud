@@ -163,9 +163,44 @@ jobs:
           command_timeout: 30m
           envs: IMAGE_REPOSITORY,MYSQL_ACR_TAG,DEPLOY_NAMESPACE,DEPLOY_RELEASE,DEPLOY_PATH
           script: |
-            set -e
+            set -Eeuo pipefail
+            on_error() {
+              EXIT_CODE=$?
+              echo "Deploy script failed with exit code ${EXIT_CODE}"
+              echo "===== Helm list ====="
+              helm list -n "${DEPLOY_NAMESPACE}" || true
+              echo "===== Helm status ====="
+              helm status "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" || true
+              echo "===== Pods ====="
+              kubectl get pods -n "${DEPLOY_NAMESPACE}" -o wide || true
+              echo "===== Jobs ====="
+              kubectl get jobs -n "${DEPLOY_NAMESPACE}" || true
+              echo "===== Events ====="
+              kubectl get events -n "${DEPLOY_NAMESPACE}" --sort-by=.lastTimestamp | tail -n 50 || true
+              echo "===== MySQL describe ====="
+              kubectl describe statefulset mysql -n "${DEPLOY_NAMESPACE}" || true
+              kubectl describe pod mysql-0 -n "${DEPLOY_NAMESPACE}" || true
+              echo "===== MySQL logs ====="
+              kubectl logs mysql-0 -n "${DEPLOY_NAMESPACE}" --tail=200 || true
+              echo "===== MySQL init logs ====="
+              kubectl logs job/wms-mysql-init -n "${DEPLOY_NAMESPACE}" --tail=200 || true
+              echo "===== Service logs ====="
+              kubectl logs deploy/wms-discovery -n "${DEPLOY_NAMESPACE}" --tail=100 || true
+              kubectl logs deploy/wms-gateway -n "${DEPLOY_NAMESPACE}" --tail=100 || true
+              kubectl logs deploy/wms-system-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
+              kubectl logs deploy/wms-masterdata-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
+              kubectl logs deploy/wms-business-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
+              kubectl logs deploy/wms-frontend -n "${DEPLOY_NAMESPACE}" --tail=100 || true
+              exit "${EXIT_CODE}"
+            }
+            trap on_error ERR
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             VERSION="${{ needs.prepare-version.outputs.version }}"
+
+            echo "Deploy version: ${VERSION}"
+            echo "Image repository: ${IMAGE_REPOSITORY}"
+            echo "MySQL image: ${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}"
+            echo "Helm chart path: ${DEPLOY_PATH}/deploy/helm/wms"
 
             if helm status "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" >/tmp/helm-status.txt 2>/tmp/helm-status.err; then
               STATUS_LINE=$(grep '^STATUS:' /tmp/helm-status.txt | awk '{print $2}')
@@ -186,6 +221,7 @@ jobs:
               cat /tmp/helm-status.err || true
             fi
 
+            test -d "${DEPLOY_PATH}/deploy/helm/wms"
             helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
               -n "${DEPLOY_NAMESPACE}" \
               --create-namespace \
@@ -195,6 +231,7 @@ jobs:
               --set "image.pullSecrets[0].name=aliyun-acr"
 
             kubectl get pods -n "${DEPLOY_NAMESPACE}" || true
+            kubectl get statefulset mysql -n "${DEPLOY_NAMESPACE}" -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
             kubectl rollout status statefulset/mysql -n "${DEPLOY_NAMESPACE}" --timeout=600s
             kubectl wait --for=condition=Ready pod/mysql-0 -n "${DEPLOY_NAMESPACE}" --timeout=600s
 
