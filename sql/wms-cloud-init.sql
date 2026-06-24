@@ -96,8 +96,21 @@ CREATE TABLE IF NOT EXISTS `part` (
   UNIQUE KEY `uk_part_code` (`part_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE `part`
-  ADD COLUMN IF NOT EXISTS `default_equipment_code` VARCHAR(64) DEFAULT NULL AFTER `supplier_id`;
+SET @part_default_equipment_code_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = 'wms_cloud'
+    AND TABLE_NAME = 'part'
+    AND COLUMN_NAME = 'default_equipment_code'
+);
+SET @part_default_equipment_code_sql := IF(
+  @part_default_equipment_code_exists = 0,
+  'ALTER TABLE `part` ADD COLUMN `default_equipment_code` VARCHAR(64) DEFAULT NULL AFTER `supplier_id`',
+  'SELECT 1'
+);
+PREPARE stmt_part_default_equipment_code FROM @part_default_equipment_code_sql;
+EXECUTE stmt_part_default_equipment_code;
+DEALLOCATE PREPARE stmt_part_default_equipment_code;
 
 CREATE TABLE IF NOT EXISTS `equipment` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
