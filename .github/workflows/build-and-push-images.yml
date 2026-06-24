@@ -203,7 +203,7 @@ jobs:
             echo "Helm chart path: ${DEPLOY_PATH}/deploy/helm/wms"
 
             if helm status "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" >/tmp/helm-status.txt 2>/tmp/helm-status.err; then
-              STATUS_LINE=$(awk '/^STATUS:/ {print $2}' /tmp/helm-status.txt | head -n 1)
+              STATUS_LINE=$(awk '/^STATUS:/ {print $2; exit}' /tmp/helm-status.txt)
               if echo "${STATUS_LINE}" | grep -Eq '^pending-(install|upgrade|rollback)$'; then
                 echo "Helm release is in pending state: ${STATUS_LINE}"
                 helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" || true
