@@ -163,10 +163,12 @@ jobs:
           command_timeout: 30m
           envs: IMAGE_REPOSITORY,MYSQL_ACR_TAG,DEPLOY_NAMESPACE,DEPLOY_RELEASE,DEPLOY_PATH
           script: |
+            bash <<EOF
             set -Eeuo pipefail
+            set -x
             on_error() {
-              EXIT_CODE=$?
-              echo "Deploy script failed with exit code ${EXIT_CODE}"
+              EXIT_CODE=\$?
+              echo "Deploy script failed with exit code \${EXIT_CODE}"
               echo "===== Helm list ====="
               helm list -n "${DEPLOY_NAMESPACE}" || true
               echo "===== Helm status ====="
@@ -191,26 +193,26 @@ jobs:
               kubectl logs deploy/wms-masterdata-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
               kubectl logs deploy/wms-business-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
               kubectl logs deploy/wms-frontend -n "${DEPLOY_NAMESPACE}" --tail=100 || true
-              exit "${EXIT_CODE}"
+              exit "\${EXIT_CODE}"
             }
             trap on_error ERR
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             VERSION="${{ needs.prepare-version.outputs.version }}"
 
-            echo "Deploy version: ${VERSION}"
+            echo "Deploy version: \${VERSION}"
             echo "Image repository: ${IMAGE_REPOSITORY}"
             echo "MySQL image: ${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}"
             echo "Helm chart path: ${DEPLOY_PATH}/deploy/helm/wms"
 
             if helm status "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" >/tmp/helm-status.txt 2>/tmp/helm-status.err; then
-              STATUS_LINE=$(awk '/^STATUS:/ {print $2; exit}' /tmp/helm-status.txt)
-              if echo "${STATUS_LINE}" | grep -Eq '^pending-(install|upgrade|rollback)$'; then
-                echo "Helm release is in pending state: ${STATUS_LINE}"
+              STATUS_LINE=\$(awk '/^STATUS:/ {print \$2; exit}' /tmp/helm-status.txt)
+              if echo "\${STATUS_LINE}" | grep -Eq '^pending-(install|upgrade|rollback)$'; then
+                echo "Helm release is in pending state: \${STATUS_LINE}"
                 helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" || true
-                LAST_GOOD_REVISION=$(helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" -o json | python3 -c 'import json,sys; data=json.load(sys.stdin); good=[str(item.get("revision","")) for item in data if item.get("status") in ("deployed","superseded") and item.get("revision") is not None]; print(good[-1] if good else "")')
-                if [ -n "${LAST_GOOD_REVISION}" ]; then
-                  echo "Rollback to revision ${LAST_GOOD_REVISION}"
-                  helm rollback "${DEPLOY_RELEASE}" "${LAST_GOOD_REVISION}" -n "${DEPLOY_NAMESPACE}" --wait --timeout 10m
+                LAST_GOOD_REVISION=\$(helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" -o json | python3 -c 'import json,sys; data=json.load(sys.stdin); good=[str(item.get("revision","")) for item in data if item.get("status") in ("deployed","superseded") and item.get("revision") is not None]; print(good[-1] if good else "")')
+                if [ -n "\${LAST_GOOD_REVISION}" ]; then
+                  echo "Rollback to revision \${LAST_GOOD_REVISION}"
+                  helm rollback "${DEPLOY_RELEASE}" "\${LAST_GOOD_REVISION}" -n "${DEPLOY_NAMESPACE}" --wait --timeout 10m
                 else
                   echo "No usable revision found for rollback"
                   cat /tmp/helm-status.txt || true
@@ -232,16 +234,16 @@ jobs:
               -n "${DEPLOY_NAMESPACE}" \
               --create-namespace \
               --set "image.repository=${IMAGE_REPOSITORY}" \
-              --set "image.tag=${VERSION}" \
+              --set "image.tag=\${VERSION}" \
               --set "mysql.image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" \
               --set "image.pullSecrets[0].name=aliyun-acr" \
               2>&1 | tee /tmp/helm-upgrade.log
-            HELM_EXIT=${PIPESTATUS[0]}
+            HELM_EXIT=\${PIPESTATUS[0]}
             set -e
-            if [ "${HELM_EXIT}" -ne 0 ]; then
-              echo "Helm upgrade failed with exit code ${HELM_EXIT}"
+            if [ "\${HELM_EXIT}" -ne 0 ]; then
+              echo "Helm upgrade failed with exit code \${HELM_EXIT}"
               cat /tmp/helm-upgrade.log || true
-              exit "${HELM_EXIT}"
+              exit "\${HELM_EXIT}"
             fi
 
             kubectl get pods -n "${DEPLOY_NAMESPACE}" || true
@@ -261,3 +263,4 @@ jobs:
             kubectl rollout status deployment/wms-frontend -n "${DEPLOY_NAMESPACE}" --timeout=600s
 
             kubectl get pods -n "${DEPLOY_NAMESPACE}"
+            EOF
