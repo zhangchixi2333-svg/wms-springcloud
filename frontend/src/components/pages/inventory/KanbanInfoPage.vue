@@ -34,10 +34,12 @@ const workModes = computed(() => [
 ])
 
 const statusOptions = [
-  { value: '', label: '????' },
+  { value: '', label: '全部状态' },
   { value: 'CREATED', label: formatStatus('CREATED') },
   { value: 'WAIT_SCAN', label: formatStatus('WAIT_SCAN') },
   { value: 'PARTIAL', label: formatStatus('PARTIAL') },
+  { value: 'PARTIAL_INBOUND', label: formatStatus('PARTIAL_INBOUND') },
+  { value: 'PARTIAL_OUTBOUND', label: formatStatus('PARTIAL_OUTBOUND') },
   { value: 'INBOUND', label: formatStatus('INBOUND') },
   { value: 'OUTBOUND', label: formatStatus('OUTBOUND') },
   { value: 'FROZEN', label: formatStatus('FROZEN') },
@@ -141,8 +143,23 @@ function formatTime(value: string | null) {
   return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
 }
 
+function outboundNoList(value: string | null | undefined) {
+  return Array.from(new Set((value ?? '')
+    .split(/[,\uFF0C;\uFF1B\s]+/)
+    .map((item) => item.trim())
+    .filter((item) => item && item !== '-')))
+}
+
 function toggleExpanded(kanbanId: number) {
   expandedParents[kanbanId] = !expandedParents[kanbanId]
+}
+
+function childStatusSummary(item: Kanban) {
+  const children = item.children ?? []
+  const inbound = children.filter((child) => child.status === 'INBOUND').length
+  const outbound = children.filter((child) => child.status === 'OUTBOUND').length
+  const waiting = children.filter((child) => ['WAIT_SCAN', 'CREATED'].includes(child.status)).length
+  return `待入库 ${waiting} / 已入库 ${inbound} / 已出库 ${outbound}`
 }
 
 watch(
@@ -174,7 +191,7 @@ watch(
       <div class="section-head">
         <div>
           <h3>扫码入库</h3>
-          <p>浏览器里可直接录入二维码内容或条码回车模拟扫码枪，父看板入库时会自动带上全部子箱。</p>
+          <p>浏览器里可直接录入二维码内容或条码回车模拟扫码枪，父看板入库时会处理当前仍待入库的子箱。</p>
         </div>
       </div>
       <div class="scan-action-layout">
@@ -259,10 +276,20 @@ watch(
                 <tr>
                   <td>{{ item.kanbanNo }}</td>
                   <td>{{ item.inboundNo }}</td>
-                  <td>{{ item.outboundNo || '-' }}</td>
+                  <td>
+                    <span v-if="outboundNoList(item.outboundNo).length" class="tag-list">
+                      <span v-for="no in outboundNoList(item.outboundNo)" :key="no" class="tag-pill">{{ no }}</span>
+                    </span>
+                    <span v-else>-</span>
+                  </td>
                   <td>{{ item.partCode }}</td>
                   <td>{{ item.supplierName }}</td>
-                  <td>{{ formatStatus(item.status) }}</td>
+                  <td>
+                    <div class="status-cell">
+                      <strong>{{ formatStatus(item.status) }}</strong>
+                      <span>{{ childStatusSummary(item) }}</span>
+                    </div>
+                  </td>
                   <td>{{ item.qty }}</td>
                   <td>{{ item.boxCount }}</td>
                   <td>{{ item.warehouseName }} / {{ item.zoneName }}</td>
@@ -277,14 +304,41 @@ watch(
                 </tr>
                 <tr v-if="expandedParents[item.id]">
                   <td colspan="12">
-                    <div class="child-grid">
-                      <div v-for="child in item.children ?? []" :key="child.id" class="child-row">
-                        <strong>{{ child.kanbanNo }}</strong>
-                        <span>第 {{ child.boxIndex }} 箱</span>
-                        <span>数量 {{ child.qty }}</span>
-                        <span>状态 {{ formatStatus(child.status) }}</span>
-                        <span>条码 {{ child.barcode }}</span>
-                      </div>
+                    <div class="table-scroll">
+                      <table class="table child-kanban-table">
+                        <thead>
+                          <tr>
+                            <th>子看板号</th>
+                            <th>箱号</th>
+                            <th>数量</th>
+                            <th>状态</th>
+                            <th>出库单号</th>
+                            <th>入库时间</th>
+                            <th>出库时间</th>
+                            <th>条码</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="child in item.children ?? []" :key="child.id">
+                            <td class="mono">{{ child.kanbanNo }}</td>
+                            <td>第 {{ child.boxIndex }} 箱</td>
+                            <td>{{ child.qty }}</td>
+                            <td>{{ formatStatus(child.status) }}</td>
+                            <td>
+                              <span v-if="outboundNoList(child.outboundNo).length" class="tag-list">
+                                <span v-for="no in outboundNoList(child.outboundNo)" :key="no" class="tag-pill">{{ no }}</span>
+                              </span>
+                              <span v-else>-</span>
+                            </td>
+                            <td>{{ formatTime(child.inboundTime) }}</td>
+                            <td>{{ formatTime(child.outboundTime) }}</td>
+                            <td class="mono">{{ child.barcode }}</td>
+                          </tr>
+                          <tr v-if="!(item.children ?? []).length">
+                            <td colspan="8" class="empty-cell">暂无子看板</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   </td>
                 </tr>
@@ -313,7 +367,15 @@ watch(
               <tbody>
                 <tr><th>条码</th><td class="mono">{{ selectedKanban.barcode }}</td></tr>
                 <tr><th>入库单号</th><td>{{ selectedKanban.inboundNo }}</td></tr>
-                <tr><th>出库单号</th><td>{{ selectedKanban.outboundNo || '-' }}</td></tr>
+                <tr>
+                  <th>出库单号</th>
+                  <td>
+                    <span v-if="outboundNoList(selectedKanban.outboundNo).length" class="tag-list">
+                      <span v-for="no in outboundNoList(selectedKanban.outboundNo)" :key="no" class="tag-pill">{{ no }}</span>
+                    </span>
+                    <span v-else>-</span>
+                  </td>
+                </tr>
                 <tr><th>供应商</th><td>{{ selectedKanban.supplierName }}</td></tr>
                 <tr><th>零件号</th><td>{{ selectedKanban.partCode }}</td></tr>
                 <tr><th>零件名称</th><td>{{ selectedKanban.partName }}</td></tr>
@@ -340,15 +402,43 @@ watch(
           </div>
         </div>
 
-        <div class="child-grid print-child-grid">
-          <div v-for="child in selectedKanban.children ?? []" :key="child.id" class="child-card">
-            <QrCodeImage :text="child.qrContent || child.barcode" :size="108" />
-            <strong>{{ child.kanbanNo }}</strong>
-            <span>第 {{ child.boxIndex }} 箱</span>
-            <span>数量 {{ child.qty }}</span>
-            <span>状态 {{ formatStatus(child.status) }}</span>
-            <span class="mono">{{ child.barcode }}</span>
-          </div>
+        <div class="table-scroll print-child-table-wrap">
+          <table class="table child-kanban-table">
+            <thead>
+              <tr>
+                <th>二维码</th>
+                <th>子看板号</th>
+                <th>箱号</th>
+                <th>数量</th>
+                <th>状态</th>
+                <th>出库单号</th>
+                <th>入库时间</th>
+                <th>出库时间</th>
+                <th>条码</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="child in selectedKanban.children ?? []" :key="child.id">
+                <td class="qr-mini"><QrCodeImage :text="child.qrContent || child.barcode" :size="64" /></td>
+                <td class="mono">{{ child.kanbanNo }}</td>
+                <td>第 {{ child.boxIndex }} 箱</td>
+                <td>{{ child.qty }}</td>
+                <td>{{ formatStatus(child.status) }}</td>
+                <td>
+                  <span v-if="outboundNoList(child.outboundNo).length" class="tag-list">
+                    <span v-for="no in outboundNoList(child.outboundNo)" :key="no" class="tag-pill">{{ no }}</span>
+                  </span>
+                  <span v-else>-</span>
+                </td>
+                <td>{{ formatTime(child.inboundTime) }}</td>
+                <td>{{ formatTime(child.outboundTime) }}</td>
+                <td class="mono">{{ child.barcode }}</td>
+              </tr>
+              <tr v-if="!selectedKanban.children?.length">
+                <td colspan="9" class="empty-cell">暂无子看板</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
     </WorkModePage>
@@ -361,6 +451,16 @@ watch(
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 12px;
+}
+
+.status-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.status-cell span {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .scan-hint {
@@ -391,30 +491,41 @@ watch(
   text-align: center;
 }
 
-.child-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  align-items: start;
+.table-scroll {
+  overflow-x: auto;
 }
 
-.child-row,
-.child-card {
-  display: grid;
-  gap: 4px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 10px;
+.child-kanban-table {
+  min-width: 980px;
 }
 
-.child-row {
-  min-height: 116px;
-  align-content: start;
-}
-
-.print-child-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.print-child-table-wrap {
   margin-top: 16px;
+}
+
+.tag-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-pill {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.empty-cell {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.qr-mini {
+  text-align: center;
 }
 
 @media (max-width: 1100px) {

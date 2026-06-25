@@ -16,7 +16,6 @@ import com.example.wms.api.OrderController.InboundOrderItemRequest;
 import com.example.wms.api.OrderController.InboundOrderView;
 import com.example.wms.api.OrderController.KanbanView;
 import com.example.wms.api.OrderController.OutboundOrderCreateRequest;
-import com.example.wms.api.OrderController.OutboundOrderItemRequest;
 import com.example.wms.api.OrderController.OutboundOrderView;
 import com.example.wms.api.ScanController.ScanInboundRequest;
 import com.example.wms.api.ScanController.ScanOutboundRequest;
@@ -205,6 +204,7 @@ public class WmsService {
                                         String kanbanNo,
                                         Long supplierId,
                                         String partCode) {
+        repairParentKanbanStates();
         return kanbanRepository.findAll().stream()
                 .map(this::toKanbanView)
                 .filter(view -> isBlank(status) || status.equalsIgnoreCase(view.status()))
@@ -221,19 +221,15 @@ public class WmsService {
     public OutboundOrderView createOutboundOrder(OutboundOrderCreateRequest request) {
         if (request.customerId() != null) {
             customerRepository.findById(request.customerId())
-                    .orElseThrow(() -> new NotFoundException("?????"));
+                    .orElseThrow(() -> new NotFoundException("客户不存在"));
         }
-        if (request.items().isEmpty()) {
-            throw new BusinessException("???????????");
-        }
-        List<String> inboundOrderNos = normalizeInboundOrderNos(request.inboundOrderNos());
-        if (inboundOrderNos.isEmpty()) {
-            throw new BusinessException("??????????????");
-        }
-        inboundOrderNos.forEach(inboundNo -> inboundOrderRepository.findAll().stream()
-                .filter(order -> inboundNo.equalsIgnoreCase(order.getInboundNo()))
-                .findFirst()
-                .orElseThrow(() -> new NotFoundException("??????: " + inboundNo)));
+        List<Kanban> selectedBoxes = loadSelectedOutboundBoxes(request.kanbanIds());
+        List<String> inboundOrderNos = selectedBoxes.stream()
+                .map(kanban -> inboundOrderRepository.findById(kanban.getInboundOrderId())
+                        .map(InboundOrder::getInboundNo)
+                        .orElse("-"))
+                .distinct()
+                .toList();
 
         OutboundOrder order = new OutboundOrder();
         order.setOutboundNo("OUT" + LocalDateTime.now().format(TS));
@@ -243,17 +239,23 @@ public class WmsService {
         order.setCreatedAt(LocalDateTime.now());
         order = outboundOrderRepository.save(order);
 
-        for (OutboundOrderItemRequest itemRequest : request.items()) {
-            partRepository.findById(itemRequest.partId())
-                    .orElseThrow(() -> new NotFoundException("??????" + itemRequest.partId()));
+        for (Kanban kanban : selectedBoxes) {
+            Location location = locationRepository.findById(kanban.getLocationId())
+                    .orElseThrow(() -> new NotFoundException("看板库位不存在：" + kanban.getKanbanNo()));
             OutboundOrderItem item = new OutboundOrderItem();
             item.setOutboundOrderId(order.getId());
-            item.setPartId(itemRequest.partId());
-            item.setPlannedQty(itemRequest.plannedQty());
+            item.setKanbanId(kanban.getId());
+            item.setKanbanNo(kanban.getKanbanNo());
+            item.setPartId(kanban.getPartId());
+            item.setPlannedQty(kanban.getQty());
             item.setScannedQty(BigDecimal.ZERO);
-            item.setWarehouseName(itemRequest.warehouseName());
-            item.setZoneName(itemRequest.zoneName());
+            item.setWarehouseName(location.getWarehouseName());
+            item.setZoneName(location.getZoneName());
             outboundOrderItemRepository.save(item);
+
+            kanban.setOutboundOrderNo(order.getOutboundNo());
+            kanbanRepository.save(kanban);
+            refreshParentKanbanState(kanban);
         }
 
         return toOutboundOrderView(order);
@@ -272,42 +274,63 @@ public class WmsService {
     @Transactional
     public ScanResultView scanInbound(ScanInboundRequest request) {
         Kanban kanban = findKanbanByScanCode(request.barcode());
-        Location location = locationRepository.findByLocationCode(request.locationCode())
-                .orElseThrow(() -> new NotFoundException("?????"));
-        List<Kanban> targets = resolveScanTargets(kanban);
+        List<Kanban> targets = resolveInboundScanTargets(kanban);
+        Location location = resolveInboundLocation(request.locationCode(), kanban, targets);
         for (Kanban target : targets) {
             ensureInboundAllowed(target);
             applyInboundForSingleKanban(target, location);
         }
         refreshParentKanbanState(kanban);
+        refreshParentKanbanStates(targets);
         syncInboundOrderStatus(kanban.getInboundOrderId());
         Kanban resultKanban = kanban.isParentKanban()
                 ? kanbanRepository.findById(kanban.getId()).orElse(kanban)
                 : kanbanRepository.findById(kanban.getId()).orElse(kanban);
-        return new ScanResultView("INBOUND_OK", "????", resultKanban.getBarcode(), resultKanban.getStatus());
+        return new ScanResultView(
+                "INBOUND_OK",
+                "扫码入库成功，已处理 " + targets.size() + " 箱",
+                resultKanban.getBarcode(),
+                resultKanban.getKanbanNo(),
+                parentKanbanNo(resultKanban),
+                null,
+                resultKanban.getStatus(),
+                targets.size(),
+                targets.stream().map(Kanban::getKanbanNo).toList()
+        );
     }
 
     @Transactional
     public ScanResultView scanOutbound(ScanOutboundRequest request) {
         Kanban kanban = findKanbanByScanCode(request.barcode());
-        String outboundOrderNo = normalize(request.outboundOrderNo());
+        String outboundOrderNo = resolveOutboundOrderNo(request.outboundOrderNo(), kanban);
         if (outboundOrderNo == null) {
-            throw new BusinessException("????????");
+            throw new BusinessException("请选择出库单后再扫码出库");
         }
         OutboundOrder order = outboundOrderRepository.findAll().stream()
                 .filter(item -> outboundOrderNo.equalsIgnoreCase(item.getOutboundNo()))
                 .findFirst()
-                .orElseThrow(() -> new NotFoundException("??????"));
-        List<Kanban> targets = resolveScanTargets(kanban);
+                .orElseThrow(() -> new NotFoundException("出库单不存在：" + outboundOrderNo));
+        List<Kanban> targets = resolveOutboundScanTargets(kanban, order);
         for (Kanban target : targets) {
             ensureOutboundAllowed(target);
-            requireKanbanMatchesOutboundSource(order, target);
             applyOutboundScanToOrder(order, target);
             applyOutboundForSingleKanban(order, target);
         }
         refreshParentKanbanState(kanban);
+        refreshParentKanbanStates(targets);
         Kanban resultKanban = kanbanRepository.findById(kanban.getId()).orElse(kanban);
-        return new ScanResultView("OUTBOUND_OK", "????", resultKanban.getBarcode(), resultKanban.getStatus());
+        syncOutboundOrderStatus(order.getId());
+        return new ScanResultView(
+                "OUTBOUND_OK",
+                "扫码出库成功，已处理 " + targets.size() + " 箱，出库单 " + order.getOutboundNo(),
+                resultKanban.getBarcode(),
+                resultKanban.getKanbanNo(),
+                parentKanbanNo(resultKanban),
+                order.getOutboundNo(),
+                resultKanban.getStatus(),
+                targets.size(),
+                targets.stream().map(Kanban::getKanbanNo).toList()
+        );
     }
 
     public List<InventorySummaryView> getInventorySummary(String warehouseName,
@@ -542,13 +565,13 @@ public class WmsService {
     private Kanban findOperableStockKanban(String barcode) {
         Kanban kanban = findKanbanByScanCode(barcode);
         if (!"INBOUND".equals(kanban.getStatus())) {
-            throw new BusinessException("????????????");
+            throw new BusinessException("看板不是已入库状态，不能执行库存操作");
         }
         if (kanban.isFrozen()) {
-            throw new BusinessException("?????????");
+            throw new BusinessException("看板已封存，不能执行库存操作");
         }
         if (kanban.getLocationId() == null) {
-            throw new BusinessException("?????????");
+            throw new BusinessException("看板没有库存库位，不能执行库存操作");
         }
         return kanban;
     }
@@ -574,33 +597,158 @@ public class WmsService {
         return List.of(kanban);
     }
 
+    private List<Kanban> resolveInboundScanTargets(Kanban kanban) {
+        List<Kanban> targets = resolveScanTargets(kanban).stream()
+                .filter(item -> List.of("WAIT_SCAN", "CREATED").contains(item.getStatus()))
+                .toList();
+        if (targets.isEmpty()) {
+            throw new BusinessException("看板 " + kanban.getKanbanNo() + " 没有待入库箱子");
+        }
+        return targets;
+    }
+
+    private List<Kanban> resolveOutboundScanTargets(Kanban kanban, OutboundOrder order) {
+        List<Kanban> targets = resolveScanTargets(kanban).stream()
+                .filter(item -> order.getOutboundNo().equalsIgnoreCase(defaultString(item.getOutboundOrderNo())))
+                .filter(item -> !"OUTBOUND".equals(item.getStatus()))
+                .toList();
+        if (targets.isEmpty()) {
+            throw new BusinessException("看板 " + kanban.getKanbanNo() + " 没有绑定到当前出库单的待出库箱子");
+        }
+        return targets;
+    }
+
+    private Location resolveInboundLocation(String locationCode, Kanban scannedKanban, List<Kanban> targets) {
+        String normalizedLocationCode = normalize(locationCode);
+        if (normalizedLocationCode != null) {
+            return locationRepository.findByLocationCode(normalizedLocationCode)
+                    .orElseThrow(() -> new NotFoundException("入库库位不存在：" + normalizedLocationCode));
+        }
+
+        Kanban reference = targets.isEmpty() ? scannedKanban : targets.get(0);
+        InboundOrderItem item = inboundOrderItemRepository.findById(reference.getInboundOrderItemId())
+                .orElseThrow(() -> new NotFoundException("入库明细不存在：" + reference.getInboundOrderItemId()));
+        String[] plannedZone = splitWarehouseZone(item.getWarehouseZone());
+        List<Location> matchedLocations = locationRepository.findAll().stream()
+                .filter(location -> plannedZone[0].equals(location.getWarehouseName()) && plannedZone[1].equals(location.getZoneName()))
+                .toList();
+        if (matchedLocations.size() == 1) {
+            return matchedLocations.get(0);
+        }
+        if (matchedLocations.isEmpty()) {
+            throw new BusinessException("未找到看板计划库区对应的库位，请在移动端选择入库库位后重试：" + plannedZone[0] + " / " + plannedZone[1]);
+        }
+        throw new BusinessException("看板计划库区匹配到多个库位，请在移动端手动选择入库库位：" + plannedZone[0] + " / " + plannedZone[1]);
+    }
+
+    private String parentKanbanNo(Kanban kanban) {
+        if (kanban.isParentKanban()) {
+            return kanban.getKanbanNo();
+        }
+        if (kanban.getParentKanbanId() == null) {
+            return null;
+        }
+        return kanbanRepository.findById(kanban.getParentKanbanId())
+                .map(Kanban::getKanbanNo)
+                .orElse(null);
+    }
+
+    private String resolveOutboundOrderNo(String requestedOutboundOrderNo, Kanban scannedKanban) {
+        String normalized = normalize(requestedOutboundOrderNo);
+        if (normalized != null) {
+            return normalized;
+        }
+
+        List<String> boundOrderNos = resolveScanTargets(scannedKanban).stream()
+                .map(Kanban::getOutboundOrderNo)
+                .map(this::normalize)
+                .filter(Objects::nonNull)
+                .filter(value -> !"-".equals(value))
+                .distinct()
+                .toList();
+
+        if (boundOrderNos.size() == 1) {
+            return boundOrderNos.get(0);
+        }
+        if (boundOrderNos.size() > 1) {
+            throw new BusinessException("该父看板绑定了多个出库单，请先选择出库单后再扫码：" + String.join("、", boundOrderNos));
+        }
+        throw new BusinessException("看板 " + scannedKanban.getKanbanNo() + " 未绑定出库单，请先在出库管理创建出库单并绑定箱级看板");
+    }
+
+    private List<Kanban> loadSelectedOutboundBoxes(List<Long> kanbanIds) {
+        if (kanbanIds == null || kanbanIds.isEmpty()) {
+            throw new BusinessException("创建出库单必须选择箱级子看板");
+        }
+        List<Long> distinctIds = kanbanIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (distinctIds.isEmpty()) {
+            throw new BusinessException("创建出库单必须选择箱级子看板");
+        }
+        List<Kanban> boxes = distinctIds.stream()
+                .map(id -> kanbanRepository.findById(id).orElseThrow(() -> new NotFoundException("看板不存在：" + id)))
+                .sorted(Comparator
+                        .comparing(Kanban::getInboundTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Kanban::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Kanban::getId))
+                .toList();
+        for (Kanban box : boxes) {
+            ensureOutboundBoxSelectable(box);
+        }
+        return boxes;
+    }
+
+    private void ensureOutboundBoxSelectable(Kanban kanban) {
+        if (kanban.isParentKanban()) {
+            throw new BusinessException("出库单只能选择箱级子看板：" + kanban.getKanbanNo());
+        }
+        ensureOutboundAllowed(kanban);
+        if (!isBlank(kanban.getOutboundOrderNo())) {
+            throw new BusinessException("箱级看板 " + kanban.getKanbanNo() + " 已绑定出库单 " + kanban.getOutboundOrderNo());
+        }
+        Kanban parent = kanban.getParentKanbanId() == null ? null : kanbanRepository.findById(kanban.getParentKanbanId()).orElse(null);
+        if (parent == null || !parent.isParentKanban()) {
+            throw new BusinessException("箱级看板 " + kanban.getKanbanNo() + " 缺少父看板");
+        }
+        if (!"INBOUND".equals(parent.getStatus()) || !allChildrenStatus(parent.getId(), "INBOUND")) {
+            throw new BusinessException("父看板 " + parent.getKanbanNo() + " 未完整入库，不能创建出库单");
+        }
+    }
+
+    private boolean allChildrenStatus(Long parentKanbanId, String status) {
+        List<Kanban> children = kanbanRepository.findByParentKanbanIdOrderByBoxIndexAscIdAsc(parentKanbanId);
+        return !children.isEmpty() && children.stream().allMatch(item -> status.equals(item.getStatus()));
+    }
+
     private void ensureInboundAllowed(Kanban kanban) {
         if (!List.of("WAIT_SCAN", "CREATED").contains(kanban.getStatus())) {
             if ("INBOUND".equals(kanban.getStatus())) {
-                throw new BusinessException("?? " + kanban.getKanbanNo() + " ????????????");
+                throw new BusinessException("看板 " + kanban.getKanbanNo() + " 已入库，不能重复入库");
             }
             if ("OUTBOUND".equals(kanban.getStatus())) {
-                throw new BusinessException("?? " + kanban.getKanbanNo() + " ??????????");
+                throw new BusinessException("看板 " + kanban.getKanbanNo() + " 已出库，不能再入库");
             }
-            throw new BusinessException("?? " + kanban.getKanbanNo() + " ??????????" + kanban.getStatus());
+            throw new BusinessException("看板 " + kanban.getKanbanNo() + " 当前状态不能入库：" + kanban.getStatus());
         }
     }
 
     private void ensureOutboundAllowed(Kanban kanban) {
         if (!"INBOUND".equals(kanban.getStatus())) {
             if ("OUTBOUND".equals(kanban.getStatus())) {
-                throw new BusinessException("?? " + kanban.getKanbanNo() + " ????????????");
+                throw new BusinessException("看板 " + kanban.getKanbanNo() + " 已出库，不能重复出库");
             }
-            if (List.of("WAIT_SCAN", "CREATED", "PARTIAL").contains(kanban.getStatus())) {
-                throw new BusinessException("?? " + kanban.getKanbanNo() + " ???????????");
+            if (List.of("WAIT_SCAN", "CREATED", "PARTIAL", "PARTIAL_INBOUND").contains(kanban.getStatus())) {
+                throw new BusinessException("看板 " + kanban.getKanbanNo() + " 尚未完整入库，不能出库");
             }
-            throw new BusinessException("?? " + kanban.getKanbanNo() + " ??????????");
+            if ("PARTIAL_OUTBOUND".equals(kanban.getStatus())) {
+                throw new BusinessException("看板 " + kanban.getKanbanNo() + " 已部分出库，请扫描绑定的箱级子看板继续出库");
+            }
+            throw new BusinessException("看板 " + kanban.getKanbanNo() + " 当前状态不能出库：" + kanban.getStatus());
         }
         if (kanban.isFrozen()) {
-            throw new BusinessException("?? " + kanban.getKanbanNo() + " ????????");
+            throw new BusinessException("看板 " + kanban.getKanbanNo() + " 已封存，不能出库");
         }
         if (kanban.getLocationId() == null) {
-            throw new BusinessException("?? " + kanban.getKanbanNo() + " ???????????");
+            throw new BusinessException("看板 " + kanban.getKanbanNo() + " 没有库存库位，不能出库");
         }
     }
 
@@ -629,7 +777,7 @@ public class WmsService {
         item.setReceivedQty(item.getReceivedQty().add(kanban.getQty()));
         inboundOrderItemRepository.save(item);
 
-        saveTransaction(kanban, location.getId(), kanban.getQty(), "INBOUND_SCAN", "??????");
+        saveTransaction(kanban, location.getId(), kanban.getQty(), "INBOUND_SCAN", "扫码入库");
     }
 
     private void applyOutboundForSingleKanban(OutboundOrder order, Kanban kanban) {
@@ -655,7 +803,7 @@ public class WmsService {
                 kanban.getQty().negate(),
                 "OUTBOUND_SCAN",
                 order.getOutboundNo(),
-                "Outbound scan completed"
+                "扫码出库完成"
         );
     }
 
@@ -674,7 +822,8 @@ public class WmsService {
 
         boolean allInbound = children.stream().allMatch(item -> "INBOUND".equals(item.getStatus()));
         boolean allOutbound = children.stream().allMatch(item -> "OUTBOUND".equals(item.getStatus()));
-        boolean anyInboundLike = children.stream().anyMatch(item -> List.of("INBOUND", "OUTBOUND", "FROZEN", "REPACK_OUTBOUND").contains(item.getStatus()));
+        boolean anyOutbound = children.stream().anyMatch(item -> "OUTBOUND".equals(item.getStatus()));
+        boolean anyInboundLike = children.stream().anyMatch(item -> List.of("INBOUND", "FROZEN", "REPACK_OUTBOUND", "REPACK_INBOUND").contains(item.getStatus()));
 
         if (allOutbound) {
             parent.setStatus("OUTBOUND");
@@ -683,18 +832,38 @@ public class WmsService {
             parent.setStatus("INBOUND");
             parent.setInboundTime(children.stream().map(Kanban::getInboundTime).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(LocalDateTime.now()));
             parent.setLocationId(children.get(0).getLocationId());
+        } else if (anyOutbound) {
+            parent.setStatus("PARTIAL_OUTBOUND");
+            parent.setOutboundTime(children.stream().map(Kanban::getOutboundTime).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(LocalDateTime.now()));
         } else if (anyInboundLike) {
-            parent.setStatus("PARTIAL");
+            parent.setStatus("PARTIAL_INBOUND");
+            parent.setInboundTime(children.stream().map(Kanban::getInboundTime).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(LocalDateTime.now()));
         } else {
             parent.setStatus("WAIT_SCAN");
         }
         kanbanRepository.save(parent);
     }
 
+    private void refreshParentKanbanStates(List<Kanban> children) {
+        children.stream()
+                .map(Kanban::getParentKanbanId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(parentId -> kanbanRepository.findById(parentId).orElse(null))
+                .filter(Objects::nonNull)
+                .forEach(this::refreshParentKanbanState);
+    }
+
+    private void repairParentKanbanStates() {
+        kanbanRepository.findAll().stream()
+                .filter(Kanban::isParentKanban)
+                .forEach(this::refreshParentKanbanState);
+    }
+
     private Kanban findKanbanByScanCode(String scanCode) {
         String normalized = normalize(scanCode);
         if (normalized == null) {
-            throw new NotFoundException("???????????");
+            throw new NotFoundException("请提供看板二维码或条码");
         }
         return kanbanRepository.findByBarcode(normalized)
                 .or(() -> kanbanRepository.findByQrContent(normalized))
@@ -705,7 +874,7 @@ public class WmsService {
                     }
                     return java.util.Optional.empty();
                 })
-                .orElseThrow(() -> new NotFoundException("???????????"));
+                .orElseThrow(() -> new NotFoundException("没有找到对应看板：" + normalized));
     }
 
     private String buildQrContent(String kanbanNo, String barcode) {
@@ -761,37 +930,12 @@ public class WmsService {
     }
 
     private void applyOutboundScanToOrder(OutboundOrder order, Kanban kanban) {
-        List<OutboundOrderItem> items = outboundOrderItemRepository.findByOutboundOrderId(order.getId());
-        List<Kanban> fifoCandidates = kanbanRepository.findAll().stream()
-                .filter(item -> "INBOUND".equals(item.getStatus()))
-                .filter(item -> !item.isFrozen())
-                .filter(item -> item.getLocationId() != null)
-                .filter(item -> item.getPartId().equals(kanban.getPartId()))
-                .filter(item -> {
-                    InboundOrder inboundOrder = inboundOrderRepository.findById(item.getInboundOrderId()).orElse(null);
-                    return inboundOrder != null && splitCsv(order.getInboundOrderNos()).stream()
-                            .anyMatch(source -> source.equalsIgnoreCase(inboundOrder.getInboundNo()));
-                })
-                .sorted(Comparator
-                        .comparing(Kanban::getInboundTime, Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(Kanban::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(Kanban::getId))
-                .toList();
-        if (!fifoCandidates.isEmpty() && !fifoCandidates.get(0).getId().equals(kanban.getId())) {
-            throw new BusinessException("??????????????????????");
+        OutboundOrderItem target = outboundOrderItemRepository.findByOutboundOrderIdAndKanbanId(order.getId(), kanban.getId())
+                .orElseThrow(() -> new BusinessException("箱级看板 " + kanban.getKanbanNo() + " 未绑定到出库单 " + order.getOutboundNo()));
+        if (target.getScannedQty().compareTo(target.getPlannedQty()) >= 0) {
+            throw new BusinessException("箱级看板 " + kanban.getKanbanNo() + " 已完成出库，不能重复扫码");
         }
-
-        Location location = kanban.getLocationId() == null ? null : locationRepository.findById(kanban.getLocationId()).orElse(null);
-        OutboundOrderItem target = items.stream()
-                .filter(item -> item.getPartId().equals(kanban.getPartId()))
-                .filter(item -> location == null || defaultString(item.getWarehouseName()).equals(defaultString(location.getWarehouseName())))
-                .filter(item -> location == null || defaultString(item.getZoneName()).equals(defaultString(location.getZoneName())))
-                .filter(item -> item.getScannedQty().add(kanban.getQty()).compareTo(item.getPlannedQty()) <= 0)
-                .filter(item -> item.getScannedQty().compareTo(item.getPlannedQty()) < 0)
-                .findFirst()
-                .orElseThrow(() -> new BusinessException("???????????????????????????"));
-
-        target.setScannedQty(target.getScannedQty().add(kanban.getQty()));
+        target.setScannedQty(target.getPlannedQty());
         outboundOrderItemRepository.save(target);
 
         syncOutboundOrderStatus(order.getId());
@@ -956,6 +1100,8 @@ public class WmsService {
                     Part part = partMap.get(item.getPartId());
                     return new OutboundOrderView.ItemView(
                             item.getId(),
+                            item.getKanbanId(),
+                            defaultString(item.getKanbanNo()),
                             item.getPartId(),
                             part == null ? "-" : part.getPartCode(),
                             part == null ? "-" : part.getPartName(),
@@ -985,6 +1131,17 @@ public class WmsService {
         List<KanbanView> children = kanban.isParentKanban()
                 ? kanbanRepository.findByParentKanbanIdOrderByBoxIndexAscIdAsc(kanban.getId()).stream().map(this::toKanbanView).toList()
                 : List.of();
+        String outboundNo = defaultString(kanban.getOutboundOrderNo());
+        if (kanban.isParentKanban() && "-".equals(outboundNo)) {
+            outboundNo = children.stream()
+                    .map(KanbanView::outboundNo)
+                    .filter(value -> !isBlank(value) && !"-".equals(value))
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (isBlank(outboundNo)) {
+                outboundNo = "-";
+            }
+        }
 
         return new KanbanView(
                 kanban.getId(),
@@ -995,7 +1152,7 @@ public class WmsService {
                 kanban.isParentKanban(),
                 kanban.getBoxIndex(),
                 inboundOrder == null ? "-" : inboundOrder.getInboundNo(),
-                defaultString(kanban.getOutboundOrderNo()),
+                outboundNo,
                 part == null ? "-" : part.getPartCode(),
                 part == null ? "-" : part.getPartName(),
                 part == null ? "-" : part.getUnit(),

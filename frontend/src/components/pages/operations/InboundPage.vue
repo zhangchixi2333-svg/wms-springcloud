@@ -4,13 +4,13 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { formatStatus } from '../../../app/displayText'
 import { equipmentCodeOptions, warehouseZoneOptions } from '../../../app/optionHelpers'
 import QrCodeImage from '../../shared/QrCodeImage.vue'
-import WorkModePage from '../../shared/WorkModePage.vue'
 import type { InboundDraftItem, InboundOrder, Kanban, PageModel, Part } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
 
 const mode = ref<'query' | 'edit' | 'print' | 'scan'>('query')
 const printOrders = ref<InboundOrder[]>([])
+const scanOrder = ref<InboundOrder | null>(null)
 const selectedOrderIds = reactive<Record<number, boolean>>({})
 const expandedParents = reactive<Record<number, boolean>>({})
 const scanInputRef = ref<HTMLInputElement | null>(null)
@@ -35,15 +35,10 @@ const printedInboundScanForm = reactive({
 })
 
 const scanMatchHint = ref('')
+const formMessage = ref('')
 const scanSuccessMap = reactive<Record<string, boolean>>({})
 const inboundWarehouseZoneOptions = computed(() => warehouseZoneOptions(props.model.state.locations))
 const inboundEquipmentOptions = computed(() => equipmentCodeOptions(props.model.state.equipment))
-const workModes = computed(() => [
-  { key: 'query', label: '查看入库' },
-  { key: 'edit', label: '创建入库单' },
-  { key: 'print', label: '打印入库单', disabled: !printOrders.value.length },
-  { key: 'scan', label: '扫码入库' },
-])
 
 const supplierParts = computed(() =>
   props.model.state.parts.filter((item) => !form.supplierId || item.supplierId === form.supplierId),
@@ -130,28 +125,34 @@ function resetBatchSelection() {
 function resetCreateForm() {
   form.supplierId = props.model.state.suppliers[0]?.id ?? 0
   form.items = [createDraftItem()]
+  formMessage.value = ''
   resetBatchSelection()
 }
 
 function openCreate() {
   resetCreateForm()
+  scanOrder.value = null
   mode.value = 'edit'
-}
-
-function handleModeSelect(nextMode: string) {
-  if (nextMode === 'edit') {
-    openCreate()
-  }
 }
 
 function openPrint(order: InboundOrder) {
   printOrders.value = [order]
+  scanOrder.value = null
   mode.value = 'print'
 }
 
 function openBatchPrint() {
   printOrders.value = filteredOrders.value.filter((item) => selectedOrderIds[item.id])
+  scanOrder.value = null
   mode.value = 'print'
+}
+
+function openScan(order: InboundOrder) {
+  scanOrder.value = order
+  printedInboundScanForm.barcode = ''
+  printedInboundScanForm.locationCode = ''
+  scanMatchHint.value = ''
+  mode.value = 'scan'
 }
 
 function toggleSelectAllOrders(checked: boolean) {
@@ -196,9 +197,19 @@ function handlePartChange(item: InboundDraftItem) {
 
 async function submit() {
   form.items.forEach(syncItemUnitPerBox)
+  formMessage.value = ''
+  const validItems = form.items.filter((item) => item.partId > 0 && item.plannedQty > 0 && item.boxCount > 0 && item.unitPerBox > 0 && item.warehouseZone)
+  if (!form.supplierId) {
+    formMessage.value = '请先选择供应商。'
+    return
+  }
+  if (!validItems.length) {
+    formMessage.value = '请至少添加一条完整入库明细：零件、数量、箱数、每箱数量和目标仓区都不能为空。'
+    return
+  }
   await props.model.actions.createInboundOrder({
     supplierId: form.supplierId,
-    items: form.items.filter((item) => item.partId > 0 && item.plannedQty > 0 && item.boxCount > 0 && item.unitPerBox > 0 && item.warehouseZone),
+    items: validItems,
   })
   mode.value = 'query'
 }
@@ -257,7 +268,10 @@ async function focusScanInput() {
 }
 
 function fillFirstInboundScanCode() {
-  const first = props.model.state.kanbans.find((item) => item.parentKanban && ['CREATED', 'WAIT_SCAN', 'PARTIAL'].includes(item.status))?.qrContent
+  const first = props.model.state.kanbans.find((item) => {
+    const orderMatch = !scanOrder.value || item.inboundNo === scanOrder.value.inboundNo
+    return orderMatch && item.parentKanban && ['CREATED', 'WAIT_SCAN', 'PARTIAL', 'PARTIAL_INBOUND'].includes(item.status)
+  })?.qrContent
   if (first) {
     printedInboundScanForm.barcode = first
   }
@@ -311,12 +325,7 @@ watch(
 </script>
 
 <template>
-  <WorkModePage
-    v-model="mode"
-    :modes="workModes"
-    hint="入库单生成父看板和箱级子看板；数量和箱数会自动计算每箱数量。"
-    @select="handleModeSelect"
-  >
+  <section class="stack">
     <section v-if="mode === 'query'" class="stack">
       <section class="panel">
         <div class="section-head">
@@ -325,6 +334,7 @@ watch(
             <p>可先查询入库单，再选择打印或直接进入扫码入库。</p>
           </div>
           <div class="action-row">
+            <button @click="openCreate">创建入库单</button>
             <button :disabled="!canBatchPrint" @click="openBatchPrint">批量打印</button>
           </div>
         </div>
@@ -333,6 +343,7 @@ watch(
             <option value="">全部状态</option>
             <option value="CREATED">{{ formatStatus('CREATED') }}</option>
             <option value="PARTIAL">{{ formatStatus('PARTIAL') }}</option>
+            <option value="PARTIAL_INBOUND">{{ formatStatus('PARTIAL_INBOUND') }}</option>
             <option value="COMPLETED">{{ formatStatus('COMPLETED') }}</option>
           </select>
           <select v-model.number="filters.supplierId">
@@ -369,6 +380,7 @@ watch(
               <td>{{ new Date(order.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
               <td class="action-row">
                 <button class="secondary-button" @click="openPrint(order)">打印</button>
+                <button class="secondary-button" @click="openScan(order)">扫码入库</button>
               </td>
             </tr>
           </tbody>
@@ -482,6 +494,7 @@ watch(
             <button class="secondary-button" @click="removeItem(index)">删除</button>
           </div>
         </div>
+        <p v-if="formMessage" class="form-error">{{ formMessage }}</p>
         <div class="footer-actions">
           <button @click="submit">保存入库单</button>
           <button class="secondary-button" @click="mode = 'query'">返回查询</button>
@@ -492,8 +505,11 @@ watch(
     <section v-else-if="mode === 'scan'" class="panel">
       <div class="section-head">
         <div>
-          <h3>扫码入库</h3>
-          <p>浏览器中可直接输入二维码内容模拟扫码，扫父看板会自动把全部箱级子看板一起入库。</p>
+          <h3>扫码入库{{ scanOrder ? `：${scanOrder.inboundNo}` : '' }}</h3>
+          <p>当前扫码已绑定入库单；扫父看板会处理该订单下仍待入库的箱级子看板。</p>
+        </div>
+        <div class="action-row">
+          <button class="secondary-button" @click="mode = 'query'">返回查询</button>
         </div>
       </div>
       <div class="scan-action-layout">
@@ -514,7 +530,7 @@ watch(
         </div>
         <p v-if="scanMatchHint" class="scan-hint">{{ scanMatchHint }}</p>
         <div class="scan-assist-row two-col">
-          <button class="secondary-button" @click="fillFirstInboundScanCode">填充首个待入库父看板</button>
+          <button class="secondary-button" :disabled="!scanOrder" @click="fillFirstInboundScanCode">填充本单首个待入库父看板</button>
         </div>
         <div v-if="printedInboundScanForm.barcode" class="scan-qr-preview">
           <QrCodeImage :text="printedInboundScanForm.barcode" :size="160" />
@@ -594,13 +610,20 @@ watch(
                   <span>数量 {{ child.qty }}</span>
                   <span>{{ formatStatus(child.status) }}</span>
                 </div>
+                <button
+                  class="secondary-button"
+                  :disabled="!['CREATED', 'WAIT_SCAN'].includes(child.status)"
+                  @click="simulateScanKanban(child)"
+                >
+                  {{ scanSuccessMap[child.qrContent || child.barcode] ? '本箱已入库' : '扫本箱入库' }}
+                </button>
               </div>
             </div>
           </div>
         </article>
       </div>
     </section>
-  </WorkModePage>
+  </section>
 </template>
 
 <style scoped>
@@ -637,6 +660,11 @@ watch(
 .scan-hint {
   margin: 8px 0 0;
   color: var(--text-secondary);
+}
+
+.form-error {
+  margin: 10px 0 0;
+  color: #dc2626;
 }
 
 .print-grid {

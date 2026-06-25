@@ -21,6 +21,11 @@ public class OutboundOrderItem {
     @Column(nullable = false)
     private Long partId;
 
+    private Long kanbanId;
+
+    @Column(length = 64)
+    private String kanbanNo;
+
     @Column(nullable = false, precision = 18, scale = 3)
     private BigDecimal plannedQty;
 
@@ -51,6 +56,22 @@ public class OutboundOrderItem {
 
     public void setPartId(Long partId) {
         this.partId = partId;
+    }
+
+    public Long getKanbanId() {
+        return kanbanId;
+    }
+
+    public void setKanbanId(Long kanbanId) {
+        this.kanbanId = kanbanId;
+    }
+
+    public String getKanbanNo() {
+        return kanbanNo;
+    }
+
+    public void setKanbanNo(String kanbanNo) {
+        this.kanbanNo = kanbanNo;
     }
 
     public BigDecimal getPlannedQty() {

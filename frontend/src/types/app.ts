@@ -129,6 +129,8 @@ export type InboundOrder = {
 
 export type OutboundOrderItem = {
   id: number;
+  kanbanId: number | null;
+  kanbanNo: string;
   partId: number;
   partCode: string;
   partName: string;
@@ -180,6 +182,18 @@ export type Kanban = {
   inboundTime: string | null;
   outboundTime: string | null;
   children: Kanban[];
+}
+
+export type ScanResult = {
+  code: string;
+  message: string;
+  barcode: string;
+  scannedKanbanNo: string;
+  parentKanbanNo: string | null;
+  outboundOrderNo: string | null;
+  status: string;
+  affectedCount: number;
+  affectedKanbanNos: string[];
 }
 
 export type InventoryRow = {
@@ -236,10 +250,7 @@ export type InboundDraftItem = {
 }
 
 export type OutboundDraftItem = {
-  partId: number;
-  plannedQty: number;
-  warehouseName: string;
-  zoneName: string;
+  kanbanId: number;
 }
 
 export type AppState = {
@@ -305,11 +316,11 @@ export type AppActions = {
     warehouseType: 'OWN' | 'THIRD_PARTY'
   }) => Promise<void>;
   createInboundOrder: (payload: { supplierId: number; items: InboundDraftItem[] }) => Promise<void>;
-  createOutboundOrder: (payload: { customerId: number | null; inboundOrderNos: string[]; items: OutboundDraftItem[] }) => Promise<void>;
+  createOutboundOrder: (payload: { customerId: number | null; kanbanIds: number[] }) => Promise<void>;
   manualInventoryEntry: (payload: { partId: number; locationId: number; qty: number; remark: string }) => Promise<void>;
   generateKanbans: (orderId: number) => Promise<void>;
-  scanInbound: (payload: { barcode: string; locationCode: string }) => Promise<void>;
-  scanOutbound: (payload: { barcode: string; outboundOrderNo: string }) => Promise<void>;
+  scanInbound: (payload: { barcode: string; locationCode: string }) => Promise<ScanResult>;
+  scanOutbound: (payload: { barcode: string; outboundOrderNo: string }) => Promise<ScanResult>;
   transferKanban: (payload: { barcode: string; inboundOrderNo: string; locationCode: string; remark?: string }) => Promise<void>;
   freezeKanban: (payload: { barcode: string; frozen: boolean; remark?: string }) => Promise<void>;
   repackOutbound: (payload: { barcode: string; locationCode: string; remark?: string }) => Promise<void>;

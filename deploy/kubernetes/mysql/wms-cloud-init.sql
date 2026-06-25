@@ -1,4 +1,4 @@
--- WMS Spring Cloud MySQL complete initialization script.
+﻿-- WMS Spring Cloud MySQL complete initialization script.
 -- Safe to run repeatedly: it creates missing tables and upserts only default seed data.
 -- It does not DROP/TRUNCATE any business table.
 
@@ -176,6 +176,8 @@ CREATE TABLE IF NOT EXISTS `outbound_order_item` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `outbound_order_id` BIGINT NOT NULL,
   `part_id` BIGINT NOT NULL,
+  `kanban_id` BIGINT DEFAULT NULL,
+  `kanban_no` VARCHAR(64) DEFAULT NULL,
   `planned_qty` DECIMAL(18,3) NOT NULL,
   `scanned_qty` DECIMAL(18,3) NOT NULL,
   `warehouse_name` VARCHAR(128) DEFAULT NULL,
@@ -221,6 +223,40 @@ SET @sql = (
     ),
     'SELECT 1',
     'ALTER TABLE `inbound_order_item` ADD COLUMN `unit_per_box` DECIMAL(18,3) DEFAULT NULL'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'outbound_order_item'
+        AND COLUMN_NAME = 'kanban_id'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `outbound_order_item` ADD COLUMN `kanban_id` BIGINT DEFAULT NULL AFTER `part_id`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'outbound_order_item'
+        AND COLUMN_NAME = 'kanban_no'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `outbound_order_item` ADD COLUMN `kanban_no` VARCHAR(64) DEFAULT NULL AFTER `kanban_id`'
   )
 );
 PREPARE stmt FROM @sql;
@@ -431,3 +467,4 @@ ON DUPLICATE KEY UPDATE
   `item_name` = VALUES(`item_name`),
   `status` = VALUES(`status`),
   `remark` = VALUES(`remark`);
+

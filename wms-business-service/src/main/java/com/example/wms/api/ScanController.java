@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/mobile/scan")
 public class ScanController {
@@ -32,12 +34,20 @@ public class ScanController {
         return ApiResponse.ok(wmsService.scanOutbound(request));
     }
 
-    public record ScanInboundRequest(@NotBlank String barcode, @NotBlank String locationCode) {
+    public record ScanInboundRequest(@NotBlank String barcode, String locationCode) {
     }
 
-    public record ScanOutboundRequest(@NotBlank String barcode, @NotBlank String outboundOrderNo) {
+    public record ScanOutboundRequest(@NotBlank String barcode, String outboundOrderNo) {
     }
 
-    public record ScanResultView(String code, String message, String barcode, String status) {
+    public record ScanResultView(String code,
+                                 String message,
+                                 String barcode,
+                                 String scannedKanbanNo,
+                                 String parentKanbanNo,
+                                 String outboundOrderNo,
+                                 String status,
+                                 int affectedCount,
+                                 List<String> affectedKanbanNos) {
     }
 }

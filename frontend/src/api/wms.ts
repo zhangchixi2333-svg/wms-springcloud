@@ -16,9 +16,9 @@ import type {
   Kanban,
   Location,
   MenuNode,
-  OutboundDraftItem,
   OutboundOrder,
   Part,
+  ScanResult,
   SystemRole,
   SystemUser,
   Supplier,
@@ -150,7 +150,7 @@ export const api = {
   listOutboundOrders: (filters?: { status?: string; customerId?: number; outboundNo?: string }) =>
     request<OutboundOrder[]>(`/outbound-orders${buildQuery(filters ?? {})}`),
 
-  createOutboundOrder: (payload: { customerId: number | null; inboundOrderNos: string[]; items: OutboundDraftItem[] }) =>
+  createOutboundOrder: (payload: { customerId: number | null; kanbanIds: number[] }) =>
     request<OutboundOrder>('/outbound-orders', { method: 'POST', body: JSON.stringify(payload) }),
 
   listInventory: (filters?: {
@@ -166,10 +166,10 @@ export const api = {
   listTransactions: () => request<TransactionRow[]>('/inventory/transactions'),
 
   scanInbound: (payload: { barcode: string; locationCode: string }) =>
-    request('/mobile/scan/inbound', { method: 'POST', body: JSON.stringify(payload) }),
+    request<ScanResult>('/mobile/scan/inbound', { method: 'POST', body: JSON.stringify(payload) }),
 
   scanOutbound: (payload: { barcode: string; outboundOrderNo: string }) =>
-    request('/mobile/scan/outbound', { method: 'POST', body: JSON.stringify(payload) }),
+    request<ScanResult>('/mobile/scan/outbound', { method: 'POST', body: JSON.stringify(payload) }),
 
   transferKanban: (payload: { barcode: string; inboundOrderNo: string; locationCode: string; remark?: string }) =>
     request<Kanban>('/inventory/kanbans/transfer', { method: 'POST', body: JSON.stringify(payload) }),

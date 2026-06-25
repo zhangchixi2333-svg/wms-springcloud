@@ -84,14 +84,7 @@ public class OrderController {
     }
 
     public record OutboundOrderCreateRequest(Long customerId,
-                                             @NotEmpty List<String> inboundOrderNos,
-                                             @NotEmpty List<OutboundOrderItemRequest> items) {
-    }
-
-    public record OutboundOrderItemRequest(@NotNull Long partId,
-                                           @NotNull @DecimalMin("0.001") BigDecimal plannedQty,
-                                           @NotBlank String warehouseName,
-                                           @NotBlank String zoneName) {
+                                             @NotEmpty List<Long> kanbanIds) {
     }
 
     public record InboundOrderView(Long id,
@@ -127,6 +120,8 @@ public class OrderController {
                                     List<ItemView> items) {
 
         public record ItemView(Long id,
+                               Long kanbanId,
+                               String kanbanNo,
                                Long partId,
                                String partCode,
                                String partName,

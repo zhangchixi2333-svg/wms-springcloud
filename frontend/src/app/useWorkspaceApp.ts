@@ -359,14 +359,16 @@ export function useWorkspaceApp() {
       setNotice('看板已生成')
     },
     scanInbound: async (payload) => {
-      await api.scanInbound(payload)
+      const result = await api.scanInbound(payload)
       await refreshAll()
-      setNotice(`扫码入库成功：${payload.barcode}`)
+      setNotice(result.message || `扫码入库成功：${payload.barcode}`)
+      return result
     },
     scanOutbound: async (payload) => {
-      await api.scanOutbound(payload)
+      const result = await api.scanOutbound(payload)
       await refreshAll()
-      setNotice(`扫码出库成功：${payload.barcode}`)
+      setNotice(result.message || `扫码出库成功：${payload.barcode}`)
+      return result
     },
     transferKanban: async (payload) => {
       await api.transferKanban(payload)

@@ -1,10 +1,11 @@
 <!-- 本文件实现移动端扫码工作台，扫码识别后会直接执行入库或出库，并展示结果摘要。 -->
 <script setup lang="ts">
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser'
+import type { Exception, Result } from '@zxing/library'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { formatStatus } from '../../../app/displayText'
 import WorkModePage from '../../shared/WorkModePage.vue'
-import type { Kanban, PageModel } from '../../../types/app'
+import type { Kanban, OutboundOrder, PageModel } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
 
@@ -13,18 +14,25 @@ const videoRef = ref<HTMLVideoElement | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const scanner = new BrowserMultiFormatReader()
 const scannerControls = ref<IScannerControls | null>(null)
+const activeStream = ref<MediaStream | null>(null)
 const scannerActive = ref(false)
 const scannerError = ref('')
 const message = ref('请先选择模式，然后启动摄像头扫码。')
 const busy = ref(false)
 const imageScanBusy = ref(false)
 const autoExecute = ref(true)
+const lastRecognizedText = ref('')
+const lastRequestText = ref('')
+const lastScanAt = ref(0)
+const lastDecodeErrorAt = ref(0)
+const successfulScanKeys = new Set<string>()
 const feedbackList = ref<Array<{
   success: boolean
   title: string
   detail: string
   time: string
 }>>([])
+const latestFeedback = computed(() => feedbackList.value[0] ?? null)
 const lastResult = ref<{
   barcode: string
   kanbanNo: string
@@ -46,16 +54,26 @@ const modes = [
   { key: 'outbound', label: '扫码出库' },
 ]
 
-const activeOutboundOrders = computed(() => props.model.state.outboundOrders.filter((item) => item.status !== 'COMPLETED'))
+const activeOutboundOrders = computed(() =>
+  props.model.state.outboundOrders.filter((item) => item.status !== 'COMPLETED' && pendingOutboundItems(item).length > 0),
+)
 const inboundLocations = computed(() => props.model.state.locations)
 const canSubmit = computed(() =>
   mode.value === 'inbound'
-    ? Boolean(scanForm.barcode && scanForm.locationCode)
-    : Boolean(scanForm.barcode && scanForm.outboundOrderNo),
+    ? Boolean(scanForm.barcode)
+    : Boolean(scanForm.barcode),
 )
 
 function normalizeScanCode(value: string) {
   return value.trim()
+}
+
+function pendingOutboundItems(order: OutboundOrder) {
+  return order.items.filter((item) => typeof item.kanbanId === 'number' && Number(item.scannedQty) < Number(item.plannedQty))
+}
+
+function scanDuplicateKey(code: string) {
+  return `${mode.value}|${normalizeScanCode(code)}`
 }
 
 function findMatchedKanban(scanCode: string) {
@@ -78,6 +96,16 @@ function plannedLocationCode(kanban: Kanban | null) {
   return location?.locationCode ?? ''
 }
 
+function resultDetail(prefix: string, affectedCount?: number, affectedKanbanNos?: string[]) {
+  const countText = typeof affectedCount === 'number' ? `，处理 ${affectedCount} 箱` : ''
+  const kanbanText = affectedKanbanNos?.length ? `：${affectedKanbanNos.join('、')}` : ''
+  return `${prefix}${countText}${kanbanText}`
+}
+
+function fallbackKanbanText(kanban: Kanban | null, resultKanbanNo?: string) {
+  return resultKanbanNo || kanban?.kanbanNo || '后端已识别看板'
+}
+
 function formatResult(kanban: Kanban | null, statusText: string) {
   if (!kanban) {
     return {
@@ -97,7 +125,7 @@ function formatResult(kanban: Kanban | null, statusText: string) {
     actionText: mode.value === 'inbound' ? '扫码入库成功' : '扫码出库成功',
     locationText:
       mode.value === 'inbound'
-        ? `${kanban.warehouseName} / ${kanban.zoneName} / ${scanForm.locationCode}`
+        ? `${kanban.warehouseName} / ${kanban.zoneName} / ${scanForm.locationCode || kanban.locationCode || '自动匹配库位'}`
         : `出库单 ${scanForm.outboundOrderNo}`,
     statusText,
     executedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
@@ -114,52 +142,70 @@ function pushFeedback(success: boolean, title: string, detail: string) {
   feedbackList.value = feedbackList.value.slice(0, 12)
 }
 
-async function executeScan(code: string) {
+async function executeScan(code: string, source: 'camera' | 'manual' | 'image' | 'simulate' = 'manual') {
   const normalized = normalizeScanCode(code)
   if (!normalized || busy.value) return
+  lastRecognizedText.value = normalized
+  pushFeedback(true, '已识别二维码', source === 'camera' ? '摄像头已识别，正在提交业务。' : `已识别：${normalized}`)
+  const duplicateKey = scanDuplicateKey(normalized)
+  if (successfulScanKeys.has(duplicateKey)) {
+    message.value = '该二维码本次已经执行成功，请扫描下一张。'
+    if (source !== 'camera') {
+      pushFeedback(false, '重复扫码已忽略', message.value)
+    }
+    return
+  }
   const kanban = findMatchedKanban(normalized)
   scanForm.barcode = normalized
 
   if (mode.value === 'inbound') {
-    scanForm.locationCode = plannedLocationCode(kanban)
-    if (!scanForm.locationCode) {
-      message.value = kanban
-        ? `已识别 ${kanban.kanbanNo}，但未匹配到目标库位，请手动选择库位后重试。`
-        : '未识别到对应看板，请检查二维码或条码内容。'
-      pushFeedback(false, '入库失败', message.value)
-      return
+    const matchedLocationCode = plannedLocationCode(kanban)
+    if (matchedLocationCode) {
+      scanForm.locationCode = matchedLocationCode
     }
-  } else if (!scanForm.outboundOrderNo) {
-    message.value = '请先选择出库单，再进行扫码出库。'
-    pushFeedback(false, '出库失败', message.value)
-    return
   }
 
   busy.value = true
+  lastRequestText.value = mode.value === 'inbound' ? '正在提交扫码入库请求...' : '正在提交扫码出库请求...'
   try {
     if (mode.value === 'inbound') {
-      await props.model.actions.scanInbound({
+      const result = await props.model.actions.scanInbound({
         barcode: normalized,
         locationCode: scanForm.locationCode,
       })
-      lastResult.value = formatResult(kanban, '入库完成，父看板会自动联动子看板。')
+      const resultKanban = findMatchedKanban(normalized) ?? findMatchedKanban(result.barcode) ?? kanban
+      lastResult.value = formatResult(resultKanban, result.message || '入库完成，父看板会自动联动子看板。')
+      lastResult.value.kanbanNo = fallbackKanbanText(resultKanban, result.scannedKanbanNo)
+      lastResult.value.locationText = `父看板 ${result.parentKanbanNo || lastResult.value.kanbanNo} / ${lastResult.value.locationText}`
       message.value = `已入库 ${lastResult.value.kanbanNo}`
-      pushFeedback(true, '入库成功', `${lastResult.value.kanbanNo} 已入库到 ${lastResult.value.locationText}`)
+      scannerError.value = ''
+      successfulScanKeys.add(duplicateKey)
+      pushFeedback(true, '入库成功', resultDetail(result.message || `${lastResult.value.kanbanNo} 已入库到 ${lastResult.value.locationText}`, result.affectedCount, result.affectedKanbanNos))
     } else {
-      await props.model.actions.scanOutbound({
+      const result = await props.model.actions.scanOutbound({
         barcode: normalized,
         outboundOrderNo: scanForm.outboundOrderNo,
       })
-      lastResult.value = formatResult(kanban, '出库完成，系统已推进对应出库单状态。')
+      if (result.outboundOrderNo) {
+        scanForm.outboundOrderNo = result.outboundOrderNo
+      }
+      const resultKanban = findMatchedKanban(normalized) ?? findMatchedKanban(result.barcode) ?? kanban
+      lastResult.value = formatResult(resultKanban, result.message || '出库完成，系统已推进对应出库单状态。')
+      lastResult.value.kanbanNo = fallbackKanbanText(resultKanban, result.scannedKanbanNo)
+      lastResult.value.locationText = `父看板 ${result.parentKanbanNo || lastResult.value.kanbanNo} / 出库单 ${result.outboundOrderNo || scanForm.outboundOrderNo || '自动匹配'}`
       message.value = `已出库 ${lastResult.value.kanbanNo}`
-      pushFeedback(true, '出库成功', `${lastResult.value.kanbanNo} 已绑定 ${lastResult.value.locationText}`)
+      scannerError.value = ''
+      successfulScanKeys.add(duplicateKey)
+      pushFeedback(true, '出库成功', resultDetail(result.message || `${lastResult.value.kanbanNo} 已绑定 ${lastResult.value.locationText}`, result.affectedCount, result.affectedKanbanNos))
     }
     scanForm.barcode = ''
   } catch (error) {
     scannerError.value = error instanceof Error ? error.message : '扫码业务执行失败'
+    lastResult.value = null
     pushFeedback(false, mode.value === 'inbound' ? '入库失败' : '出库失败', scannerError.value)
   } finally {
     busy.value = false
+    lastRequestText.value = ''
   }
 }
 
@@ -196,32 +242,64 @@ async function startScanner() {
   }
   stopScanner()
   try {
-    scannerControls.value = await scanner.decodeFromVideoDevice(undefined, videoRef.value, async (result, error) => {
-      if (result) {
-        const text = result.getText()
-        if (autoExecute.value) {
-          await executeScan(text)
-        } else {
-          scanForm.barcode = text
-          message.value = '已识别二维码内容，可手动确认执行。'
-        }
-        return
-      }
-      if (error && !String(error).includes('NotFoundException')) {
-        scannerError.value = error instanceof Error ? error.message : String(error)
-      }
-    })
+    const constraints: MediaStreamConstraints = {
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false,
+    }
+    scannerControls.value = await scanner.decodeFromConstraints(constraints, videoRef.value, handleDecodeResult)
+    activeStream.value = videoRef.value.srcObject instanceof MediaStream ? videoRef.value.srcObject : null
     scannerActive.value = true
     message.value = '摄像头已启动，识别到二维码后会直接执行业务。'
   } catch (error) {
-    scannerError.value = error instanceof Error ? error.message : '启动摄像头失败'
+    const detail = error instanceof Error ? error.message : '启动摄像头失败'
+    scannerError.value = detail.includes('setPhotoOptions')
+      ? '摄像头启动兼容失败，请使用“拍照识别二维码”或手工输入条码。'
+      : detail
     scannerActive.value = false
   }
 }
 
+async function handleDecodeResult(result: Result | undefined, error: Exception | undefined) {
+  if (result) {
+    const text = result.getText()
+    const now = Date.now()
+    const normalized = normalizeScanCode(text)
+    if (normalized === lastRecognizedText.value && now - lastScanAt.value < 1500) {
+      return
+    }
+    lastScanAt.value = now
+    if (autoExecute.value) {
+      await executeScan(text, 'camera')
+    } else {
+      scanForm.barcode = text
+      message.value = '已识别二维码内容，可手动确认执行。'
+    }
+    return
+  }
+  if (error && !String(error).includes('NotFoundException')) {
+    const now = Date.now()
+    if (now - lastDecodeErrorAt.value < 2000) return
+    lastDecodeErrorAt.value = now
+    const detail = error instanceof Error ? error.message : String(error)
+    if (detail.includes('setPhotoOptions')) {
+      scannerError.value = '当前摄像头不支持浏览器设置参数，请使用“拍照识别二维码”。'
+      return
+    }
+    scannerError.value = detail
+  }
+}
+
 function stopScanner() {
-  scannerControls.value?.stop()
+  const stopResult = scannerControls.value?.stop()
+  if (stopResult && typeof (stopResult as Promise<void>).catch === 'function') {
+    ;(stopResult as Promise<void>).catch(() => undefined)
+  }
   scannerControls.value = null
+  activeStream.value?.getTracks().forEach((track) => track.stop())
+  activeStream.value = null
+  if (videoRef.value) {
+    videoRef.value.srcObject = null
+  }
   scannerActive.value = false
 }
 
@@ -242,10 +320,9 @@ async function handleImagePicked(event: Event) {
   scannerError.value = ''
   const imageUrl = URL.createObjectURL(file)
   try {
-    const result = await scanner.decodeFromImageUrl(imageUrl)
-    const text = result.getText()
+    const text = await decodePickedImage(file, imageUrl)
     if (autoExecute.value) {
-      await executeScan(text)
+      await executeScan(text, 'image')
     } else {
       scanForm.barcode = text
       message.value = '已从图片识别二维码内容，可手动确认执行。'
@@ -260,19 +337,46 @@ async function handleImagePicked(event: Event) {
   }
 }
 
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error ?? new Error('读取图片失败'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function decodePickedImage(file: File, objectUrl: string) {
+  try {
+    return (await scanner.decodeFromImageUrl(objectUrl)).getText()
+  } catch (objectUrlError) {
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      return (await scanner.decodeFromImageUrl(dataUrl)).getText()
+    } catch {
+      throw objectUrlError
+    }
+  }
+}
+
 async function submitScan() {
   if (!canSubmit.value || !scanForm.barcode) return
-  await executeScan(scanForm.barcode)
+  await executeScan(scanForm.barcode, 'manual')
 }
 
 async function simulateFirst() {
   await nextTick()
   const candidate =
     mode.value === 'inbound'
-      ? props.model.state.kanbans.find((item) => item.parentKanban && ['WAIT_SCAN', 'CREATED', 'PARTIAL'].includes(item.status))
-      : props.model.state.kanbans.find((item) => item.parentKanban && item.status === 'INBOUND')
+      ? props.model.state.kanbans.find((item) => item.parentKanban && ['WAIT_SCAN', 'CREATED', 'PARTIAL', 'PARTIAL_INBOUND'].includes(item.status))
+      : props.model.state.kanbans.find((item) => item.parentKanban && ['INBOUND', 'PARTIAL_OUTBOUND'].includes(item.status))
   if (!candidate) return
-  await executeScan(candidate.qrContent || candidate.barcode)
+  await executeScan(candidate.qrContent || candidate.barcode, 'simulate')
+}
+
+function handleOutboundOrderChange() {
+  scanForm.barcode = ''
+  scannerError.value = ''
 }
 
 watch(mode, () => {
@@ -281,7 +385,17 @@ watch(mode, () => {
   scanForm.outboundOrderNo = ''
   scannerError.value = ''
   lastResult.value = null
+  successfulScanKeys.clear()
   message.value = mode.value === 'inbound' ? '请扫描待入库父看板或箱级子看板。' : '请扫描待出库父看板或箱级子看板。'
+})
+
+watch(activeOutboundOrders, (orders) => {
+  if (mode.value !== 'outbound' || !scanForm.outboundOrderNo) return
+  if (!orders.some((item) => item.outboundNo === scanForm.outboundOrderNo)) {
+    scanForm.outboundOrderNo = ''
+    scanForm.barcode = ''
+    message.value = '当前出库单已无待出库箱，请选择新的出库单。'
+  }
 })
 
 onBeforeUnmount(() => {
@@ -318,6 +432,13 @@ onBeforeUnmount(() => {
         <video ref="videoRef" class="scan-video" autoplay muted playsinline />
         <p class="scan-support-note">公网 IP 或 HTTP 访问时，手机浏览器通常不会开放实时摄像头；点击“拍照识别二维码”可拍照解码并直接执行当前模式业务。</p>
         <p class="scan-message">{{ message }}</p>
+        <p v-if="lastRecognizedText" class="scan-meta">最近识别：{{ lastRecognizedText }}</p>
+        <p v-if="lastRequestText" class="scan-meta">{{ lastRequestText }}</p>
+        <div v-if="latestFeedback" class="latest-feedback" :class="{ success: latestFeedback.success, fail: !latestFeedback.success }">
+          <strong>{{ latestFeedback.title }}</strong>
+          <span>{{ latestFeedback.detail }}</span>
+          <small>{{ latestFeedback.time }}</small>
+        </div>
         <p v-if="scannerError" class="scan-error">{{ scannerError }}</p>
       </section>
 
@@ -330,13 +451,16 @@ onBeforeUnmount(() => {
               {{ item.locationCode }} | {{ item.warehouseName }} / {{ item.zoneName }}
             </option>
           </select>
-          <select v-else v-model="scanForm.outboundOrderNo">
+          <select v-else v-model="scanForm.outboundOrderNo" @change="handleOutboundOrderChange">
             <option value="">选择出库单</option>
             <option v-for="item in activeOutboundOrders" :key="item.id" :value="item.outboundNo">
-              {{ item.outboundNo }} | {{ item.customerName || '未绑定客户' }} | {{ formatStatus(item.status) }}
+              {{ item.outboundNo }} | 待出库 {{ pendingOutboundItems(item).length }} 箱 | {{ item.customerName || '未绑定客户' }} | {{ formatStatus(item.status) }}
             </option>
           </select>
         </div>
+        <p v-if="mode === 'outbound' && !activeOutboundOrders.length" class="scan-error">
+          当前没有可扫码出库的出库单，请先在出库管理中创建并绑定箱级看板。
+        </p>
         <div class="footer-actions">
           <label class="toggle-line"><input v-model="autoExecute" type="checkbox" /> 识别后自动执行</label>
           <button :disabled="!canSubmit || busy || !scanForm.barcode" @click="submitScan">{{ busy ? '执行中...' : '手动执行扫码业务' }}</button>
@@ -409,6 +533,32 @@ onBeforeUnmount(() => {
 
 .scan-message {
   margin: 12px 0 0;
+}
+
+.scan-meta {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.latest-feedback {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.latest-feedback.success {
+  border-color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.latest-feedback.fail {
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
 }
 
 .scan-error {

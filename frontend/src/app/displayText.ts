@@ -3,6 +3,8 @@ const statusMap: Record<string, string> = {
   CREATED: '已创建',
   WAIT_SCAN: '待扫码',
   PARTIAL: '部分完成',
+  PARTIAL_INBOUND: '部分入库',
+  PARTIAL_OUTBOUND: '部分出库',
   INBOUND: '已入库',
   OUTBOUND: '已出库',
   FROZEN: '已封存',
@@ -77,4 +79,3 @@ export function formatEquipmentType(value: string | null | undefined) {
 export function formatScanResultCode(value: string | null | undefined) {
   return toDisplayText(value, scanResultCodeMap)
 }
-
