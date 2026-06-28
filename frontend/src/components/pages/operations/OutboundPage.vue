@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { formatStatus } from '../../../app/displayText'
+import { compareKanbanFifo, formatDateTime, splitBusinessNos } from '../../../app/kanbanHelpers'
 import QrCodeImage from '../../shared/QrCodeImage.vue'
 import type { Kanban, OutboundDraftItem, OutboundOrder, PageModel } from '../../../types/app'
 
@@ -149,11 +150,6 @@ const plannedQty = computed(() =>
   plannedRows.value.reduce((sum, item) => sum + item.row.boxes.slice(0, item.boxCount).reduce((boxSum, box) => boxSum + Number(box.qty ?? 0), 0), 0),
 )
 
-function compareKanbanFifo(left: Kanban, right: Kanban) {
-  return `${left.inboundTime ?? left.createdAt}-${left.parentKanbanId ?? 0}-${left.boxIndex}-${left.id}`
-    .localeCompare(`${right.inboundTime ?? right.createdAt}-${right.parentKanbanId ?? 0}-${right.boxIndex}-${right.id}`)
-}
-
 function minTime(left: string | null, right: string | null) {
   if (!left) return right
   if (!right) return left
@@ -290,10 +286,7 @@ function sourceText(order: OutboundOrder) {
 }
 
 function outboundNoList(value: string | null | undefined) {
-  return Array.from(new Set((value ?? '')
-    .split(/[,\uFF0C;\uFF1B\s]+/)
-    .map((item) => item.trim())
-    .filter((item) => item && item !== '-')))
+  return splitBusinessNos(value)
 }
 
 function boundBoxesForOrder(order: OutboundOrder) {
@@ -450,7 +443,7 @@ async function simulatePrintScan(kanban: Kanban) {
 }
 
 function formatTime(value: string | null) {
-  return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
+  return formatDateTime(value)
 }
 
 watch(viewMode, async (value) => {

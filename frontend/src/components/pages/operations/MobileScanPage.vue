@@ -4,6 +4,7 @@ import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser'
 import type { Exception, Result } from '@zxing/library'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { formatStatus } from '../../../app/displayText'
+import { findKanbanByScanCode, findLocationForKanban, formatDateTime, normalizeScanCode } from '../../../app/kanbanHelpers'
 import WorkModePage from '../../shared/WorkModePage.vue'
 import type { Kanban, OutboundOrder, PageModel } from '../../../types/app'
 
@@ -64,10 +65,6 @@ const canSubmit = computed(() =>
     : Boolean(scanForm.barcode),
 )
 
-function normalizeScanCode(value: string) {
-  return value.trim()
-}
-
 function pendingOutboundItems(order: OutboundOrder) {
   return order.items.filter((item) => typeof item.kanbanId === 'number' && Number(item.scannedQty) < Number(item.plannedQty))
 }
@@ -77,23 +74,11 @@ function scanDuplicateKey(code: string) {
 }
 
 function findMatchedKanban(scanCode: string) {
-  const normalized = normalizeScanCode(scanCode)
-  if (!normalized) return null
-  const direct = props.model.state.kanbans.find((item) => item.barcode === normalized || item.qrContent === normalized)
-  if (direct) return direct
-  const parts = normalized.split('|')
-  if (parts.length === 3 && parts[0] === 'WMS-KANBAN') {
-    return props.model.state.kanbans.find((item) => item.barcode === parts[2]) ?? null
-  }
-  return null
+  return findKanbanByScanCode(props.model.state.kanbans, scanCode)
 }
 
 function plannedLocationCode(kanban: Kanban | null) {
-  if (!kanban) return ''
-  const location = props.model.state.locations.find(
-    (item) => item.warehouseName === kanban.warehouseName && item.zoneName === kanban.zoneName,
-  )
-  return location?.locationCode ?? ''
+  return findLocationForKanban(props.model.state.locations, kanban)?.locationCode ?? ''
 }
 
 function resultDetail(prefix: string, affectedCount?: number, affectedKanbanNos?: string[]) {
@@ -115,7 +100,7 @@ function formatResult(kanban: Kanban | null, statusText: string) {
       actionText: mode.value === 'inbound' ? '已执行入库' : '已执行出库',
       locationText: mode.value === 'inbound' ? scanForm.locationCode : scanForm.outboundOrderNo,
       statusText,
-      executedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+      executedAt: formatDateTime(new Date().toISOString()),
     }
   }
   return {
@@ -128,7 +113,7 @@ function formatResult(kanban: Kanban | null, statusText: string) {
         ? `${kanban.warehouseName} / ${kanban.zoneName} / ${scanForm.locationCode || kanban.locationCode || '自动匹配库位'}`
         : `出库单 ${scanForm.outboundOrderNo}`,
     statusText,
-    executedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    executedAt: formatDateTime(new Date().toISOString()),
   }
 }
 
@@ -137,7 +122,7 @@ function pushFeedback(success: boolean, title: string, detail: string) {
     success,
     title,
     detail,
-    time: new Date().toLocaleString('zh-CN', { hour12: false }),
+    time: formatDateTime(new Date().toISOString()),
   })
   feedbackList.value = feedbackList.value.slice(0, 12)
 }

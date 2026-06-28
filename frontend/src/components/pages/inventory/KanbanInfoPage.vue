@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { formatStatus } from '../../../app/displayText'
+import { findKanbanByScanCode, findLocationForKanban, formatDateTime, splitBusinessNos } from '../../../app/kanbanHelpers'
 import QrCodeImage from '../../shared/QrCodeImage.vue'
 import WorkModePage from '../../shared/WorkModePage.vue'
 import type { Kanban, PageModel } from '../../../types/app'
@@ -62,31 +63,13 @@ const filteredRows = computed(() =>
     }),
 )
 
-function normalizeScanCode(value: string) {
-  return value.trim()
-}
-
-function findMatchedKanban(scanCode: string) {
-  const normalized = normalizeScanCode(scanCode)
-  if (!normalized) return null
-  const direct = props.model.state.kanbans.find((item) => item.barcode === normalized || item.qrContent === normalized)
-  if (direct) return direct
-  const parts = normalized.split('|')
-  if (parts.length === 3 && parts[0] === 'WMS-KANBAN') {
-    return props.model.state.kanbans.find((item) => item.barcode === parts[2]) ?? null
-  }
-  return null
-}
-
 function findPlannedLocationCode(scanCode: string) {
-  const kanban = findMatchedKanban(scanCode)
+  const kanban = findKanbanByScanCode(props.model.state.kanbans, scanCode)
   if (!kanban) {
     scanMatchHint.value = '未识别到对应看板'
     return ''
   }
-  const location = props.model.state.locations.find(
-    (item) => item.warehouseName === kanban.warehouseName && item.zoneName === kanban.zoneName,
-  )
+  const location = findLocationForKanban(props.model.state.locations, kanban)
   if (!location) {
     scanMatchHint.value = `已识别看板 ${kanban.kanbanNo}，但未找到规划库位`
     return ''
@@ -143,14 +126,11 @@ function browserPrint() {
 }
 
 function formatTime(value: string | null) {
-  return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
+  return formatDateTime(value)
 }
 
 function outboundNoList(value: string | null | undefined) {
-  return Array.from(new Set((value ?? '')
-    .split(/[,\uFF0C;\uFF1B\s]+/)
-    .map((item) => item.trim())
-    .filter((item) => item && item !== '-')))
+  return splitBusinessNos(value)
 }
 
 async function toggleExpanded(kanbanId: number) {
