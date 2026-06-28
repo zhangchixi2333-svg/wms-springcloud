@@ -515,6 +515,38 @@ CREATE TABLE IF NOT EXISTS `agent_config` (
   UNIQUE KEY `uk_agent_config_key` (`config_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `agent_user_profile` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `session_id` VARCHAR(64) NOT NULL,
+  `preferred_topic` VARCHAR(128) NOT NULL,
+  `last_intent` VARCHAR(64) NOT NULL,
+  `total_messages` INT NOT NULL DEFAULT 0,
+  `summary` VARCHAR(1000) NOT NULL,
+  `updated_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_profile_session` (`session_id`),
+  KEY `idx_agent_profile_topic` (`preferred_topic`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `agent_pipeline_trace` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `trace_no` VARCHAR(64) NOT NULL,
+  `session_id` VARCHAR(64) NOT NULL,
+  `question` VARCHAR(1000) NOT NULL,
+  `route_level` VARCHAR(64) NOT NULL,
+  `intent` VARCHAR(64) NOT NULL,
+  `confidence` DECIMAL(6,4) NOT NULL DEFAULT 0,
+  `tool_count` INT NOT NULL DEFAULT 0,
+  `reflection_passed` BIT(1) NOT NULL DEFAULT b'0',
+  `warning_count` INT NOT NULL DEFAULT 0,
+  `latency_ms` BIGINT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_trace_no` (`trace_no`),
+  KEY `idx_agent_trace_session` (`session_id`, `created_at`),
+  KEY `idx_agent_trace_route` (`route_level`, `intent`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 八、Agent 运行记录索引。
 SET @idx_agent_run_started_exists := (
   SELECT COUNT(*)

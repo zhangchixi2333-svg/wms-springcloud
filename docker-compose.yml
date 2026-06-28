@@ -27,7 +27,19 @@ services:
     volumes:
       - wms_agent_qdrant_data:/qdrant/storage
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: wms-agent-redis
+    profiles:
+      - memory
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - wms_agent_redis_data:/data
+
 volumes:
   wms_cloud_mysql_data:
   wms_cloud_mysql80_data:
   wms_agent_qdrant_data:
+  wms_agent_redis_data:

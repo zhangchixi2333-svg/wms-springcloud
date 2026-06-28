@@ -60,6 +60,14 @@ spec:
               value: "false"
             - name: AGENT_RAG_ENABLED
               value: "false"
+            - name: AGENT_RAG_PROVIDER
+              value: "local"
+            - name: AGENT_REDIS_ENABLED
+              value: "false"
+            - name: AGENT_LLM_PROVIDER
+              value: "disabled"
+            - name: AGENT_LLM_MODEL
+              value: "local-rule"
             - name: EUREKA_CLIENT_ENABLED
               value: "false"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE

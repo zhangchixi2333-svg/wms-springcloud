@@ -2,61 +2,71 @@
 
 更新时间：2026-06-29
 
-## 1. 目标范围
+## 1. 整体链路
 
-`wms-agent-service` 是 WMS 的旁路智能分析服务，用于库存预测、补货建议、呆滞库存提示、本地规则问答和 RAG 知识库预留。第一阶段不调用外部大模型，默认配置为：
+`wms-agent-service` 是 WMS 的旁路智能分析服务。它读取业务数据做预测、建议和问答，把结果写入 `agent_*` 表；它不直接修改入库、出库、库存、看板等主业务表。
+
+当前问答链路已经拆成管线：
+
+```text
+用户问题
+-> Planner / Router
+   -> L1 精准命令
+   -> L2 规则匹配
+   -> L3 本地语义匹配
+   -> L4 LLM tool call 预留
+-> Memory Manager
+   -> MySQL 历史消息
+   -> MySQL 长期画像
+   -> Redis 最近对话预留
+   -> Qdrant 语义记忆预留
+-> RAG Retriever
+   -> MySQL 文档 chunk
+   -> 本地关键词/语义打分
+   -> Qdrant topK 预留
+-> Tool Orchestrator
+   -> 库存预测工具
+   -> 补货建议工具
+   -> 菜单权限工具
+   -> RAG 搜索工具
+-> Reflection
+   -> 事实一致性
+   -> 权限隐私
+   -> 业务规则
+   -> 完整性检查
+-> 返回前端
+```
+
+默认仍然不开外部 AI：
 
 ```text
 AGENT_CALL_API=false
 AGENT_RAG_ENABLED=false
+AGENT_REDIS_ENABLED=false
+AGENT_LLM_PROVIDER=disabled
 ```
 
-旁路含义：Agent 读取业务表做分析，把结果写入 `agent_*` 表；它不修改入库、出库、看板、库存等主业务表。
+这几个开关关闭时，Agent 会使用本地规则、MySQL 记忆和 MySQL RAG 切片降级，不影响主业务页面。
 
-## 2. 服务边界和关键文件
+## 2. 关键代码文件
 
-| 组件 | 路径 | 说明 |
-| --- | --- | --- |
-| Agent 启动类 | `wms-agent-service/src/main/java/com/example/wms/WmsAgentServiceApplication.java` | Spring Boot 入口 |
-| Agent 接口 | `wms-agent-service/src/main/java/com/example/wms/api/AgentController.java` | 暴露 `/api/agent/**` |
-| 分析服务 | `wms-agent-service/src/main/java/com/example/wms/service/AgentAnalysisService.java` | 使用 `JdbcTemplate` 聚合业务数据 |
-| Agent 配置 | `wms-agent-service/src/main/java/com/example/wms/config/AgentProperties.java` | 映射 `agent.*` 配置 |
-| 应用配置 | `wms-agent-service/src/main/resources/application.yml` | 端口、数据源、Agent 开关 |
-| 网关路由 | `wms-gateway/src/main/resources/application.yml` | 增加 `/api/agent/**` 路由 |
-| Helm 模板 | `deploy/helm/wms/templates/agent-service.yaml` | Agent Deployment 和 Service |
+| 职责 | 文件 |
+| --- | --- |
+| API 入口 | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\api\AgentController.java` |
+| 库存预测、建议、RAG 文档维护 | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\service\AgentAnalysisService.java` |
+| Agent 配置 | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\config\AgentProperties.java` |
+| 管线总控 | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\agent\pipeline\AgentPipelineService.java` |
+| Planner / Router | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\agent\pipeline\AgentPlanner.java` |
+| Memory Manager | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\agent\memory\AgentMemoryManager.java` |
+| RAG Retriever | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\agent\rag\AgentRagRetriever.java` |
+| Tool Orchestrator | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\agent\tool\AgentToolOrchestrator.java` |
+| Reflection | `D:\projects\wms-springcloud\wms-agent-service\src\main\java\com\example\wms\agent\reflection\AgentReflectionService.java` |
+| 前端页面 | `D:\projects\wms-springcloud\frontend\src\components\pages\agent\AgentAssistantPage.vue` |
+| 前端类型 | `D:\projects\wms-springcloud\frontend\src\types\app.ts` |
 
-Agent 端口：
+## 3. 数据库表
 
-```text
-wms-agent-service / 8085
-```
-
-网关路由：
-
-```yaml
-- id: wms-agent-service
-  uri: ${WMS_AGENT_SERVICE_URI:lb://wms-agent-service}
-  predicates:
-    - Path=/api/agent/**
-```
-
-Kubernetes 中由 Helm 注入：
-
-```text
-WMS_AGENT_SERVICE_URI=http://wms-agent-service:8085
-```
-
-## 3. 为什么 Agent 挂了不影响业务
-
-1. `wms-system-service`、`wms-masterdata-service`、`wms-business-service` 没有依赖 `wms-agent-service`。
-2. 入库、出库、扫码、库存刷新不会调用 `/api/agent/**`。
-3. 前端 Agent 页面自己捕获接口异常，只在该页面显示服务不可用。
-4. `useWorkspaceApp.ts` 的主业务刷新没有把 Agent 请求加入全局刷新。
-5. Agent 默认不调用外部 API，即使后续打开外部模型，也应该只影响 Agent 自己的问答或建议生成。
-
-## 4. 数据库表和索引
-
-初始化 SQL：
+初始化 SQL 已同步到三处：
 
 ```text
 D:\projects\wms-springcloud\sql\wms-cloud-init.sql
@@ -69,85 +79,104 @@ Agent 表：
 | 表 | 用途 |
 | --- | --- |
 | `agent_run` | 每次分析任务记录 |
-| `agent_forecast_snapshot` | 每次预测快照 |
+| `agent_forecast_snapshot` | 库存预测快照 |
 | `agent_suggestion` | 补货、呆滞、风险建议 |
-| `agent_chat_message` | 本地规则问答历史 |
+| `agent_chat_message` | 用户与助手历史消息 |
+| `agent_user_profile` | 长期画像，记录偏好主题、最近意图、摘要 |
 | `agent_rag_document` | RAG 文档原文 |
-| `agent_rag_chunk` | 文档切块，后续可补 embedding |
+| `agent_rag_chunk` | 文档切片，后续可补 embedding |
+| `agent_pipeline_trace` | 每次问答的路由、工具数量、反思结果、耗时 |
 | `agent_config` | Agent 自身配置预留 |
 
-配套性能索引：
+`agent_pipeline_trace` 是后续性能迭代的关键表。它能回答：“这次慢在哪里，是 Planner、RAG、工具，还是数据库？”
 
-| 索引 | 作用 |
-| --- | --- |
-| `idx_inventory_part` | 加快按零件汇总库存 |
-| `idx_inventory_tx_part_created` | 加快库存流水和预测趋势查询 |
-| `idx_config_module_status` | 加快库存预警配置查询 |
-| `idx_agent_run_started` | 加快最近分析记录查询 |
+## 4. 问答接口返回内容
 
-## 5. 接口清单
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| `GET` | `/api/agent/health` | 查看 Agent 是否可用、外部 API/RAG 是否启用 |
-| `GET` | `/api/agent/dashboard?days=30` | 一次返回概览、预测和建议，前端优先用这个接口 |
-| `GET` | `/api/agent/overview` | 库存风险汇总 |
-| `GET` | `/api/agent/forecast/inventory?days=30` | 库存预测明细 |
-| `GET` | `/api/agent/suggestions` | 建议列表 |
-| `POST` | `/api/agent/analyze?days=30` | 执行一次分析并持久化快照和建议 |
-| `POST` | `/api/agent/ask` | 本地规则问答 |
-| `GET` | `/api/agent/rag/documents` | 查看本地 RAG 文档 |
-| `POST` | `/api/agent/rag/documents` | 新增本地 RAG 文档并切块 |
-
-## 6. 当前分析策略
-
-`AgentAnalysisService` 目前采用本地规则：
-
-- 读取 `inventory` 汇总当前库存。
-- 读取 `inventory_transaction` 计算近 N 天平均出库量。
-- 读取 `config_item` 中 `inventoryWarning/DEFAULT` 和零件级阈值配置。
-- 计算风险等级、预计缺货时间和建议补货量。
-- `dashboard` 接口合并概览、预测和建议，避免前端连续请求多个慢接口。
-- `dashboard` 有 15 秒内存缓存；执行 `analyze` 后会清理缓存。
-- `analyze` 批量写入预测快照和建议，避免逐条插入导致慢。
-
-默认库存预警配置：
+`POST /api/agent/ask` 现在返回完整管线结果，前端可以直接展示：
 
 ```json
-{"critical":10,"low":30,"attention":60}
+{
+  "answer": "回答正文",
+  "callApi": false,
+  "suggestions": [],
+  "traceNo": "TRACE-XXXXXXXX",
+  "plan": {
+    "intent": "REPLENISHMENT",
+    "routeLevel": "L2_RULE",
+    "routeLabel": "L2 规则匹配",
+    "confidence": 0.88,
+    "reason": "问题包含补货/低库存关键词，使用规则匹配到库存建议工具。"
+  },
+  "memory": {
+    "recentSource": "MySQL 历史消息；Redis 最近对话为预留能力，未启用时自动降级。"
+  },
+  "rag": {
+    "mode": "MySQL 本地切片检索。",
+    "snippets": []
+  },
+  "toolResults": [],
+  "reflection": {
+    "passed": true,
+    "checks": [],
+    "warnings": []
+  },
+  "latencyMs": 35
+}
 ```
 
-## 7. 本地启动和验证
+前端页面会展示路由层级、意图、工具结果、RAG 命中、反思检查和耗时。
 
-启动 MySQL 和后端：
+## 5. 当前已实现与预留
+
+已实现：
+
+- L1 精准命令：`执行分析`、`刷新库存预测`、`健康检查`。
+- L2 规则匹配：补货、低库存、预测、呆滞、菜单权限。
+- L3 本地语义匹配：MySQL RAG 文档切片检索。
+- Memory：MySQL 历史消息、MySQL 长期画像。
+- Tool：库存预测、补货建议、执行分析、菜单权限、RAG 搜索、健康检查。
+- Reflection：事实一致性、权限隐私、业务规则、完整性检查。
+- Trace：每次问答写入 `agent_pipeline_trace`。
+
+预留：
+
+- Redis 最近对话：`docker compose --profile memory up -d redis` 可拉起组件，但当前代码默认不依赖它。
+- Qdrant 语义记忆：`docker compose --profile rag up -d qdrant` 可拉起组件，当前代码在未接 Java 客户端时降级到 MySQL RAG。
+- LLM tool call：`AGENT_CALL_API=true` 后可继续接模型提供方，现在仍返回本地预留说明。
+
+## 6. 本地启动和验证
+
+启动基础组件：
 
 ```powershell
 cd D:\projects\wms-springcloud
 docker compose up -d mysql
-.\start-services.ps1
 ```
 
-验证 Agent 直连：
+可选启动 Redis 和 Qdrant：
 
 ```powershell
-Invoke-RestMethod 'http://127.0.0.1:8085/api/agent/health'
-Invoke-RestMethod 'http://127.0.0.1:8085/api/agent/dashboard?days=30'
+docker compose --profile memory up -d redis
+docker compose --profile rag up -d qdrant
 ```
 
-验证通过网关：
+启动后端和前端：
+
+```powershell
+cd D:\projects\wms-springcloud
+.\start-services.ps1
+
+cd D:\projects\wms-springcloud\frontend
+npm run dev
+```
+
+验证健康检查：
 
 ```powershell
 Invoke-RestMethod 'http://127.0.0.1:8080/api/agent/health'
-Invoke-RestMethod 'http://127.0.0.1:8080/api/agent/dashboard?days=30'
 ```
 
-执行一次分析：
-
-```powershell
-Invoke-RestMethod 'http://127.0.0.1:8080/api/agent/analyze?days=30' -Method Post
-```
-
-本地问答：
+验证问答：
 
 ```powershell
 $body = @{
@@ -161,113 +190,71 @@ Invoke-RestMethod 'http://127.0.0.1:8080/api/agent/ask' `
   -Body $body
 ```
 
-## 8. 前端入口
+验证追踪表：
 
-| 文件 | 说明 |
-| --- | --- |
-| `frontend/src/components/pages/agent/AgentAssistantPage.vue` | Agent 页面 |
-| `frontend/src/api/wms.ts` | Agent API 方法 |
-| `frontend/src/types/app.ts` | Agent 数据类型 |
-| `frontend/src/app/pageRegistry.ts` | `agentAssistant` 页面注册，使用懒加载 |
-
-初始化 SQL 已新增菜单：
-
-```text
-智能助手 -> Agent助手
+```powershell
+docker exec wms-cloud-mysql sh -c "mysql -uwms -pwms123456 --default-character-set=utf8mb4 -D wms_cloud -e 'SELECT trace_no, route_level, intent, tool_count, latency_ms, created_at FROM agent_pipeline_trace ORDER BY id DESC LIMIT 5;'"
 ```
 
-`pageRegistry.ts` 已使用 `defineAsyncComponent` 懒加载页面，避免 Agent 和移动扫码等大页面进入首屏主包。
+## 7. 部署配置
 
-## 9. Docker、Helm 和 GitHub Actions
-
-构建文件：
-
-```text
-D:\projects\wms-springcloud\deploy\docker\Dockerfile.service
-D:\projects\wms-springcloud\deploy\docker\build-images.ps1
-```
-
-Helm 文件：
+Helm 模板：
 
 ```text
 D:\projects\wms-springcloud\deploy\helm\wms\templates\agent-service.yaml
-D:\projects\wms-springcloud\deploy\helm\wms\values.yaml
 ```
 
-GitHub Actions 已加入：
+原生 Kubernetes YAML：
 
 ```text
-wms-agent-service-v${GITHUB_RUN_NUMBER}
-wms-agent-service-master
+D:\projects\wms-springcloud\deploy\kubernetes\services\agent-service.yaml
 ```
 
-部署验证：
+Agent 默认环境变量：
+
+```text
+AGENT_CALL_API=false
+AGENT_RAG_ENABLED=false
+AGENT_RAG_PROVIDER=local
+AGENT_REDIS_ENABLED=false
+AGENT_LLM_PROVIDER=disabled
+AGENT_LLM_MODEL=local-rule
+```
+
+网关访问 Agent：
+
+```text
+frontend -> /api/agent/**
+nginx -> wms-gateway Service
+wms-gateway -> http://wms-agent-service:8085
+wms-agent-service -> mysql:3306/wms_cloud
+```
+
+## 8. 故障排查
+
+Agent 页面不可用：
 
 ```powershell
-kubectl get pods -n wms -l app=wms-agent-service
-kubectl get svc -n wms wms-agent-service
-kubectl get endpoints -n wms wms-agent-service
-kubectl logs deploy/wms-agent-service -n wms --tail=120
+kubectl get pods,svc,endpoints -n wms -l app=wms-agent-service
+kubectl logs deploy/wms-agent-service -n wms --tail=200
 ```
 
-## 10. 可选 RAG 组件
-
-`docker-compose.yml` 预留 Qdrant，但默认不会启动：
-
-```powershell
-docker compose up -d mysql
-docker compose --profile rag up -d mysql qdrant
-```
-
-当前代码只写 MySQL 的 `agent_rag_document` 和 `agent_rag_chunk`。后续开启向量检索时，再设置：
-
-```text
-AGENT_RAG_ENABLED=true
-AGENT_RAG_PROVIDER=qdrant
-```
-
-然后增加 Qdrant 客户端和 embedding 写入逻辑。
-
-## 11. 性能验证记录
-
-最近一次本地优化后的参考结果：
-
-```text
-dashboard 首次约 725ms，缓存命中约 1ms，平均约 94ms
-forecast 平均约 8.2ms
-ask 平均约 31.4ms
-analyze 平均约 40.6ms
-通过 gateway 访问 dashboard 约 299ms
-```
-
-这只是本地参考值，不作为生产 SLA。生产慢时优先查看：
+问答很慢：
 
 ```powershell
 kubectl logs deploy/wms-agent-service -n wms --tail=200
-kubectl top pods -n wms
-kubectl exec -n wms mysql-0 -- mysql -uroot -proot123456 -D wms_cloud -e "EXPLAIN SELECT * FROM inventory LIMIT 1;"
+kubectl exec -n wms mysql-0 -- mysql -uroot -proot123456 -D wms_cloud -e "SELECT route_level, intent, AVG(latency_ms) avg_ms, COUNT(*) cnt FROM agent_pipeline_trace GROUP BY route_level, intent ORDER BY avg_ms DESC;"
 ```
 
-## 12. 典型故障
-
-| 现象 | 可能原因 | 排查命令 | 修复 |
-| --- | --- | --- | --- |
-| Agent 页面显示服务不可用 | Agent 未启动或网关路由错误 | `kubectl logs deploy/wms-agent-service -n wms --tail=120` | 启动 Agent 或修正 `WMS_AGENT_SERVICE_URI` |
-| `/api/agent/health` 返回 503 | 网关找不到 Agent Service | `kubectl get svc,endpoints -n wms wms-agent-service` | 检查 Service、Pod label 和端口 |
-| Agent CrashLoopBackOff | 表缺失或数据库连接失败 | `kubectl logs deploy/wms-agent-service -n wms --previous --tail=200` | 重新执行初始化 SQL 或检查 DB Secret |
-| Agent 慢但主业务正常 | Agent 聚合查询慢或缓存未命中 | 查看 Agent 日志和 MySQL 慢查询 | 检查索引、缩小查询范围、增加缓存 |
-| Qdrant 没启动 | 没启用 compose profile | `docker compose ps` | `docker compose --profile rag up -d qdrant` |
-
-## 13. 回滚和临时关闭
-
-Helm 回滚：
+RAG 没命中：
 
 ```powershell
-helm history wms -n wms
-helm rollback wms <REVISION> -n wms --wait --timeout 10m
+kubectl exec -n wms mysql-0 -- mysql -uroot -proot123456 -D wms_cloud -e "SELECT COUNT(*) docs FROM agent_rag_document; SELECT COUNT(*) chunks FROM agent_rag_chunk;"
 ```
 
-只停止 Agent，不影响主业务：
+Agent 挂了但主业务正常：
+
+这是预期边界。Agent 是旁路服务，入库、出库、库存、看板不会依赖 `/api/agent/**`。可以临时关闭：
 
 ```powershell
 kubectl scale deployment/wms-agent-service -n wms --replicas=0

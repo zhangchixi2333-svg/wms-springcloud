@@ -14,9 +14,18 @@ agent:
   call-api: ${AGENT_CALL_API:false}
   forecast-days: ${AGENT_FORECAST_DAYS:30}
   suggestion-limit: ${AGENT_SUGGESTION_LIMIT:20}
+  llm:
+    provider: ${AGENT_LLM_PROVIDER:disabled}
+    model: ${AGENT_LLM_MODEL:local-rule}
+  memory:
+    redis:
+      enabled: ${AGENT_REDIS_ENABLED:false}
+      url: ${AGENT_REDIS_URL:redis://127.0.0.1:6379}
   rag:
     enabled: ${AGENT_RAG_ENABLED:false}
     provider: ${AGENT_RAG_PROVIDER:local}
+    qdrant-url: ${AGENT_QDRANT_URL:http://127.0.0.1:6333}
+    collection: ${AGENT_QDRANT_COLLECTION:wms_agent_memory}
 
 eureka:
   client:

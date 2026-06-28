@@ -303,6 +303,93 @@ export type AgentAnswer = {
   answer: string;
   callApi: boolean;
   suggestions: AgentSuggestion[];
+  traceNo: string;
+  plan: AgentPlan;
+  memory: AgentMemoryBundle;
+  rag: AgentRagContext;
+  toolResults: AgentToolResult[];
+  reflection: AgentReflectionResult;
+  latencyMs: number;
+}
+
+export type AgentPlan = {
+  intent: string;
+  routeLevel: string;
+  routeLabel: string;
+  confidence: number;
+  reason: string;
+  llmRequired: boolean;
+  toolCalls: AgentToolCall[];
+}
+
+export type AgentToolCall = {
+  toolName: string;
+  toolLabel: string;
+  arguments: Record<string, unknown>;
+}
+
+export type AgentToolResult = {
+  toolName: string;
+  toolLabel: string;
+  success: boolean;
+  summary: string;
+  data: unknown;
+  latencyMs: number;
+}
+
+export type AgentMemoryMessage = {
+  role: string;
+  content: string;
+  createdAt: string;
+}
+
+export type AgentUserProfile = {
+  sessionId: string;
+  preferredTopic: string;
+  lastIntent: string;
+  totalMessages: number;
+  summary: string;
+  updatedAt: string | null;
+}
+
+export type AgentSemanticMemory = {
+  source: string;
+  title: string;
+  content: string;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
+export type AgentMemoryBundle = {
+  sessionId: string;
+  recentSource: string;
+  recentMessages: AgentMemoryMessage[];
+  historicalMessages: AgentMemoryMessage[];
+  profile: AgentUserProfile | null;
+  semanticMemories: AgentSemanticMemory[];
+}
+
+export type AgentRagSnippet = {
+  documentId: number;
+  chunkId: number;
+  docKey: string;
+  title: string;
+  content: string;
+  score: number;
+  metadataJson: string;
+}
+
+export type AgentRagContext = {
+  enabled: boolean;
+  provider: string;
+  mode: string;
+  snippets: AgentRagSnippet[];
+}
+
+export type AgentReflectionResult = {
+  passed: boolean;
+  checks: string[];
+  warnings: string[];
 }
 
 export type AgentHealth = {
@@ -311,6 +398,11 @@ export type AgentHealth = {
   ragEnabled: boolean;
   ragProvider: string;
   mode: string;
+  llmProvider?: string;
+  llmModel?: string;
+  memoryMode?: string;
+  qdrantUrl?: string;
+  qdrantCollection?: string;
 }
 
 export type AgentDashboard = {

@@ -46,7 +46,14 @@ public class AgentAnalysisService {
                 "callApi", properties.isCallApi(),
                 "ragEnabled", properties.getRag().isEnabled(),
                 "ragProvider", properties.getRag().getProvider(),
-                "mode", properties.isCallApi() ? "外部模型预留模式" : "本地规则分析模式"
+                "mode", properties.isCallApi() ? "外部模型预留模式" : "本地规则分析模式",
+                "llmProvider", properties.getLlm().getProvider(),
+                "llmModel", properties.getLlm().getModel(),
+                "memoryMode", properties.getMemory().getRedis().isEnabled()
+                        ? "Redis 最近对话 + MySQL 历史画像"
+                        : "MySQL 历史画像，本地降级",
+                "qdrantUrl", properties.getRag().getQdrantUrl(),
+                "qdrantCollection", properties.getRag().getCollection()
         );
     }
 
@@ -298,50 +305,6 @@ public class AgentAnalysisService {
         });
     }
 
-    @Transactional
-    public AgentAnswer ask(AgentAskRequest request) {
-        String question = request.question().trim();
-        String normalized = question.toLowerCase(Locale.ROOT);
-        List<AgentSuggestionDto> relevantSuggestions;
-        String answer;
-        if (containsAny(normalized, "缺货", "低库存", "补货", "不足")) {
-            relevantSuggestions = buildSuggestions(forecast(properties.getForecastDays())).stream()
-                    .filter(item -> !"NORMAL".equals(item.riskLevel()))
-                    .limit(5)
-                    .toList();
-            answer = relevantSuggestions.isEmpty()
-                    ? "当前没有明显低库存或缺货风险。"
-                    : "我按库存阈值和近 30 天出库速度筛出了需要优先关注的补货建议。";
-        } else if (containsAny(normalized, "预测", "未来", "消耗")) {
-            List<ForecastRow> rows = forecast(properties.getForecastDays());
-            long riskCount = rows.stream().filter(row -> !"NORMAL".equals(row.riskLevel())).count();
-            relevantSuggestions = buildSuggestions(rows).stream().limit(5).toList();
-            answer = "按未来 " + properties.getForecastDays() + " 天估算，当前共有 " + rows.size() + " 个零件参与预测，其中 " + riskCount + " 个存在预警风险。";
-        } else if (containsAny(normalized, "呆滞", "长期未动", "周转")) {
-            relevantSuggestions = slowMovingSuggestions(forecast(properties.getForecastDays())).stream().limit(5).toList();
-            answer = relevantSuggestions.isEmpty()
-                    ? "近 30 天没有发现明显呆滞库存。"
-                    : "以下零件近 30 天没有出库记录且仍有库存，建议复核需求或转储策略。";
-        } else {
-            relevantSuggestions = suggestions().stream().limit(5).toList();
-            answer = "当前外部模型调用为关闭状态，我会使用本地规则回答。你可以问：哪些零件需要补货、未来库存预测、是否有呆滞库存。";
-        }
-
-        String sessionId = Optional.ofNullable(request.sessionId()).filter(value -> !value.isBlank()).orElse("default");
-        jdbcTemplate.update("""
-                INSERT INTO agent_chat_message (session_id, role, content, call_api, created_at)
-                VALUES (?, 'USER', ?, ?, NOW(6)), (?, 'ASSISTANT', ?, ?, NOW(6))
-                """,
-                sessionId,
-                question,
-                properties.isCallApi(),
-                sessionId,
-                answer,
-                properties.isCallApi()
-        );
-        return new AgentAnswer(answer, properties.isCallApi(), relevantSuggestions);
-    }
-
     public List<RagDocumentDto> ragDocuments() {
         return jdbcTemplate.query("""
                 SELECT id, doc_key, title, source_type, content, metadata_json, enabled, created_at
@@ -564,13 +527,6 @@ public class AgentAnalysisService {
         return text.substring(0, maxLength);
     }
 
-    private boolean containsAny(String text, String... keywords) {
-        for (String keyword : keywords) {
-            if (text.contains(keyword)) return true;
-        }
-        return false;
-    }
-
     private List<String> chunkText(String text, int size) {
         List<String> chunks = new ArrayList<>();
         String source = Optional.ofNullable(text).orElse("");
@@ -696,9 +652,6 @@ public class AgentAnalysisService {
     }
 
     public record AgentAskRequest(String sessionId, @NotBlank String question) {
-    }
-
-    public record AgentAnswer(String answer, boolean callApi, List<AgentSuggestionDto> suggestions) {
     }
 
     public record RagDocumentRequest(

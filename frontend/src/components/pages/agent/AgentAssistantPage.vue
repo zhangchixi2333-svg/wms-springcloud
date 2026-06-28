@@ -1,4 +1,4 @@
-<!-- 本文件实现智能助手页面，独立调用 Agent 服务并在服务不可用时局部降级。 -->
+<!-- 本文件实现 Agent 助手页面，独立展示预测、建议、问答管线、RAG 知识和降级状态。 -->
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../../../api/wms'
@@ -18,6 +18,7 @@ defineProps<{ model: PageModel }>()
 
 const loading = ref(false)
 const analyzing = ref(false)
+const asking = ref(false)
 const serviceError = ref('')
 const forecastDays = ref(30)
 const health = ref<AgentHealth | null>(null)
@@ -40,7 +41,7 @@ const riskSummary = computed(() => [
   { label: '关注', value: overview.value?.attentionCount ?? 0, className: 'attention' },
 ])
 
-const visibleForecastRows = computed(() => forecastRows.value)
+const visibleForecastRows = computed(() => forecastRows.value.slice(0, 50))
 
 function riskClass(level: string) {
   return level.toLowerCase()
@@ -64,8 +65,32 @@ function suggestionTypeLabel(type: string) {
   return labels[type] ?? type
 }
 
+function intentLabel(intent?: string) {
+  const labels: Record<string, string> = {
+    RUN_ANALYSIS: '执行分析',
+    HEALTH_CHECK: '健康检查',
+    REPLENISHMENT: '补货预警',
+    FORECAST: '库存预测',
+    SLOW_MOVING: '呆滞库存',
+    MENU_SECURITY: '菜单权限',
+    RAG_QA: '知识问答',
+    LOCAL_FALLBACK: '本地兜底',
+    LLM_TOOL_CALL: '模型工具',
+  }
+  return intent ? labels[intent] ?? intent : '-'
+}
+
 function setAgentError(error: unknown) {
   serviceError.value = error instanceof Error ? error.message : '智能助手服务不可用'
+}
+
+function applyDashboard(data: AgentDashboard) {
+  health.value = data.health
+  overview.value = data.overview
+  forecastRows.value = data.forecastRows
+  suggestions.value = data.suggestions
+  latestRun.value = data.latestRun
+  ragDocuments.value = data.ragDocuments
 }
 
 async function loadAgentData() {
@@ -78,15 +103,6 @@ async function loadAgentData() {
   } finally {
     loading.value = false
   }
-}
-
-function applyDashboard(data: AgentDashboard) {
-  health.value = data.health
-  overview.value = data.overview
-  forecastRows.value = data.forecastRows
-  suggestions.value = data.suggestions
-  latestRun.value = data.latestRun
-  ragDocuments.value = data.ragDocuments
 }
 
 async function runAnalyze() {
@@ -104,12 +120,15 @@ async function runAnalyze() {
 
 async function ask() {
   if (!question.value.trim()) return
+  asking.value = true
   serviceError.value = ''
   answer.value = null
   try {
     answer.value = await api.askAgent({ sessionId: 'workspace', question: question.value })
   } catch (error) {
     setAgentError(error)
+  } finally {
+    asking.value = false
   }
 }
 
@@ -143,8 +162,8 @@ onMounted(loadAgentData)
     <section class="panel">
       <div class="section-head">
         <div>
-          <h3>智能助手</h3>
-          <p>当前先使用本地规则做库存预测和建议，外部模型调用默认关闭。</p>
+          <h3>Agent 助手</h3>
+          <p>按本地规则、记忆、RAG 和工具编排进行仓储分析；外部模型默认关闭，Agent 异常不会影响主业务。</p>
         </div>
         <div class="action-row">
           <input v-model.number="forecastDays" class="days-input" type="number" min="1" max="365" />
@@ -154,7 +173,7 @@ onMounted(loadAgentData)
       </div>
 
       <div v-if="serviceError" class="agent-error">
-        {{ serviceError }}。这不会影响入库、出库、库存看板等业务功能。
+        {{ serviceError }}。这不会影响入库、出库、库存和看板等业务功能。
       </div>
 
       <div class="agent-status-grid">
@@ -167,12 +186,12 @@ onMounted(loadAgentData)
           <strong>{{ health?.mode ?? '本地规则分析模式' }}</strong>
         </article>
         <article class="status-card">
-          <span>外部 API</span>
-          <strong>{{ health?.callApi ? '已开启' : '关闭' }}</strong>
+          <span>LLM</span>
+          <strong>{{ health?.callApi ? `${health.llmProvider ?? '外部'} / ${health.llmModel ?? '-'}` : '关闭' }}</strong>
         </article>
         <article class="status-card">
-          <span>RAG 数据库</span>
-          <strong>{{ health?.ragEnabled ? health.ragProvider : '本地表已预留' }}</strong>
+          <span>记忆与 RAG</span>
+          <strong>{{ health?.memoryMode ?? 'MySQL 本地记忆' }}</strong>
         </article>
       </div>
     </section>
@@ -195,8 +214,86 @@ onMounted(loadAgentData)
     <section class="panel">
       <div class="section-head">
         <div>
+          <h3>本地问答管线</h3>
+          <p>问题会经过 Planner、Memory、RAG、Tool Orchestrator、Reflection 后返回。</p>
+        </div>
+      </div>
+      <div class="ask-row">
+        <input v-model="question" placeholder="例如：哪些零件需要补货？" @keyup.enter="ask" />
+        <button :disabled="asking" @click="ask">{{ asking ? '处理中' : '提问' }}</button>
+      </div>
+
+      <div v-if="answer" class="answer-box">
+        <div class="answer-head">
+          <div>
+            <strong>回答</strong>
+            <p>{{ answer.answer }}</p>
+          </div>
+          <span class="run-pill">{{ answer.latencyMs }} ms</span>
+        </div>
+
+        <div class="pipeline-grid">
+          <article class="trace-card">
+            <span>路由</span>
+            <strong>{{ answer.plan.routeLabel }}</strong>
+            <p>{{ intentLabel(answer.plan.intent) }} / 置信度 {{ Math.round(answer.plan.confidence * 100) }}%</p>
+          </article>
+          <article class="trace-card">
+            <span>追踪号</span>
+            <strong>{{ answer.traceNo }}</strong>
+            <p>{{ answer.reflection.passed ? '反思检查通过' : '存在反思警告' }}</p>
+          </article>
+          <article class="trace-card">
+            <span>RAG</span>
+            <strong>{{ answer.rag.snippets.length }} 条命中</strong>
+            <p>{{ answer.rag.mode }}</p>
+          </article>
+        </div>
+
+        <div class="trace-section">
+          <h4>工具结果</h4>
+          <div class="trace-list">
+            <article v-for="tool in answer.toolResults" :key="tool.toolName" class="trace-row">
+              <strong>{{ tool.toolLabel }}</strong>
+              <span :class="tool.success ? 'ok-text' : 'danger-text'">{{ tool.success ? '成功' : '失败' }}</span>
+              <p>{{ tool.summary }} / {{ tool.latencyMs }} ms</p>
+            </article>
+          </div>
+        </div>
+
+        <div v-if="answer.rag.snippets.length" class="trace-section">
+          <h4>知识命中</h4>
+          <div class="trace-list">
+            <article v-for="snippet in answer.rag.snippets" :key="snippet.chunkId" class="trace-row">
+              <strong>{{ snippet.title }}</strong>
+              <span>得分 {{ snippet.score.toFixed(2) }}</span>
+              <p>{{ snippet.content.slice(0, 160) }}</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="trace-section">
+          <h4>反思检查</h4>
+          <div class="suggestion-tags">
+            <span v-for="check in answer.reflection.checks" :key="check">{{ check }}</span>
+            <span v-for="warning in answer.reflection.warnings" :key="warning" class="warning-chip">{{ warning }}</span>
+          </div>
+        </div>
+
+        <div v-if="answer.suggestions.length" class="suggestion-list compact">
+          <article v-for="item in answer.suggestions" :key="`${item.title}-${item.partCode}`" class="suggestion-card">
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.content }}</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
           <h3>库存预测</h3>
-          <p>按近 30 天出库速度估算未来库存，结合库存阈值给出风险等级。</p>
+          <p>按近 30 天出库速度估算未来库存，并结合库存阈值给出风险等级。</p>
         </div>
         <span v-if="latestRun" class="run-pill">最近分析：{{ latestRun.runNo }} / {{ latestRun.suggestionCount }} 条建议</span>
       </div>
@@ -238,7 +335,7 @@ onMounted(loadAgentData)
       <div class="section-head">
         <div>
           <h3>建议</h3>
-          <p>建议会写入 Agent 自己的表，不直接修改业务库存。</p>
+          <p>建议只写入 Agent 自己的表，不直接修改业务库存。</p>
         </div>
       </div>
       <div class="suggestion-list">
@@ -254,29 +351,6 @@ onMounted(loadAgentData)
           </div>
         </article>
         <p v-if="!suggestions.length" class="hint">暂无建议，点击执行分析生成第一批建议。</p>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="section-head">
-        <div>
-          <h3>本地问答</h3>
-          <p>当前不会调用外部模型，会按库存预测、低库存、呆滞库存等规则回答。</p>
-        </div>
-      </div>
-      <div class="ask-row">
-        <input v-model="question" placeholder="例如：哪些零件需要补货？" @keyup.enter="ask" />
-        <button @click="ask">提问</button>
-      </div>
-      <div v-if="answer" class="answer-box">
-        <strong>回答</strong>
-        <p>{{ answer.answer }}</p>
-        <div class="suggestion-list compact">
-          <article v-for="item in answer.suggestions" :key="`${item.title}-${item.partCode}`" class="suggestion-card">
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.content }}</p>
-          </article>
-        </div>
       </div>
     </section>
 
@@ -321,19 +395,27 @@ onMounted(loadAgentData)
 }
 
 .agent-status-grid,
-.summary-grid {
+.summary-grid,
+.pipeline-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
+.pipeline-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
 .status-card,
-.summary-card {
+.summary-card,
+.trace-card {
   display: grid;
   gap: 8px;
 }
 
-.status-card {
+.status-card,
+.trace-card {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -341,9 +423,15 @@ onMounted(loadAgentData)
 }
 
 .status-card span,
-.summary-card span {
+.summary-card span,
+.trace-card span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.status-card strong,
+.trace-card strong {
+  overflow-wrap: anywhere;
 }
 
 .summary-card strong {
@@ -351,7 +439,8 @@ onMounted(loadAgentData)
 }
 
 .summary-card.critical strong,
-.risk-badge.critical {
+.risk-badge.critical,
+.danger-text {
   color: #b42318;
 }
 
@@ -363,6 +452,10 @@ onMounted(loadAgentData)
 .summary-card.attention strong,
 .risk-badge.attention {
   color: #b45309;
+}
+
+.ok-text {
+  color: #067647;
 }
 
 .run-pill,
@@ -378,12 +471,18 @@ onMounted(loadAgentData)
   font-weight: 700;
 }
 
+.warning-chip {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12) !important;
+}
+
 .table td p {
   margin: 4px 0 0;
   color: var(--muted);
 }
 
-.suggestion-list {
+.suggestion-list,
+.trace-list {
   display: grid;
   gap: 12px;
 }
@@ -392,7 +491,8 @@ onMounted(loadAgentData)
   margin-top: 12px;
 }
 
-.suggestion-card {
+.suggestion-card,
+.trace-row {
   display: grid;
   gap: 8px;
   padding: 12px;
@@ -401,7 +501,9 @@ onMounted(loadAgentData)
   background: #f8fbfc;
 }
 
-.suggestion-card p {
+.suggestion-card p,
+.trace-row p,
+.trace-card p {
   margin: 0;
   color: var(--muted);
 }
@@ -426,8 +528,24 @@ onMounted(loadAgentData)
   background: #fff;
 }
 
-.answer-box p {
+.answer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.answer-head p {
   margin: 8px 0 0;
+  white-space: pre-line;
+}
+
+.trace-section {
+  margin-top: 14px;
+}
+
+.trace-section h4 {
+  margin: 0 0 8px;
 }
 
 .rag-layout {
@@ -474,6 +592,7 @@ onMounted(loadAgentData)
 @media (max-width: 1000px) {
   .agent-status-grid,
   .summary-grid,
+  .pipeline-grid,
   .rag-layout {
     grid-template-columns: 1fr 1fr;
   }
@@ -482,9 +601,14 @@ onMounted(loadAgentData)
 @media (max-width: 700px) {
   .agent-status-grid,
   .summary-grid,
+  .pipeline-grid,
   .rag-layout,
   .ask-row {
     grid-template-columns: 1fr;
+  }
+
+  .answer-head {
+    display: grid;
   }
 }
 </style>

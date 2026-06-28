@@ -4,6 +4,8 @@
 package com.example.wms.api;
 
 import com.example.wms.common.ApiResponse;
+import com.example.wms.agent.model.AgentPipelineAnswer;
+import com.example.wms.agent.pipeline.AgentPipelineService;
 import com.example.wms.service.AgentAnalysisService;
 import com.example.wms.service.AgentAnalysisService.AgentAskRequest;
 import com.example.wms.service.AgentAnalysisService.RagDocumentRequest;
@@ -22,9 +24,11 @@ import java.util.Map;
 public class AgentController {
 
     private final AgentAnalysisService agentAnalysisService;
+    private final AgentPipelineService agentPipelineService;
 
-    public AgentController(AgentAnalysisService agentAnalysisService) {
+    public AgentController(AgentAnalysisService agentAnalysisService, AgentPipelineService agentPipelineService) {
         this.agentAnalysisService = agentAnalysisService;
+        this.agentPipelineService = agentPipelineService;
     }
 
     @GetMapping("/health")
@@ -60,8 +64,8 @@ public class AgentController {
     }
 
     @PostMapping("/ask")
-    public ApiResponse<AgentAnalysisService.AgentAnswer> ask(@Valid @RequestBody AgentAskRequest request) {
-        return ApiResponse.ok(agentAnalysisService.ask(request));
+    public ApiResponse<AgentPipelineAnswer> ask(@Valid @RequestBody AgentAskRequest request) {
+        return ApiResponse.ok(agentPipelineService.ask(request));
     }
 
     @GetMapping("/rag/documents")
