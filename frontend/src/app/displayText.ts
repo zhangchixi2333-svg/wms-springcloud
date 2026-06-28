@@ -5,6 +5,7 @@ const statusMap: Record<string, string> = {
   PARTIAL: '部分完成',
   PARTIAL_INBOUND: '部分入库',
   PARTIAL_OUTBOUND: '部分出库',
+  ALLOCATED: '已分配待出库',
   INBOUND: '已入库',
   OUTBOUND: '已出库',
   FROZEN: '已封存',

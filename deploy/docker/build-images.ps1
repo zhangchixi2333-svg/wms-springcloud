@@ -15,7 +15,8 @@ $services = @(
   "wms-gateway",
   "wms-system-service",
   "wms-masterdata-service",
-  "wms-business-service"
+  "wms-business-service",
+  "wms-agent-service"
 )
 
 foreach ($service in $services) {

@@ -69,6 +69,10 @@ jobs:
             dockerfile: deploy/docker/Dockerfile.service
             build_args: |
               MODULE=wms-business-service
+          - image_name: wms-agent-service
+            dockerfile: deploy/docker/Dockerfile.service
+            build_args: |
+              MODULE=wms-agent-service
           - image_name: wms-frontend
             dockerfile: deploy/docker/Dockerfile.frontend
             build_args: |
@@ -197,6 +201,7 @@ jobs:
               kubectl logs deploy/wms-system-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
               kubectl logs deploy/wms-masterdata-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
               kubectl logs deploy/wms-business-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
+              kubectl logs deploy/wms-agent-service -n "${DEPLOY_NAMESPACE}" --tail=100 || true
               kubectl logs deploy/wms-frontend -n "${DEPLOY_NAMESPACE}" --tail=100 || true
               exit "${EXIT_CODE}"
             }
@@ -290,6 +295,7 @@ jobs:
             kubectl rollout status deployment/wms-system-service -n "${DEPLOY_NAMESPACE}" --timeout=600s
             kubectl rollout status deployment/wms-masterdata-service -n "${DEPLOY_NAMESPACE}" --timeout=600s
             kubectl rollout status deployment/wms-business-service -n "${DEPLOY_NAMESPACE}" --timeout=600s
+            kubectl rollout status deployment/wms-agent-service -n "${DEPLOY_NAMESPACE}" --timeout=600s
             kubectl rollout status deployment/wms-frontend -n "${DEPLOY_NAMESPACE}" --timeout=600s
 
             kubectl get pods -n "${DEPLOY_NAMESPACE}"

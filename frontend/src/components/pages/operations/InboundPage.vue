@@ -12,8 +12,13 @@ const mode = ref<'query' | 'edit' | 'print' | 'scan'>('query')
 const printOrders = ref<InboundOrder[]>([])
 const scanOrder = ref<InboundOrder | null>(null)
 const selectedOrderIds = reactive<Record<number, boolean>>({})
+const expandedOrders = reactive<Record<number, boolean>>({})
 const expandedParents = reactive<Record<number, boolean>>({})
 const scanInputRef = ref<HTMLInputElement | null>(null)
+const batchPickerOpen = ref(false)
+const batchSearch = ref('')
+const batchPage = ref(1)
+const batchPageSize = 8
 
 const filters = reactive({
   status: '',
@@ -43,6 +48,18 @@ const inboundEquipmentOptions = computed(() => equipmentCodeOptions(props.model.
 const supplierParts = computed(() =>
   props.model.state.parts.filter((item) => !form.supplierId || item.supplierId === form.supplierId),
 )
+
+const filteredSupplierParts = computed(() => {
+  const keyword = batchSearch.value.trim().toLowerCase()
+  return supplierParts.value.filter((part) => !keyword || `${part.partCode} ${part.partName}`.toLowerCase().includes(keyword))
+})
+
+const batchTotalPages = computed(() => Math.max(1, Math.ceil(filteredSupplierParts.value.length / batchPageSize)))
+const pagedSupplierParts = computed(() => {
+  const page = Math.min(batchPage.value, batchTotalPages.value)
+  const start = (page - 1) * batchPageSize
+  return filteredSupplierParts.value.slice(start, start + batchPageSize)
+})
 
 const filteredOrders = computed(() =>
   props.model.state.inboundOrders.filter((order) => {
@@ -120,6 +137,9 @@ function resetFilters() {
 
 function resetBatchSelection() {
   Object.keys(batchSelection).forEach((key) => delete batchSelection[Number(key)])
+  batchSearch.value = ''
+  batchPage.value = 1
+  batchPickerOpen.value = false
 }
 
 function resetCreateForm() {
@@ -135,19 +155,27 @@ function openCreate() {
   mode.value = 'edit'
 }
 
-function openPrint(order: InboundOrder) {
+async function ensureInboundOrderChildren(order: InboundOrder) {
+  const parents = parentKanbansForInbound(order)
+  await Promise.all(parents.map((kanban) => props.model.actions.loadKanbanChildren(kanban.id)))
+}
+
+async function openPrint(order: InboundOrder) {
+  await ensureInboundOrderChildren(order)
   printOrders.value = [order]
   scanOrder.value = null
   mode.value = 'print'
 }
 
-function openBatchPrint() {
+async function openBatchPrint() {
   printOrders.value = filteredOrders.value.filter((item) => selectedOrderIds[item.id])
+  await Promise.all(printOrders.value.map(ensureInboundOrderChildren))
   scanOrder.value = null
   mode.value = 'print'
 }
 
-function openScan(order: InboundOrder) {
+async function openScan(order: InboundOrder) {
+  await ensureInboundOrderChildren(order)
   scanOrder.value = order
   printedInboundScanForm.barcode = ''
   printedInboundScanForm.locationCode = ''
@@ -159,6 +187,19 @@ function toggleSelectAllOrders(checked: boolean) {
   filteredOrders.value.forEach((item) => {
     selectedOrderIds[item.id] = checked
   })
+}
+
+function toggleOrderExpanded(orderId: number) {
+  expandedOrders[orderId] = !expandedOrders[orderId]
+}
+
+function openBatchPicker() {
+  batchPickerOpen.value = true
+  batchPage.value = 1
+}
+
+function closeBatchPicker() {
+  batchPickerOpen.value = false
 }
 
 function applyBatchParts() {
@@ -178,6 +219,10 @@ function applyBatchParts() {
     })
   form.items = form.items.filter((item, index, rows) => rows.findIndex((row) => row.partId === item.partId) === index)
   resetBatchSelection()
+}
+
+function orderQty(order: InboundOrder, field: 'plannedQty' | 'receivedQty') {
+  return order.items.reduce((sum, item) => sum + Number(item[field] ?? 0), 0)
 }
 
 function handlePartChange(item: InboundDraftItem) {
@@ -224,8 +269,12 @@ function parentKanbansForInbound(order: InboundOrder) {
     .sort((a, b) => a.kanbanNo.localeCompare(b.kanbanNo))
 }
 
-function toggleExpanded(kanbanId: number) {
-  expandedParents[kanbanId] = !expandedParents[kanbanId]
+async function toggleExpanded(kanbanId: number) {
+  const nextExpanded = !expandedParents[kanbanId]
+  expandedParents[kanbanId] = nextExpanded
+  if (nextExpanded) {
+    await props.model.actions.loadKanbanChildren(kanbanId)
+  }
 }
 
 function normalizeScanCode(value: string) {
@@ -357,8 +406,8 @@ watch(
         </div>
       </section>
 
-      <section class="panel">
-        <table class="table">
+      <section class="panel table-scroll">
+        <table class="table inbound-order-table">
           <thead>
             <tr>
               <th><input type="checkbox" :checked="selectedOrderCount === filteredOrders.length && filteredOrders.length > 0" @change="toggleSelectAllOrders(($event.target as HTMLInputElement).checked)" /></th>
@@ -366,23 +415,78 @@ watch(
               <th>供应商</th>
               <th>状态</th>
               <th>明细数</th>
+              <th>箱数</th>
+              <th>计划数量</th>
+              <th>已入库数量</th>
               <th>创建时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="order in filteredOrders" :key="order.id">
-              <td><input v-model="selectedOrderIds[order.id]" type="checkbox" /></td>
-              <td>{{ order.inboundNo }}</td>
-              <td>{{ order.supplierName }}</td>
-              <td>{{ formatStatus(order.status) }}</td>
-              <td>{{ order.items.length }}</td>
-              <td>{{ new Date(order.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
-              <td class="action-row">
-                <button class="secondary-button" @click="openPrint(order)">打印</button>
-                <button class="secondary-button" @click="openScan(order)">扫码入库</button>
-              </td>
-            </tr>
+            <template v-for="order in filteredOrders" :key="order.id">
+              <tr>
+                <td><input v-model="selectedOrderIds[order.id]" type="checkbox" /></td>
+                <td class="mono">{{ order.inboundNo }}</td>
+                <td>{{ order.supplierName }}</td>
+                <td>{{ formatStatus(order.status) }}</td>
+                <td>{{ order.items.length }}</td>
+                <td>{{ order.items.reduce((sum, item) => sum + Number(item.boxCount), 0) }}</td>
+                <td>{{ orderQty(order, 'plannedQty').toFixed(3) }}</td>
+                <td>{{ orderQty(order, 'receivedQty').toFixed(3) }}</td>
+                <td>{{ new Date(order.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
+                <td class="action-row">
+                  <button class="secondary-button" @click="toggleOrderExpanded(order.id)">
+                    {{ expandedOrders[order.id] ? '收起' : '明细' }}
+                  </button>
+                  <button class="secondary-button" @click="openPrint(order)">打印</button>
+                  <button class="secondary-button" @click="openScan(order)">扫码入库</button>
+                </td>
+              </tr>
+              <tr v-if="expandedOrders[order.id]" class="order-detail-row">
+                <td colspan="10">
+                  <div class="order-detail-grid">
+                    <table class="table detail-table">
+                      <thead>
+                        <tr>
+                          <th>零件</th>
+                          <th>计划数量</th>
+                          <th>已入库</th>
+                          <th>箱数</th>
+                          <th>每箱数量</th>
+                          <th>器具</th>
+                          <th>目标仓区</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="item in order.items" :key="item.id">
+                          <td>{{ item.partCode }} | {{ item.partName }}</td>
+                          <td>{{ Number(item.plannedQty).toFixed(3) }} {{ item.unit }}</td>
+                          <td>{{ Number(item.receivedQty).toFixed(3) }} {{ item.unit }}</td>
+                          <td>{{ item.boxCount }}</td>
+                          <td>{{ Number(item.unitPerBox).toFixed(3) }}</td>
+                          <td>{{ item.equipmentCode || '-' }}</td>
+                          <td>{{ item.warehouseZone }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div class="query-kanban-grid">
+                      <article v-for="kanban in parentKanbansForInbound(order)" :key="kanban.id" class="query-kanban-card">
+                        <div>
+                          <strong class="mono">{{ kanban.kanbanNo }}</strong>
+                          <p>{{ kanban.partCode }} | {{ kanban.partName }}</p>
+                          <p>{{ kanban.warehouseName }} / {{ kanban.zoneName }} | {{ formatStatus(kanban.status) }}</p>
+                        </div>
+                        <div class="child-chip-row">
+                          <span v-for="child in kanban.children ?? []" :key="child.id" class="tag-pill mono">
+                            {{ child.kanbanNo }} | {{ formatStatus(child.status) }}
+                          </span>
+                        </div>
+                      </article>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </section>
@@ -410,52 +514,16 @@ watch(
         <div class="section-head">
           <div>
             <h3>供应商零件批量加入</h3>
-            <p>批量选件后会自动计算每箱数量，并带出默认器具编码。</p>
+            <p>零件较多时可在弹窗中搜索、分页选择，再批量加入入库明细。</p>
           </div>
           <div class="action-row">
-            <button class="secondary-button" @click="applyBatchParts">加入选中零件</button>
+            <button class="secondary-button" @click="openBatchPicker">打开批量选件</button>
           </div>
         </div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>选择</th>
-              <th>零件</th>
-              <th>计划数量</th>
-              <th>箱数</th>
-              <th>每箱数量</th>
-              <th>器具编码</th>
-              <th>目标仓区</th>
-              <th>转包</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="part in supplierParts" :key="part.id">
-              <td><input v-model="batchSelection[part.id]" type="checkbox" /></td>
-              <td>{{ part.partCode }} | {{ part.partName }}</td>
-              <td><input v-model.number="ensureBatchDraft(part).plannedQty" type="number" min="0.001" step="0.001" /></td>
-              <td><input v-model.number="ensureBatchDraft(part).boxCount" type="number" min="1" step="1" /></td>
-              <td><input :value="batchUnitPerBox(part)" type="number" readonly /></td>
-              <td>
-                <select v-model="ensureBatchDraft(part).equipmentCode">
-                  <option value="">选择器具</option>
-                  <option v-for="item in inboundEquipmentOptions" :key="item.value" :value="item.value">
-                    {{ item.label }}
-                  </option>
-                </select>
-              </td>
-              <td>
-                <select v-model="ensureBatchDraft(part).warehouseZone">
-                  <option value="">选择仓区</option>
-                  <option v-for="item in inboundWarehouseZoneOptions" :key="item.value" :value="item.value">
-                    {{ item.label }}
-                  </option>
-                </select>
-              </td>
-              <td><input v-model="ensureBatchDraft(part).pendingRepack" type="checkbox" /></td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="summary-strip">
+          <span>当前供应商可选 {{ supplierParts.length }} 个零件</span>
+          <span>已勾选 {{ supplierParts.filter((part) => batchSelection[part.id]).length }} 个</span>
+        </div>
       </section>
 
       <section class="panel">
@@ -623,6 +691,82 @@ watch(
         </article>
       </div>
     </section>
+
+    <teleport to="body">
+      <div v-if="batchPickerOpen" class="modal-backdrop">
+        <section class="modal-panel">
+          <div class="section-head">
+            <div>
+              <h3>批量选择供应商零件</h3>
+              <p>先搜索零件，再填写计划数量、箱数、器具和目标仓区；加入后会自动计算每箱数量。</p>
+            </div>
+            <div class="action-row">
+              <button @click="applyBatchParts">加入选中零件</button>
+              <button class="secondary-button" @click="closeBatchPicker">关闭</button>
+            </div>
+          </div>
+          <div class="form-grid three">
+            <input v-model="batchSearch" placeholder="搜索零件号 / 名称" @input="batchPage = 1" />
+            <select v-model.number="form.supplierId">
+              <option :value="0">全部供应商零件</option>
+              <option v-for="item in model.state.suppliers" :key="item.id" :value="item.id">
+                {{ item.supplierCode }} | {{ item.supplierName }}
+              </option>
+            </select>
+            <div class="pager-actions">
+              <button class="secondary-button" :disabled="batchPage <= 1" @click="batchPage -= 1">上一页</button>
+              <span>第 {{ batchPage }} / {{ batchTotalPages }} 页</span>
+              <button class="secondary-button" :disabled="batchPage >= batchTotalPages" @click="batchPage += 1">下一页</button>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="table batch-part-table">
+              <thead>
+                <tr>
+                  <th>选择</th>
+                  <th>零件</th>
+                  <th>计划数量</th>
+                  <th>箱数</th>
+                  <th>每箱数量</th>
+                  <th>器具编码</th>
+                  <th>目标仓区</th>
+                  <th>转包</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="part in pagedSupplierParts" :key="part.id">
+                  <td><input v-model="batchSelection[part.id]" type="checkbox" /></td>
+                  <td>{{ part.partCode }} | {{ part.partName }}</td>
+                  <td><input v-model.number="ensureBatchDraft(part).plannedQty" type="number" min="0.001" step="0.001" /></td>
+                  <td><input v-model.number="ensureBatchDraft(part).boxCount" type="number" min="1" step="1" /></td>
+                  <td><input :value="batchUnitPerBox(part)" type="number" readonly /></td>
+                  <td>
+                    <select v-model="ensureBatchDraft(part).equipmentCode">
+                      <option value="">选择器具</option>
+                      <option v-for="item in inboundEquipmentOptions" :key="item.value" :value="item.value">
+                        {{ item.label }}
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <select v-model="ensureBatchDraft(part).warehouseZone">
+                      <option value="">选择仓区</option>
+                      <option v-for="item in inboundWarehouseZoneOptions" :key="item.value" :value="item.value">
+                        {{ item.label }}
+                      </option>
+                    </select>
+                  </td>
+                  <td><input v-model="ensureBatchDraft(part).pendingRepack" type="checkbox" /></td>
+                </tr>
+                <tr v-if="!pagedSupplierParts.length">
+                  <td colspan="8" class="empty-cell">没有匹配的零件</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </teleport>
   </section>
 </template>
 
@@ -632,6 +776,19 @@ watch(
 .child-grid {
   display: grid;
   gap: 12px;
+}
+
+.summary-strip,
+.pager-actions,
+.child-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.summary-strip {
+  margin-top: 10px;
 }
 
 .detail-row {
@@ -665,6 +822,74 @@ watch(
 .form-error {
   margin: 10px 0 0;
   color: #dc2626;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.inbound-order-table,
+.detail-table,
+.batch-part-table {
+  min-width: 980px;
+}
+
+.order-detail-row > td {
+  background: rgba(15, 23, 42, 0.03);
+  padding: 12px;
+}
+
+.order-detail-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.query-kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.query-kanban-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.tag-pill {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.empty-cell {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.modal-panel {
+  width: min(1180px, 96vw);
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--panel-bg, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
 }
 
 .print-grid {

@@ -74,6 +74,11 @@ public class InventoryController {
         return ApiResponse.ok(wmsService.getTransactions());
     }
 
+    @GetMapping("/inventory/transactions/version")
+    public ApiResponse<InventoryTransactionVersionView> getTransactionVersion() {
+        return ApiResponse.ok(wmsService.getTransactionVersion());
+    }
+
     public record ManualInventoryEntryRequest(@NotNull Long partId,
                                               @NotNull Long locationId,
                                               @NotNull @DecimalMin("0.001") BigDecimal qty,
@@ -130,5 +135,11 @@ public class InventoryController {
                                            BigDecimal qtyChange,
                                            String remark,
                                            LocalDateTime createdAt) {
+    }
+
+    public record InventoryTransactionVersionView(long total,
+                                                  Long latestId,
+                                                  String latestTransactionNo,
+                                                  LocalDateTime latestCreatedAt) {
     }
 }

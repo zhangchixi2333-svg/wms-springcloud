@@ -64,6 +64,10 @@ spring:
               uri: ${WMS_BUSINESS_SERVICE_URI:lb://wms-business-service}
               predicates:
                 - Path=/api/inbound-orders/**,/api/outbound-orders/**,/api/kanbans/**,/api/inventory/**,/api/mobile/scan/**
+            - id: wms-agent-service
+              uri: ${WMS_AGENT_SERVICE_URI:lb://wms-agent-service}
+              predicates:
+                - Path=/api/agent/**
 
 eureka:
   client:

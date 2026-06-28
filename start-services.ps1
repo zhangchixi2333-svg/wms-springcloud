@@ -9,6 +9,7 @@ $services = @(
   @{ Name = "wms-system-service"; Port = 8082; Module = "wms-system-service" },
   @{ Name = "wms-masterdata-service"; Port = 8083; Module = "wms-masterdata-service" },
   @{ Name = "wms-business-service"; Port = 8084; Module = "wms-business-service" },
+  @{ Name = "wms-agent-service"; Port = 8085; Module = "wms-agent-service" },
   @{ Name = "wms-gateway"; Port = 8080; Module = "wms-gateway" }
 )
 

@@ -1,25 +1,28 @@
 /**
  * 本文件实现前端应用模块 pageRegistry。
  */
-import EquipmentPage from '../components/pages/master-data/EquipmentPage.vue'
-import HomeDashboardPage from '../components/pages/dashboard/HomeDashboardPage.vue'
-import InboundPage from '../components/pages/operations/InboundPage.vue'
-import InventoryOpsPage from '../components/pages/operations/InventoryOpsPage.vue'
-import InventoryBoardPage from '../components/pages/inventory/InventoryBoardPage.vue'
-import KanbanInfoPage from '../components/pages/inventory/KanbanInfoPage.vue'
-import MenuManagementPage from '../components/pages/system/MenuManagementPage.vue'
-import MobileScanPage from '../components/pages/operations/MobileScanPage.vue'
-import OutboundPage from '../components/pages/operations/OutboundPage.vue'
-import PartnersPage from '../components/pages/partners/PartnersPage.vue'
-import PartsPage from '../components/pages/master-data/PartsPage.vue'
-import PlaceholderPage from '../components/shared/PlaceholderPage.vue'
-import RecordsPage from '../components/pages/records/RecordsPage.vue'
-import RoleManagementPage from '../components/pages/system/RoleManagementPage.vue'
-import SystemConfigPage from '../components/pages/system/SystemConfigPage.vue'
-import SystemMonitorPage from '../components/pages/system/SystemMonitorPage.vue'
-import UserManagementPage from '../components/pages/system/UserManagementPage.vue'
-import WarehousePage from '../components/pages/master-data/WarehousePage.vue'
+import { defineAsyncComponent } from 'vue'
 import type { PageModel, WorkspaceTab, FlatMenu } from '../types/app'
+
+const EquipmentPage = defineAsyncComponent(() => import('../components/pages/master-data/EquipmentPage.vue'))
+const AgentAssistantPage = defineAsyncComponent(() => import('../components/pages/agent/AgentAssistantPage.vue'))
+const HomeDashboardPage = defineAsyncComponent(() => import('../components/pages/dashboard/HomeDashboardPage.vue'))
+const InboundPage = defineAsyncComponent(() => import('../components/pages/operations/InboundPage.vue'))
+const InventoryOpsPage = defineAsyncComponent(() => import('../components/pages/operations/InventoryOpsPage.vue'))
+const InventoryBoardPage = defineAsyncComponent(() => import('../components/pages/inventory/InventoryBoardPage.vue'))
+const KanbanInfoPage = defineAsyncComponent(() => import('../components/pages/inventory/KanbanInfoPage.vue'))
+const MenuManagementPage = defineAsyncComponent(() => import('../components/pages/system/MenuManagementPage.vue'))
+const MobileScanPage = defineAsyncComponent(() => import('../components/pages/operations/MobileScanPage.vue'))
+const OutboundPage = defineAsyncComponent(() => import('../components/pages/operations/OutboundPage.vue'))
+const PartnersPage = defineAsyncComponent(() => import('../components/pages/partners/PartnersPage.vue'))
+const PartsPage = defineAsyncComponent(() => import('../components/pages/master-data/PartsPage.vue'))
+const PlaceholderPage = defineAsyncComponent(() => import('../components/shared/PlaceholderPage.vue'))
+const RecordsPage = defineAsyncComponent(() => import('../components/pages/records/RecordsPage.vue'))
+const RoleManagementPage = defineAsyncComponent(() => import('../components/pages/system/RoleManagementPage.vue'))
+const SystemConfigPage = defineAsyncComponent(() => import('../components/pages/system/SystemConfigPage.vue'))
+const SystemMonitorPage = defineAsyncComponent(() => import('../components/pages/system/SystemMonitorPage.vue'))
+const UserManagementPage = defineAsyncComponent(() => import('../components/pages/system/UserManagementPage.vue'))
+const WarehousePage = defineAsyncComponent(() => import('../components/pages/master-data/WarehousePage.vue'))
 
 export function resolvePage(tab: WorkspaceTab | undefined, flatMenus: FlatMenu[], model: PageModel) {
   const pageKey = tab?.pageKey ?? 'home'
@@ -56,6 +59,8 @@ export function resolvePage(tab: WorkspaceTab | undefined, flatMenus: FlatMenu[]
       return { component: OutboundPage, props: { model } }
     case 'mobileScan':
       return { component: MobileScanPage, props: { model } }
+    case 'agentAssistant':
+      return { component: AgentAssistantPage, props: { model } }
     case 'equipmentNormal':
       return { component: EquipmentPage, props: { model, mode: 'normal' } }
     case 'equipmentRepack':

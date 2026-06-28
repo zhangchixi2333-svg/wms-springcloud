@@ -5,6 +5,7 @@ package com.example.wms.repo;
 
 import com.example.wms.domain.Kanban;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,7 +18,12 @@ public interface KanbanRepository extends JpaRepository<Kanban, Long> {
 
     List<Kanban> findByInboundOrderId(Long inboundOrderId);
 
+    @Query("select k from Kanban k where k.parentKanban = true")
+    List<Kanban> findParentKanbans();
+
     List<Kanban> findByParentKanbanIdOrderByBoxIndexAscIdAsc(Long parentKanbanId);
+
+    List<Kanban> findByParentKanbanIdIn(List<Long> parentKanbanIds);
 
     List<Kanban> findByInboundOrderItemIdOrderByParentKanbanDescBoxIndexAscIdAsc(Long inboundOrderItemId);
 }

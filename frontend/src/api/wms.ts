@@ -22,10 +22,19 @@ import type {
   SystemRole,
   SystemUser,
   Supplier,
+  TransactionVersion,
   TransactionRow,
+  AgentAnswer,
+  AgentDashboard,
+  AgentForecastRow,
+  AgentHealth,
+  AgentOverview,
+  AgentRun,
+  AgentSuggestion,
+  RagDocument,
 } from '../types/app'
 
-function buildQuery(params: Record<string, string | number | undefined | null>) {
+function buildQuery(params: Record<string, string | number | boolean | undefined | null>) {
   const search = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
 
@@ -145,12 +154,16 @@ export const api = {
     kanbanNo?: string
     supplierId?: number
     partCode?: string
+    includeChildren?: boolean
   }) => request<Kanban[]>(`/kanbans${buildQuery(filters ?? {})}`),
+
+  listKanbanChildren: (parentId: number) =>
+    request<Kanban[]>(`/kanbans/${parentId}/children`),
 
   listOutboundOrders: (filters?: { status?: string; customerId?: number; outboundNo?: string }) =>
     request<OutboundOrder[]>(`/outbound-orders${buildQuery(filters ?? {})}`),
 
-  createOutboundOrder: (payload: { customerId: number | null; kanbanIds: number[] }) =>
+  createOutboundOrder: (payload: { customerId: number | null; items: Array<{ partId: number; boxCount: number; locationCode: string }> }) =>
     request<OutboundOrder>('/outbound-orders', { method: 'POST', body: JSON.stringify(payload) }),
 
   listInventory: (filters?: {
@@ -164,6 +177,8 @@ export const api = {
     request<InventoryRow>('/inventory/manual-entries', { method: 'POST', body: JSON.stringify(payload) }),
 
   listTransactions: () => request<TransactionRow[]>('/inventory/transactions'),
+
+  transactionVersion: () => request<TransactionVersion>('/inventory/transactions/version'),
 
   scanInbound: (payload: { barcode: string; locationCode: string }) =>
     request<ScanResult>('/mobile/scan/inbound', { method: 'POST', body: JSON.stringify(payload) }),
@@ -206,4 +221,33 @@ export const api = {
   }) => request<ConfigItem>(`/config-items/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
 
   deleteConfigItem: (id: number) => request<void>(`/config-items/${id}`, { method: 'DELETE' }),
+
+  agentHealth: () => request<AgentHealth>('/agent/health'),
+
+  agentOverview: () => request<AgentOverview>('/agent/overview'),
+
+  agentDashboard: (days?: number) =>
+    request<AgentDashboard>(`/agent/dashboard${buildQuery({ days })}`),
+
+  agentForecast: (days?: number) =>
+    request<AgentForecastRow[]>(`/agent/forecast/inventory${buildQuery({ days })}`),
+
+  agentSuggestions: () => request<AgentSuggestion[]>('/agent/suggestions'),
+
+  runAgentAnalyze: (days?: number) =>
+    request<AgentRun>(`/agent/analyze${buildQuery({ days })}`, { method: 'POST' }),
+
+  askAgent: (payload: { sessionId?: string; question: string }) =>
+    request<AgentAnswer>('/agent/ask', { method: 'POST', body: JSON.stringify(payload) }),
+
+  listRagDocuments: () => request<RagDocument[]>('/agent/rag/documents'),
+
+  createRagDocument: (payload: {
+    docKey?: string
+    title: string
+    sourceType?: string
+    content: string
+    metadataJson?: string
+    enabled?: boolean
+  }) => request<RagDocument>('/agent/rag/documents', { method: 'POST', body: JSON.stringify(payload) }),
 }

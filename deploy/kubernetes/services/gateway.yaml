@@ -47,6 +47,8 @@ spec:
               value: http://wms-masterdata-service:8083
             - name: WMS_BUSINESS_SERVICE_URI
               value: http://wms-business-service:8084
+            - name: WMS_AGENT_SERVICE_URI
+              value: http://wms-agent-service:8085
           ports:
             - name: http
               containerPort: 8080

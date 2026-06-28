@@ -15,6 +15,16 @@ const statusMessageMap: Record<number, string> = {
   500: '服务器处理失败，请稍后重试',
 }
 
+export class ApiRequestError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+  }
+}
+
 export function getAuthToken() {
   return localStorage.getItem(TOKEN_KEY)
 }
@@ -31,19 +41,24 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   const token = getAuthToken()
 
   const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.headers ?? {}),
     },
-    ...options,
   })
 
   const text = await response.text()
-  const payload = text ? JSON.parse(text) : { success: response.ok, message: response.statusText }
+  let payload: { success?: boolean; message?: string; data?: T }
+  try {
+    payload = text ? JSON.parse(text) : { success: response.ok, message: response.statusText }
+  } catch {
+    payload = { success: response.ok, message: text || response.statusText }
+  }
 
   if (!response.ok || payload.success === false) {
-    throw new Error(payload.message || statusMessageMap[response.status] || '请求失败')
+    throw new ApiRequestError(payload.message || statusMessageMap[response.status] || '请求失败', response.status)
   }
 
   return payload.data as T

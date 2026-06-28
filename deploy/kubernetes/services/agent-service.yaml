@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-agent-service
+  namespace: wms
+spec:
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085
+  selector:
+    app: wms-agent-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-agent-service
+  namespace: wms
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-agent-service
+  template:
+    metadata:
+      labels:
+        app: wms-agent-service
+    spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: mysql:8.0
+          command:
+            - sh
+            - -c
+            - until mysqladmin ping -hmysql -uwms -p"$MYSQL_PASSWORD" --silent; do sleep 2; done
+          env:
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wms-mysql-secret
+                  key: password
+      containers:
+        - name: wms-agent-service
+          image: wms/wms-agent-service:0.0.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DB_URL
+              value: jdbc:mysql://mysql:3306/wms_cloud?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: wms-mysql-secret
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wms-mysql-secret
+                  key: password
+            - name: AGENT_CALL_API
+              value: "false"
+            - name: AGENT_RAG_ENABLED
+              value: "false"
+            - name: EUREKA_CLIENT_ENABLED
+              value: "false"
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: http://wms-discovery:8761/eureka/
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: wms-agent-service
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8085

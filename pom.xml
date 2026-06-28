@@ -24,6 +24,7 @@
         <module>wms-system-service</module>
         <module>wms-masterdata-service</module>
         <module>wms-business-service</module>
+        <module>wms-agent-service</module>
     </modules>
 
     <properties>

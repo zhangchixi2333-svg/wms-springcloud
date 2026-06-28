@@ -11,6 +11,7 @@ COPY wms-gateway/pom.xml wms-gateway/pom.xml
 COPY wms-system-service/pom.xml wms-system-service/pom.xml
 COPY wms-masterdata-service/pom.xml wms-masterdata-service/pom.xml
 COPY wms-business-service/pom.xml wms-business-service/pom.xml
+COPY wms-agent-service/pom.xml wms-agent-service/pom.xml
 RUN mvn -q -DskipTests dependency:go-offline
 
 COPY wms-common wms-common
@@ -19,6 +20,7 @@ COPY wms-gateway wms-gateway
 COPY wms-system-service wms-system-service
 COPY wms-masterdata-service wms-masterdata-service
 COPY wms-business-service wms-business-service
+COPY wms-agent-service wms-agent-service
 
 ARG MODULE
 RUN mvn -q -DskipTests -pl ${MODULE} -am package

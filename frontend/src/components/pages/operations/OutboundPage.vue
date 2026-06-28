@@ -1,19 +1,37 @@
-<!-- 本文件实现箱级出库工作台，出库单只能绑定已完整入库父看板下的箱级子看板。 -->
+<!-- 本文件实现出库工作台：按零件和箱数创建出库单，后端按 FIFO 自动分配箱级看板，并支持打印后扫码出库。 -->
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { formatStatus } from '../../../app/displayText'
 import QrCodeImage from '../../shared/QrCodeImage.vue'
-import type { Kanban, OutboundOrder, PageModel } from '../../../types/app'
+import type { Kanban, OutboundDraftItem, OutboundOrder, PageModel } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
+
+type AvailableOutboundRow = {
+  key: string
+  partId: number
+  partCode: string
+  partName: string
+  unit: string
+  locationCode: string
+  warehouseName: string
+  zoneName: string
+  availableBoxes: number
+  availableQty: number
+  oldestInboundTime: string | null
+  inboundNos: string[]
+  boxes: Kanban[]
+}
 
 const viewMode = ref<'query' | 'create' | 'manual' | 'print' | 'scan'>('query')
 const printOrder = ref<OutboundOrder | null>(null)
 const printOrders = ref<OutboundOrder[]>([])
 const scanInputRef = ref<HTMLInputElement | null>(null)
+const loadingOutboundBoxes = ref(false)
 const expandedParents = reactive<Record<number, boolean>>({})
-const selectedKanbans = reactive<Record<number, boolean>>({})
+const expandedOrders = reactive<Record<number, boolean>>({})
 const selectedOrderIds = reactive<Record<number, boolean>>({})
+const outboundDraft = reactive<Record<string, number>>({})
 const lastScanMessage = ref('')
 const createMessage = ref('')
 
@@ -24,8 +42,7 @@ const filters = reactive({
 })
 
 const createFilters = reactive({
-  partCode: '',
-  inboundNo: '',
+  partKeyword: '',
   warehouseName: '',
   zoneName: '',
 })
@@ -63,65 +80,84 @@ const outboundOrderOptions = computed(() => props.model.state.outboundOrders.fil
 const activeScanOrder = computed(() => props.model.state.outboundOrders.find((order) => order.outboundNo === scanForm.outboundOrderNo) ?? null)
 const selectedOrderCount = computed(() => rows.value.filter((item) => selectedOrderIds[item.id]).length)
 const canBatchPrint = computed(() => selectedOrderCount.value > 0)
-const selectedKanbanIds = computed(() => Object.entries(selectedKanbans).filter(([, checked]) => checked).map(([id]) => Number(id)))
-const selectedBoxes = computed(() => outboundSelectableBoxes.value.filter((item) => selectedKanbans[item.id]))
-const selectedQty = computed(() => selectedBoxes.value.reduce((sum, item) => sum + Number(item.qty ?? 0), 0))
-const selectedParentGroups = computed(() => {
-  const parentMap = new Map<number, { parent: Kanban; children: Kanban[] }>()
-  selectedBoxes.value.forEach((child) => {
-    const parent = findParentKanban(child)
-    if (!parent) return
-    const group = parentMap.get(parent.id) ?? { parent, children: [] }
-    group.children.push(child)
-    parentMap.set(parent.id, group)
-  })
-  return Array.from(parentMap.values())
-})
 
-const warehouseOptions = computed(() => Array.from(new Set(outboundSelectableBoxes.value.map((item) => item.warehouseName).filter(Boolean))).sort())
+const availableBoxes = computed(() =>
+  props.model.state.kanbans
+    .filter((item) => !item.parentKanban)
+    .filter((item) => item.status === 'INBOUND')
+    .filter((item) => !item.outboundNo || item.outboundNo === '-')
+    .filter((item) => item.locationCode && item.locationCode !== '-')
+    .filter((item) => isParentReadyForOutbound(item))
+    .sort(compareKanbanFifo),
+)
+
+const warehouseOptions = computed(() => Array.from(new Set(availableBoxes.value.map((item) => item.warehouseName).filter(Boolean))).sort())
 const zoneOptions = computed(() =>
-  Array.from(new Set(outboundSelectableBoxes.value
+  Array.from(new Set(availableBoxes.value
     .filter((item) => !createFilters.warehouseName || item.warehouseName === createFilters.warehouseName)
     .map((item) => item.zoneName)
     .filter(Boolean))).sort(),
 )
 
-const outboundSelectableBoxes = computed(() =>
-  props.model.state.kanbans
-    .filter((item) => !item.parentKanban)
-    .filter((item) => item.status === 'INBOUND')
-    .filter((item) => !item.outboundNo || item.outboundNo === '-')
-    .filter((item) => isParentFullyInbound(item))
-    .sort((a, b) => `${a.inboundTime ?? a.createdAt}-${a.boxIndex}`.localeCompare(`${b.inboundTime ?? b.createdAt}-${b.boxIndex}`)),
-)
-
-const filteredSelectableBoxes = computed(() =>
-  outboundSelectableBoxes.value.filter((item) => {
-    const partMatch = !createFilters.partCode || `${item.partCode} ${item.partName}`.toLowerCase().includes(createFilters.partCode.toLowerCase())
-    const inboundMatch = !createFilters.inboundNo || item.inboundNo.toLowerCase().includes(createFilters.inboundNo.toLowerCase())
-    const warehouseMatch = !createFilters.warehouseName || item.warehouseName === createFilters.warehouseName
-    const zoneMatch = !createFilters.zoneName || item.zoneName === createFilters.zoneName
-    return partMatch && inboundMatch && warehouseMatch && zoneMatch
-  }),
-)
-
-const groupedSelectableParents = computed(() => {
-  const parentMap = new Map<number, { parent: Kanban; children: Kanban[] }>()
-  filteredSelectableBoxes.value.forEach((child) => {
-    const parent = findParentKanban(child)
-    if (!parent) return
-    const group = parentMap.get(parent.id) ?? { parent, children: [] }
-    group.children.push(child)
-    parentMap.set(parent.id, group)
+const availableRows = computed<AvailableOutboundRow[]>(() => {
+  const map = new Map<string, AvailableOutboundRow>()
+  availableBoxes.value.forEach((box) => {
+    const key = `${box.partId}:${box.locationCode}`
+    const row = map.get(key) ?? {
+      key,
+      partId: box.partId,
+      partCode: box.partCode,
+      partName: box.partName,
+      unit: box.unit,
+      locationCode: box.locationCode,
+      warehouseName: box.warehouseName,
+      zoneName: box.zoneName,
+      availableBoxes: 0,
+      availableQty: 0,
+      oldestInboundTime: box.inboundTime,
+      inboundNos: [],
+      boxes: [],
+    }
+    row.availableBoxes += 1
+    row.availableQty += Number(box.qty ?? 0)
+    row.oldestInboundTime = minTime(row.oldestInboundTime, box.inboundTime)
+    if (box.inboundNo && !row.inboundNos.includes(box.inboundNo)) {
+      row.inboundNos.push(box.inboundNo)
+    }
+    row.boxes.push(box)
+    map.set(key, row)
   })
-  return Array.from(parentMap.values())
+  return Array.from(map.values())
+    .filter((row) => {
+      const keyword = createFilters.partKeyword.trim().toLowerCase()
+      const partMatch = !keyword || `${row.partCode} ${row.partName}`.toLowerCase().includes(keyword)
+      const warehouseMatch = !createFilters.warehouseName || row.warehouseName === createFilters.warehouseName
+      const zoneMatch = !createFilters.zoneName || row.zoneName === createFilters.zoneName
+      return partMatch && warehouseMatch && zoneMatch
+    })
+    .sort((a, b) => `${a.partCode}-${a.locationCode}`.localeCompare(`${b.partCode}-${b.locationCode}`))
 })
 
-function isParentFullyInbound(child: Kanban) {
-  const parent = findParentKanban(child)
-  if (!parent || parent.status !== 'INBOUND') return false
-  const children = parent.children ?? []
-  return children.length > 0 && children.every((item) => item.status === 'INBOUND')
+const plannedRows = computed(() =>
+  availableRows.value
+    .map((row) => ({ row, boxCount: normalizedDraftBoxCount(row) }))
+    .filter((item) => item.boxCount > 0),
+)
+
+const plannedBoxCount = computed(() => plannedRows.value.reduce((sum, item) => sum + item.boxCount, 0))
+const plannedQty = computed(() =>
+  plannedRows.value.reduce((sum, item) => sum + item.row.boxes.slice(0, item.boxCount).reduce((boxSum, box) => boxSum + Number(box.qty ?? 0), 0), 0),
+)
+
+function compareKanbanFifo(left: Kanban, right: Kanban) {
+  return `${left.inboundTime ?? left.createdAt}-${left.parentKanbanId ?? 0}-${left.boxIndex}-${left.id}`
+    .localeCompare(`${right.inboundTime ?? right.createdAt}-${right.parentKanbanId ?? 0}-${right.boxIndex}-${right.id}`)
+}
+
+function minTime(left: string | null, right: string | null) {
+  if (!left) return right
+  if (!right) return left
+  return left <= right ? left : right
 }
 
 function findParentKanban(child: Kanban) {
@@ -129,28 +165,49 @@ function findParentKanban(child: Kanban) {
   return props.model.state.kanbans.find((item) => item.id === child.parentKanbanId) ?? null
 }
 
-function selectedCountForChildren(children: Kanban[]) {
-  return children.filter((child) => selectedKanbans[child.id]).length
+function isParentReadyForOutbound(child: Kanban) {
+  const parent = findParentKanban(child)
+  if (!parent) return false
+  const children = parent.children ?? []
+  return children.length > 0 && children.every((item) => !['WAIT_SCAN', 'CREATED', 'PARTIAL', 'PARTIAL_INBOUND'].includes(item.status))
 }
 
-function allListedChildrenSelected(children: Kanban[]) {
-  return children.length > 0 && children.every((child) => selectedKanbans[child.id])
+async function loadChildrenForParents(parents: Kanban[]) {
+  await Promise.all(parents.map((kanban) => props.model.actions.loadKanbanChildren(kanban.id)))
 }
 
-function toggleListedChildrenSelection(children: Kanban[], checked: boolean) {
-  children.forEach((child) => {
-    selectedKanbans[child.id] = checked
-  })
+async function loadOutboundCandidateBoxes() {
+  loadingOutboundBoxes.value = true
+  try {
+    const parents = props.model.state.kanbans.filter(
+      (item) => item.parentKanban && ['INBOUND', 'PARTIAL_OUTBOUND'].includes(item.status),
+    )
+    await loadChildrenForParents(parents)
+  } finally {
+    loadingOutboundBoxes.value = false
+  }
 }
 
-function toggleFilteredSelection(checked: boolean) {
-  filteredSelectableBoxes.value.forEach((item) => {
-    selectedKanbans[item.id] = checked
-  })
+function isPendingOutbound(kanban: Kanban) {
+  return ['ALLOCATED', 'INBOUND'].includes(kanban.status)
 }
 
-function resetSelection() {
-  Object.keys(selectedKanbans).forEach((key) => delete selectedKanbans[Number(key)])
+function normalizedDraftBoxCount(row: AvailableOutboundRow) {
+  const value = Number(outboundDraft[row.key] ?? 0)
+  if (!Number.isFinite(value) || value <= 0) return 0
+  return Math.min(Math.floor(value), row.availableBoxes)
+}
+
+function estimateDraftQty(row: AvailableOutboundRow) {
+  return row.boxes.slice(0, normalizedDraftBoxCount(row)).reduce((sum, box) => sum + Number(box.qty ?? 0), 0)
+}
+
+function setDraftBoxes(row: AvailableOutboundRow, value: number) {
+  outboundDraft[row.key] = Math.max(0, Math.min(Math.floor(Number(value) || 0), row.availableBoxes))
+}
+
+function resetCreateDraft() {
+  Object.keys(outboundDraft).forEach((key) => delete outboundDraft[key])
   createMessage.value = ''
 }
 
@@ -167,28 +224,45 @@ function toggleSelectAllOrders(checked: boolean) {
 }
 
 function resetCreateFilters() {
-  createFilters.partCode = ''
-  createFilters.inboundNo = ''
+  createFilters.partKeyword = ''
   createFilters.warehouseName = ''
   createFilters.zoneName = ''
 }
 
-function openCreate() {
+async function openCreate() {
   form.customerId = 0
-  resetSelection()
+  resetCreateDraft()
   resetCreateFilters()
-  createMessage.value = ''
+  await loadOutboundCandidateBoxes()
   viewMode.value = 'create'
 }
 
-function openScan(order: OutboundOrder) {
+async function ensureOutboundOrderChildren(order: OutboundOrder) {
+  const parentIds = new Set(
+    order.items
+      .map((item) => props.model.state.kanbans.find((kanban) => kanban.id === item.kanbanId)?.parentKanbanId)
+      .filter((id): id is number => typeof id === 'number'),
+  )
+  const missingBoxIds = new Set(order.items.map((item) => item.kanbanId).filter((id): id is number => typeof id === 'number'))
+  props.model.state.kanbans
+    .filter((item) => missingBoxIds.has(item.id) && item.parentKanbanId)
+    .forEach((item) => parentIds.add(item.parentKanbanId as number))
+  const directParents = props.model.state.kanbans.filter((item) => parentIds.has(item.id))
+  if (directParents.length) {
+    await loadChildrenForParents(directParents)
+  }
+}
+
+async function openScan(order: OutboundOrder) {
+  await ensureOutboundOrderChildren(order)
   scanForm.outboundOrderNo = order.outboundNo
   scanForm.barcode = ''
   lastScanMessage.value = ''
   viewMode.value = 'scan'
 }
 
-function openPrint(order: OutboundOrder) {
+async function openPrint(order: OutboundOrder) {
+  await ensureOutboundOrderChildren(order)
   printOrder.value = order
   printOrders.value = [order]
   scanForm.outboundOrderNo = order.outboundNo
@@ -197,8 +271,9 @@ function openPrint(order: OutboundOrder) {
   viewMode.value = 'print'
 }
 
-function openBatchPrint() {
+async function openBatchPrint() {
   printOrders.value = rows.value.filter((item) => selectedOrderIds[item.id])
+  await Promise.all(printOrders.value.map(ensureOutboundOrderChildren))
   printOrder.value = printOrders.value[0] ?? null
   scanForm.outboundOrderNo = printOrder.value?.outboundNo ?? ''
   printedOutboundScanForm.barcode = ''
@@ -211,7 +286,7 @@ function browserPrint() {
 }
 
 function sourceText(order: OutboundOrder) {
-  return order.inboundOrderNos.length ? order.inboundOrderNos.join('，') : '-'
+  return order.inboundOrderNos.length ? order.inboundOrderNos.join('，') : '系统按 FIFO 自动分配'
 }
 
 function outboundNoList(value: string | null | undefined) {
@@ -225,29 +300,30 @@ function boundBoxesForOrder(order: OutboundOrder) {
   const ids = new Set(order.items.map((item) => item.kanbanId).filter((id): id is number => typeof id === 'number'))
   return props.model.state.kanbans
     .filter((item) => ids.has(item.id))
-    .sort((a, b) => a.kanbanNo.localeCompare(b.kanbanNo))
+    .sort(compareKanbanFifo)
 }
 
 function parentKanbansForOutbound(order: OutboundOrder) {
-  const parentIds = new Set(boundBoxesForOrder(order).map((item) => item.parentKanbanId).filter((id): id is number => typeof id === 'number'))
+  const boxes = boundBoxesForOrder(order)
+  const parentIds = new Set(boxes.map((item) => item.parentKanbanId).filter((id): id is number => typeof id === 'number'))
   return props.model.state.kanbans
     .filter((item) => parentIds.has(item.id))
     .map((parent) => ({
       ...parent,
-      children: (parent.children ?? []).filter((child) => boundBoxesForOrder(order).some((box) => box.id === child.id)),
+      children: (parent.children ?? []).filter((child) => boxes.some((box) => box.id === child.id)),
     }))
     .sort((a, b) => a.kanbanNo.localeCompare(b.kanbanNo))
 }
 
 function outboundScanOptionsForOrder(order: OutboundOrder) {
   const parentOptions = parentKanbansForOutbound(order)
-    .filter((parent) => (parent.children ?? []).some((child) => child.status === 'INBOUND'))
+    .filter((parent) => (parent.children ?? []).some(isPendingOutbound))
     .map((item) => ({
-      label: `父看板 ${item.kanbanNo} | 待出库 ${(item.children ?? []).filter((child) => child.status === 'INBOUND').length} 箱`,
+      label: `父看板 ${item.kanbanNo} | 待出库 ${(item.children ?? []).filter(isPendingOutbound).length} 箱`,
       value: item.qrContent || item.barcode,
     }))
   const childOptions = boundBoxesForOrder(order)
-    .filter((item) => item.status === 'INBOUND')
+    .filter(isPendingOutbound)
     .map((item) => ({
       label: `箱 ${item.kanbanNo} | ${item.partCode} | ${item.qty}`,
       value: item.qrContent || item.barcode,
@@ -255,8 +331,31 @@ function outboundScanOptionsForOrder(order: OutboundOrder) {
   return [...parentOptions, ...childOptions]
 }
 
+function groupedOrderItems(order: OutboundOrder) {
+  const groups = new Map<string, { key: string; partText: string; locationText: string; boxes: number; qty: number; scannedQty: number; kanbanNos: string[] }>()
+  order.items.forEach((item) => {
+    const key = `${item.partId}:${item.warehouseName}:${item.zoneName}`
+    const group = groups.get(key) ?? {
+      key,
+      partText: `${item.partCode} | ${item.partName}`,
+      locationText: `${item.warehouseName} / ${item.zoneName}`,
+      boxes: 0,
+      qty: 0,
+      scannedQty: 0,
+      kanbanNos: [],
+    }
+    group.boxes += 1
+    group.qty += Number(item.plannedQty ?? 0)
+    group.scannedQty += Number(item.scannedQty ?? 0)
+    if (item.kanbanNo) group.kanbanNos.push(item.kanbanNo)
+    groups.set(key, group)
+  })
+  return Array.from(groups.values())
+}
+
 function handleScanOrderChange() {
   scanForm.barcode = ''
+  printedOutboundScanForm.barcode = ''
   lastScanMessage.value = ''
 }
 
@@ -275,8 +374,8 @@ function fillFirstOutboundScanCode() {
 
 async function submitScan() {
   const code = scanForm.barcode
-  await props.model.actions.scanOutbound(scanForm)
-  lastScanMessage.value = `扫码成功，已执行出库：${code}`
+  const result = await props.model.actions.scanOutbound(scanForm)
+  lastScanMessage.value = result?.message || `扫码成功，已执行出库：${code}`
   scanForm.barcode = ''
   await focusScanInput()
 }
@@ -288,15 +387,20 @@ async function submitScanByEnter() {
 
 async function submitCreate() {
   createMessage.value = ''
-  if (!selectedKanbanIds.value.length) {
-    createMessage.value = '请先在下方表格勾选要绑定到出库单的箱级看板。'
+  const items: OutboundDraftItem[] = plannedRows.value.map(({ row, boxCount }) => ({
+    partId: row.partId,
+    boxCount,
+    locationCode: row.locationCode,
+  }))
+  if (!items.length) {
+    createMessage.value = '请至少在一条库存行填写本次出库箱数。'
     return
   }
   await props.model.actions.createOutboundOrder({
     customerId: form.customerId || null,
-    kanbanIds: selectedKanbanIds.value,
+    items,
   })
-  resetSelection()
+  resetCreateDraft()
   viewMode.value = 'query'
 }
 
@@ -313,11 +417,11 @@ async function submitPrintedOutboundScan() {
   const activePrintOrder = props.model.state.outboundOrders.find((order) => order.outboundNo === scanForm.outboundOrderNo) ?? printOrder.value
   if (!activePrintOrder) return
   const code = printedOutboundScanForm.barcode
-  await props.model.actions.scanOutbound({
-    barcode: printedOutboundScanForm.barcode,
+  const result = await props.model.actions.scanOutbound({
+    barcode: code,
     outboundOrderNo: activePrintOrder.outboundNo,
   })
-  lastScanMessage.value = `扫码成功，已执行出库：${code}`
+  lastScanMessage.value = result?.message || `扫码成功，已执行出库：${code}`
   printedOutboundScanForm.barcode = ''
   await focusScanInput()
 }
@@ -327,8 +431,16 @@ async function submitPrintedOutboundScanByEnter() {
   await submitPrintedOutboundScan()
 }
 
-function toggleExpanded(kanbanId: number) {
-  expandedParents[kanbanId] = !expandedParents[kanbanId]
+async function toggleExpanded(kanbanId: number) {
+  const nextExpanded = !expandedParents[kanbanId]
+  expandedParents[kanbanId] = nextExpanded
+  if (nextExpanded) {
+    await props.model.actions.loadKanbanChildren(kanbanId)
+  }
+}
+
+function toggleOrderExpanded(orderId: number) {
+  expandedOrders[orderId] = !expandedOrders[orderId]
 }
 
 async function simulatePrintScan(kanban: Kanban) {
@@ -355,7 +467,7 @@ watch(viewMode, async (value) => {
         <div class="section-head">
           <div>
             <h3>出库筛选</h3>
-            <p>先创建出库单并绑定箱级看板，再打印或扫码执行出库。</p>
+            <p>出库单按零件和箱数创建，系统按先进先出自动分配可出库箱级看板。</p>
           </div>
           <div class="action-row">
             <button @click="openCreate">创建出库单</button>
@@ -381,8 +493,8 @@ watch(viewMode, async (value) => {
         </div>
       </section>
 
-      <section class="panel">
-        <table class="table">
+      <section class="panel table-scroll">
+        <table class="table order-table">
           <thead>
             <tr>
               <th>
@@ -394,7 +506,7 @@ watch(viewMode, async (value) => {
               </th>
               <th>出库单号</th>
               <th>客户</th>
-              <th>来源入库单</th>
+              <th>FIFO 来源</th>
               <th>状态</th>
               <th>箱数</th>
               <th>数量</th>
@@ -403,20 +515,53 @@ watch(viewMode, async (value) => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="order in rows" :key="order.id">
-              <td><input v-model="selectedOrderIds[order.id]" type="checkbox" /></td>
-              <td>{{ order.outboundNo }}</td>
-              <td>{{ order.customerName }}</td>
-              <td class="source-cell">{{ sourceText(order) }}</td>
-              <td>{{ formatStatus(order.status) }}</td>
-              <td>{{ order.items.length }}</td>
-              <td>{{ order.items.reduce((sum, item) => sum + Number(item.plannedQty), 0) }}</td>
-              <td>{{ new Date(order.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
-              <td class="action-row">
-                <button class="secondary-button" @click="openPrint(order)">打印</button>
-                <button class="secondary-button" @click="openScan(order)">扫码</button>
-              </td>
-            </tr>
+            <template v-for="order in rows" :key="order.id">
+              <tr>
+                <td><input v-model="selectedOrderIds[order.id]" type="checkbox" /></td>
+                <td class="mono">{{ order.outboundNo }}</td>
+                <td>{{ order.customerName }}</td>
+                <td class="source-cell">{{ sourceText(order) }}</td>
+                <td>{{ formatStatus(order.status) }}</td>
+                <td>{{ order.items.length }}</td>
+                <td>{{ order.items.reduce((sum, item) => sum + Number(item.plannedQty), 0).toFixed(3) }}</td>
+                <td>{{ new Date(order.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
+                <td class="action-row">
+                  <button class="secondary-button" @click="toggleOrderExpanded(order.id)">
+                    {{ expandedOrders[order.id] ? '收起' : '明细' }}
+                  </button>
+                  <button class="secondary-button" @click="openPrint(order)">打印</button>
+                  <button class="secondary-button" @click="openScan(order)">扫码</button>
+                </td>
+              </tr>
+              <tr v-if="expandedOrders[order.id]" class="order-detail-row">
+                <td colspan="9">
+                  <table class="table detail-table">
+                    <thead>
+                      <tr>
+                        <th>零件</th>
+                        <th>仓库 / 库区</th>
+                        <th>箱数</th>
+                        <th>计划数量</th>
+                        <th>已扫数量</th>
+                        <th>分配看板</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="group in groupedOrderItems(order)" :key="group.key">
+                        <td>{{ group.partText }}</td>
+                        <td>{{ group.locationText }}</td>
+                        <td>{{ group.boxes }}</td>
+                        <td>{{ group.qty.toFixed(3) }}</td>
+                        <td>{{ group.scannedQty.toFixed(3) }}</td>
+                        <td class="kanban-chip-cell">
+                          <span v-for="no in group.kanbanNos" :key="no" class="tag-pill mono">{{ no }}</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </section>
@@ -427,22 +572,21 @@ watch(viewMode, async (value) => {
         <div class="section-head">
           <div>
             <h3>创建出库单</h3>
-            <p>只能选择已完整入库父看板下的箱级子看板，系统会按箱自动生成出库明细。</p>
+            <p>只填写要出库的零件和箱数；保存后系统按入库时间、父看板、箱号顺序自动锁定具体箱级看板。</p>
           </div>
           <div class="action-row">
-            <button :disabled="!selectedKanbanIds.length" @click="submitCreate">保存出库单</button>
+            <button :disabled="!plannedBoxCount" @click="submitCreate">保存出库单</button>
             <button class="secondary-button" @click="viewMode = 'query'">返回查询</button>
           </div>
         </div>
-        <div class="form-grid five">
+        <div class="form-grid four">
           <select v-model.number="form.customerId">
             <option :value="0">未绑定客户</option>
             <option v-for="item in model.state.customers" :key="item.id" :value="item.id">
               {{ item.customerCode }} | {{ item.customerName }}
             </option>
           </select>
-          <input v-model="createFilters.partCode" placeholder="零件号 / 名称" />
-          <input v-model="createFilters.inboundNo" placeholder="入库单号" />
+          <input v-model="createFilters.partKeyword" placeholder="搜索零件号 / 名称" />
           <select v-model="createFilters.warehouseName" @change="createFilters.zoneName = ''">
             <option value="">全部仓库</option>
             <option v-for="item in warehouseOptions" :key="item" :value="item">{{ item }}</option>
@@ -453,116 +597,78 @@ watch(viewMode, async (value) => {
           </select>
         </div>
         <div class="summary-strip">
-          <span>可选 {{ filteredSelectableBoxes.length }} 箱</span>
-          <span>已选 {{ selectedKanbanIds.length }} 箱</span>
-          <span>合计数量 {{ selectedQty.toFixed(3) }}</span>
-          <button class="secondary-button" @click="toggleFilteredSelection(true)">选择筛选结果</button>
-          <button class="secondary-button" @click="resetSelection">清空选择</button>
+          <span>可出库 {{ availableRows.reduce((sum, row) => sum + row.availableBoxes, 0) }} 箱</span>
+          <span>本次计划 {{ plannedBoxCount }} 箱</span>
+          <span>预计数量 {{ plannedQty.toFixed(3) }}</span>
+          <button class="secondary-button" @click="resetCreateDraft">清空计划</button>
         </div>
+        <p v-if="loadingOutboundBoxes" class="scan-hint">正在加载可出库箱级看板，请稍候...</p>
         <p v-if="createMessage" class="form-error">{{ createMessage }}</p>
       </section>
 
-      <section v-if="selectedBoxes.length" class="panel table-scroll">
-        <div class="section-head">
-          <div>
-            <h3>已绑定看板明细</h3>
-            <p>保存出库单时，下面这些箱级子看板会写入出库单明细，并锁定到本次出库。</p>
-          </div>
-        </div>
-        <table class="table selected-kanban-table">
+      <section class="panel table-scroll">
+        <table class="table available-table">
+          <colgroup>
+            <col class="part-col" />
+            <col class="location-col" />
+            <col class="small-col" />
+            <col class="qty-col" />
+            <col class="time-col" />
+            <col class="source-col" />
+            <col class="box-input-col" />
+            <col class="qty-col" />
+            <col class="fifo-col" />
+            <col class="action-col" />
+          </colgroup>
           <thead>
             <tr>
-              <th>父看板</th>
-              <th>子看板</th>
-              <th>箱号</th>
               <th>零件</th>
-              <th>数量</th>
-              <th>来源入库单</th>
-              <th>仓库 / 库区</th>
+              <th>库位</th>
+              <th>可出库箱数</th>
+              <th>可出库数量</th>
+              <th>最早入库</th>
+              <th>追溯入库单</th>
+              <th>本次出库箱数</th>
+              <th>预计数量</th>
+              <th>FIFO 预览</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            <template v-for="group in selectedParentGroups" :key="group.parent.id">
-              <tr class="parent-group-row">
-                <td colspan="8">
-                  <strong>{{ group.parent.kanbanNo }}</strong>
-                  <span class="subtle-text"> | {{ group.parent.partCode }} | {{ group.parent.partName }} | 本次绑定 {{ group.children.length }} 箱</span>
-                </td>
-              </tr>
-              <tr v-for="child in group.children" :key="child.id">
-                <td>{{ group.parent.kanbanNo }}</td>
-                <td class="mono">{{ child.kanbanNo }}</td>
-                <td>第 {{ child.boxIndex }} 箱</td>
-                <td>{{ child.partCode }} | {{ child.partName }}</td>
-                <td>{{ child.qty }}</td>
-                <td>{{ child.inboundNo }}</td>
-                <td>{{ child.warehouseName }} / {{ child.zoneName }}</td>
-                <td>
-                  <button class="secondary-button" @click="selectedKanbans[child.id] = false">取消绑定</button>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </section>
-
-      <section class="panel table-scroll">
-        <div class="section-head">
-          <div>
-            <h3>可绑定箱级看板</h3>
-            <p>只能绑定状态为“已入库”、未被其它出库单占用，并且父看板已完整入库的箱级子看板。</p>
-          </div>
-        </div>
-        <table class="table selectable-box-table">
-          <thead>
-            <tr>
-              <th>选择</th>
-              <th>父看板</th>
-              <th>子看板</th>
-              <th>箱号</th>
-              <th>零件</th>
-              <th>数量</th>
-              <th>来源入库单</th>
-              <th>仓库 / 库区</th>
-              <th>状态</th>
+            <tr v-for="row in availableRows" :key="row.key">
+              <td>{{ row.partCode }} | {{ row.partName }}</td>
+              <td>{{ row.locationCode }} | {{ row.warehouseName }} / {{ row.zoneName }}</td>
+              <td>{{ row.availableBoxes }}</td>
+              <td>{{ row.availableQty.toFixed(3) }} {{ row.unit }}</td>
+              <td>{{ formatTime(row.oldestInboundTime) }}</td>
+              <td class="source-cell">{{ row.inboundNos.slice(0, 3).join('，') }}{{ row.inboundNos.length > 3 ? '…' : '' }}</td>
+              <td class="box-count-cell">
+                <input
+                  class="box-count-input"
+                  :value="outboundDraft[row.key] ?? ''"
+                  type="number"
+                  min="0"
+                  :max="row.availableBoxes"
+                  step="1"
+                  placeholder="箱数"
+                  @input="setDraftBoxes(row, Number(($event.target as HTMLInputElement).value))"
+                />
+              </td>
+              <td>{{ estimateDraftQty(row).toFixed(3) }}</td>
+              <td>
+                <div class="kanban-chip-cell fifo-preview-cell">
+                  <span v-for="box in row.boxes.slice(0, Math.max(1, normalizedDraftBoxCount(row)))" :key="box.id" class="tag-pill mono">
+                    {{ box.kanbanNo }}
+                  </span>
+                </div>
+              </td>
+              <td class="action-row">
+                <button class="secondary-button" @click="setDraftBoxes(row, row.availableBoxes)">全选</button>
+                <button class="secondary-button" @click="setDraftBoxes(row, 0)">清零</button>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            <template v-for="group in groupedSelectableParents" :key="group.parent.id">
-              <tr class="parent-group-row">
-                <td>
-                  <input
-                    type="checkbox"
-                    :checked="allListedChildrenSelected(group.children)"
-                    @change="toggleListedChildrenSelection(group.children, ($event.target as HTMLInputElement).checked)"
-                  />
-                </td>
-                <td colspan="2">
-                  <strong>{{ group.parent.kanbanNo }}</strong>
-                </td>
-                <td colspan="2">{{ group.parent.partCode }} | {{ group.parent.partName }}</td>
-                <td>已选 {{ selectedCountForChildren(group.children) }} / {{ group.children.length }} 箱</td>
-                <td>{{ group.parent.inboundNo }}</td>
-                <td>{{ group.parent.warehouseName }} / {{ group.parent.zoneName }}</td>
-                <td>{{ formatStatus(group.parent.status) }}</td>
-              </tr>
-              <tr v-for="child in group.children" :key="child.id" :class="{ selected: selectedKanbans[child.id] }">
-                <td>
-                  <input v-model="selectedKanbans[child.id]" type="checkbox" />
-                </td>
-                <td>{{ group.parent.kanbanNo }}</td>
-                <td class="mono">{{ child.kanbanNo }}</td>
-                <td>第 {{ child.boxIndex }} 箱</td>
-                <td>{{ child.partCode }} | {{ child.partName }}</td>
-                <td>{{ child.qty }}</td>
-                <td>{{ child.inboundNo }}</td>
-                <td>{{ child.warehouseName }} / {{ child.zoneName }}</td>
-                <td>{{ formatStatus(child.status) }}</td>
-              </tr>
-            </template>
-            <tr v-if="!groupedSelectableParents.length">
-              <td colspan="9" class="empty-cell">没有符合条件且可出库的箱级看板</td>
+            <tr v-if="!availableRows.length">
+              <td colspan="10" class="empty-cell">没有符合条件的可出库库存。请确认零件已完整入库，且未被其它出库单锁定。</td>
             </tr>
           </tbody>
         </table>
@@ -573,7 +679,7 @@ watch(viewMode, async (value) => {
       <div class="section-head">
         <div>
           <h3>扫码出库：{{ scanForm.outboundOrderNo }}</h3>
-          <p>先选出库单，再扫绑定的父看板或箱级子看板；父看板只处理该出库单绑定且未出库的箱子。</p>
+          <p>可扫父看板或箱级子看板；父看板只处理当前出库单已分配且未出库的箱子。</p>
         </div>
         <div class="action-row">
           <button class="secondary-button" @click="viewMode = 'query'">返回查询</button>
@@ -632,6 +738,7 @@ watch(viewMode, async (value) => {
       </div>
       <div class="footer-actions">
         <button @click="submitManual">保存手工入账</button>
+        <button class="secondary-button" @click="viewMode = 'query'">返回查询</button>
       </div>
     </section>
 
@@ -639,7 +746,7 @@ watch(viewMode, async (value) => {
       <div class="section-head print-toolbar">
         <div>
           <h3>出库打印</h3>
-          <p>打印页展示已选择的出库单和绑定箱级看板，可选择当前出库单后模拟扫码出库。</p>
+          <p>打印页展示出库单和系统分配的父子看板，打印后可直接扫码执行出库。</p>
         </div>
         <div class="action-row">
           <button @click="browserPrint">浏览器打印</button>
@@ -672,17 +779,38 @@ watch(viewMode, async (value) => {
           <header class="order-header">
             <div>
               <h4>{{ order.outboundNo }}</h4>
-              <p>来源入库单：{{ sourceText(order) }}</p>
               <p>客户：{{ order.customerName || '未绑定客户' }} | 状态：{{ formatStatus(order.status) }}</p>
+              <p>FIFO 来源：{{ sourceText(order) }}</p>
             </div>
           </header>
+
+          <table class="table print-summary-table">
+            <thead>
+              <tr>
+                <th>零件</th>
+                <th>仓库 / 库区</th>
+                <th>箱数</th>
+                <th>数量</th>
+                <th>已扫</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="group in groupedOrderItems(order)" :key="group.key">
+                <td>{{ group.partText }}</td>
+                <td>{{ group.locationText }}</td>
+                <td>{{ group.boxes }}</td>
+                <td>{{ group.qty.toFixed(3) }}</td>
+                <td>{{ group.scannedQty.toFixed(3) }}</td>
+              </tr>
+            </tbody>
+          </table>
 
           <div v-for="kanban in parentKanbansForOutbound(order)" :key="kanban.id" class="kanban-card">
             <div class="kanban-main">
               <div class="kanban-meta">
                 <strong>{{ kanban.kanbanNo }}</strong>
                 <span>{{ kanban.partCode }} | {{ kanban.partName }}</span>
-                <span>本单绑定 {{ (kanban.children ?? []).length }} 箱</span>
+                <span>本单分配 {{ (kanban.children ?? []).length }} 箱</span>
                 <span>
                   出库单
                   <span v-if="outboundNoList(kanban.outboundNo).length" class="tag-list inline-tags">
@@ -694,7 +822,7 @@ watch(viewMode, async (value) => {
                 <span>状态 {{ formatStatus(kanban.status) }}</span>
               </div>
               <div class="kanban-code">
-                <QrCodeImage :text="kanban.qrContent || kanban.barcode" :size="120" />
+                <QrCodeImage :text="kanban.qrContent || kanban.barcode" :size="118" />
                 <p class="mono">{{ kanban.barcode }}</p>
               </div>
             </div>
@@ -702,7 +830,9 @@ watch(viewMode, async (value) => {
               <button class="secondary-button" @click="toggleExpanded(kanban.id)">
                 {{ expandedParents[kanban.id] ? '收起子看板' : `展开子看板(${(kanban.children ?? []).length})` }}
               </button>
-              <button @click="scanForm.outboundOrderNo = order.outboundNo; simulatePrintScan(kanban)">模拟扫父看板出库</button>
+              <button :disabled="!(kanban.children ?? []).some(isPendingOutbound)" @click="scanForm.outboundOrderNo = order.outboundNo; simulatePrintScan(kanban)">
+                模拟扫父看板出库
+              </button>
             </div>
             <div v-if="expandedParents[kanban.id]" class="table-scroll child-table-wrap">
               <table class="table child-kanban-table">
@@ -728,7 +858,9 @@ watch(viewMode, async (value) => {
                     <td>{{ formatTime(child.inboundTime) }}</td>
                     <td>{{ formatTime(child.outboundTime) }}</td>
                     <td>
-                      <button class="secondary-button" :disabled="child.status !== 'INBOUND'" @click="scanForm.outboundOrderNo = order.outboundNo; simulatePrintScan(child)">扫本箱</button>
+                      <button class="secondary-button" :disabled="!isPendingOutbound(child)" @click="scanForm.outboundOrderNo = order.outboundNo; simulatePrintScan(child)">
+                        扫本箱
+                      </button>
                     </td>
                   </tr>
                 </tbody>
@@ -757,6 +889,7 @@ watch(viewMode, async (value) => {
 
 .print-grid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -786,18 +919,82 @@ watch(viewMode, async (value) => {
   overflow-x: auto;
 }
 
-.selectable-box-table,
-.selected-kanban-table,
-.child-kanban-table {
+.order-table,
+.available-table,
+.detail-table,
+.child-kanban-table,
+.print-summary-table {
   min-width: 980px;
 }
 
-.parent-group-row {
-  background: rgba(37, 99, 235, 0.08);
+.available-table {
+  min-width: 1280px;
+  table-layout: fixed;
 }
 
-.selectable-box-table tr.selected {
-  background: rgba(22, 163, 74, 0.08);
+.available-table .part-col {
+  width: 190px;
+}
+
+.available-table .location-col {
+  width: 210px;
+}
+
+.available-table .small-col {
+  width: 92px;
+}
+
+.available-table .qty-col {
+  width: 118px;
+}
+
+.available-table .time-col {
+  width: 160px;
+}
+
+.available-table .source-col {
+  width: 180px;
+}
+
+.available-table .box-input-col {
+  width: 136px;
+}
+
+.available-table .fifo-col {
+  width: 260px;
+}
+
+.available-table .action-col {
+  width: 118px;
+}
+
+.box-count-cell {
+  min-width: 136px;
+}
+
+.box-count-input {
+  width: 100%;
+  min-width: 96px;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-detail-row > td {
+  background: rgba(15, 23, 42, 0.03);
+  padding: 12px;
+}
+
+.kanban-chip-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.fifo-preview-cell {
+  max-height: 76px;
+  min-width: 0;
+  overflow: auto;
 }
 
 .empty-cell {
@@ -808,10 +1005,6 @@ watch(viewMode, async (value) => {
 .form-error {
   margin: 10px 0 0;
   color: #dc2626;
-}
-
-.subtle-text {
-  color: var(--text-secondary);
 }
 
 .tag-list {
@@ -835,10 +1028,6 @@ watch(viewMode, async (value) => {
   line-height: 1.6;
 }
 
-.print-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .kanban-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 140px;
@@ -846,7 +1035,6 @@ watch(viewMode, async (value) => {
 }
 
 .kanban-meta,
-.child-meta,
 .order-header {
   display: grid;
   gap: 4px;

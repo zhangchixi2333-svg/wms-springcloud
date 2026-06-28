@@ -1,7 +1,10 @@
-﻿-- WMS Spring Cloud MySQL complete initialization script.
--- Safe to run repeatedly: it creates missing tables and upserts only default seed data.
--- It does not DROP/TRUNCATE any business table.
+﻿-- WMS Spring Cloud MySQL 完整初始化脚本。
+-- 适用场景：本地 Docker Compose、原生 Kubernetes、Helm 初始化 Job。
+-- 幂等原则：只创建缺失库表、补齐缺失字段和索引、更新系统基础配置；不会 DROP 或 TRUNCATE 任何业务表。
+-- 数据原则：只保留账号、角色、菜单、权限、系统配置和默认库存预警；不写入供应商、客户、零件、入库、出库、库存、看板等业务演示数据。
+-- 同步要求：修改本文件后必须同步到 deploy/helm/wms/files/wms-cloud-init.sql 和 deploy/kubernetes/mysql/wms-cloud-init.sql。
 
+-- 一、数据库和字符集。
 CREATE DATABASE IF NOT EXISTS `wms_cloud`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
@@ -9,6 +12,7 @@ CREATE DATABASE IF NOT EXISTS `wms_cloud`
 USE `wms_cloud`;
 SET NAMES utf8mb4;
 
+-- 二、基础资料、系统权限和配置表结构。
 CREATE TABLE IF NOT EXISTS `supplier` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `supplier_code` VARCHAR(64) NOT NULL,
@@ -137,6 +141,7 @@ CREATE TABLE IF NOT EXISTS `location` (
   UNIQUE KEY `uk_location_code` (`location_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 三、仓储业务表结构：入库、出库、看板、库存和库存流水。
 CREATE TABLE IF NOT EXISTS `inbound_order` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `created_at` DATETIME(6) NOT NULL,
@@ -212,6 +217,7 @@ CREATE TABLE IF NOT EXISTS `kanban` (
   UNIQUE KEY `uk_kanban_qr_content` (`qr_content`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 四、历史库升级补字段：兼容旧版本已存在的数据库，重复执行安全。
 SET @sql = (
   SELECT IF(
     EXISTS(
@@ -331,6 +337,7 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- 五、库存余额和库存流水表结构。
 CREATE TABLE IF NOT EXISTS `inventory` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `location_id` BIGINT NOT NULL,
@@ -356,6 +363,176 @@ CREATE TABLE IF NOT EXISTS `inventory_transaction` (
   UNIQUE KEY `uk_inventory_transaction_no` (`transaction_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 六、查询性能索引：库存看板、流水趋势和配置查询会使用这些索引。
+SET @idx_inventory_part_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'inventory'
+    AND INDEX_NAME = 'idx_inventory_part'
+);
+SET @idx_inventory_part_sql := IF(
+  @idx_inventory_part_exists = 0,
+  'ALTER TABLE `inventory` ADD INDEX `idx_inventory_part` (`part_id`)',
+  'SELECT 1'
+);
+PREPARE stmt_idx_inventory_part FROM @idx_inventory_part_sql;
+EXECUTE stmt_idx_inventory_part;
+DEALLOCATE PREPARE stmt_idx_inventory_part;
+
+SET @idx_inventory_tx_part_created_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'inventory_transaction'
+    AND INDEX_NAME = 'idx_inventory_tx_part_created'
+);
+SET @idx_inventory_tx_part_created_sql := IF(
+  @idx_inventory_tx_part_created_exists = 0,
+  'ALTER TABLE `inventory_transaction` ADD INDEX `idx_inventory_tx_part_created` (`part_id`, `created_at`, `qty_change`)',
+  'SELECT 1'
+);
+PREPARE stmt_idx_inventory_tx_part_created FROM @idx_inventory_tx_part_created_sql;
+EXECUTE stmt_idx_inventory_tx_part_created;
+DEALLOCATE PREPARE stmt_idx_inventory_tx_part_created;
+
+SET @idx_config_module_status_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'config_item'
+    AND INDEX_NAME = 'idx_config_module_status'
+);
+SET @idx_config_module_status_sql := IF(
+  @idx_config_module_status_exists = 0,
+  'ALTER TABLE `config_item` ADD INDEX `idx_config_module_status` (`module_key`, `status`)',
+  'SELECT 1'
+);
+PREPARE stmt_idx_config_module_status FROM @idx_config_module_status_sql;
+EXECUTE stmt_idx_config_module_status;
+DEALLOCATE PREPARE stmt_idx_config_module_status;
+
+-- 七、Agent 智能助手表结构：旁路读取业务数据，结果只写入 agent_* 表。
+CREATE TABLE IF NOT EXISTS `agent_run` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `run_no` VARCHAR(64) NOT NULL,
+  `status` VARCHAR(32) NOT NULL,
+  `call_api` BIT(1) NOT NULL DEFAULT b'0',
+  `forecast_days` INT NOT NULL,
+  `suggestion_count` INT NOT NULL DEFAULT 0,
+  `started_at` DATETIME(6) NOT NULL,
+  `finished_at` DATETIME(6) DEFAULT NULL,
+  `error_message` VARCHAR(1000) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_run_no` (`run_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `agent_forecast_snapshot` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `run_id` BIGINT NOT NULL,
+  `part_id` BIGINT NOT NULL,
+  `part_code` VARCHAR(64) NOT NULL,
+  `part_name` VARCHAR(128) NOT NULL,
+  `location_id` BIGINT DEFAULT NULL,
+  `location_code` VARCHAR(64) DEFAULT NULL,
+  `current_qty` DECIMAL(18,3) NOT NULL,
+  `avg_daily_out_qty` DECIMAL(18,3) NOT NULL,
+  `forecast_days` INT NOT NULL,
+  `forecast_qty` DECIMAL(18,3) NOT NULL,
+  `estimated_stockout_date` DATE DEFAULT NULL,
+  `risk_level` VARCHAR(32) NOT NULL,
+  `suggested_replenish_qty` DECIMAL(18,3) NOT NULL,
+  `created_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_agent_forecast_run` (`run_id`),
+  KEY `idx_agent_forecast_part` (`part_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `agent_suggestion` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `run_id` BIGINT DEFAULT NULL,
+  `suggestion_type` VARCHAR(64) NOT NULL,
+  `risk_level` VARCHAR(32) NOT NULL,
+  `part_id` BIGINT DEFAULT NULL,
+  `part_code` VARCHAR(64) DEFAULT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `content` VARCHAR(1000) NOT NULL,
+  `action_key` VARCHAR(64) DEFAULT NULL,
+  `target_page_key` VARCHAR(64) DEFAULT NULL,
+  `target_business_no` VARCHAR(64) DEFAULT NULL,
+  `status` VARCHAR(32) NOT NULL,
+  `created_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_agent_suggestion_run` (`run_id`),
+  KEY `idx_agent_suggestion_part` (`part_code`),
+  KEY `idx_agent_suggestion_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `agent_chat_message` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `session_id` VARCHAR(64) NOT NULL,
+  `role` VARCHAR(32) NOT NULL,
+  `content` TEXT NOT NULL,
+  `call_api` BIT(1) NOT NULL DEFAULT b'0',
+  `created_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_agent_chat_session` (`session_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `agent_rag_document` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `doc_key` VARCHAR(128) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `source_type` VARCHAR(64) NOT NULL,
+  `content` MEDIUMTEXT NOT NULL,
+  `metadata_json` JSON DEFAULT NULL,
+  `enabled` BIT(1) NOT NULL DEFAULT b'1',
+  `created_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_rag_doc_key` (`doc_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `agent_rag_chunk` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `document_id` BIGINT NOT NULL,
+  `chunk_index` INT NOT NULL,
+  `content` TEXT NOT NULL,
+  `embedding_json` JSON DEFAULT NULL,
+  `metadata_json` JSON DEFAULT NULL,
+  `created_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_rag_chunk` (`document_id`, `chunk_index`),
+  KEY `idx_agent_rag_chunk_document` (`document_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `agent_config` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `config_key` VARCHAR(128) NOT NULL,
+  `config_value` VARCHAR(1000) NOT NULL,
+  `remark` VARCHAR(255) DEFAULT NULL,
+  `updated_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_config_key` (`config_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 八、Agent 运行记录索引。
+SET @idx_agent_run_started_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'agent_run'
+    AND INDEX_NAME = 'idx_agent_run_started'
+);
+SET @idx_agent_run_started_sql := IF(
+  @idx_agent_run_started_exists = 0,
+  'ALTER TABLE `agent_run` ADD INDEX `idx_agent_run_started` (`started_at`, `id`)',
+  'SELECT 1'
+);
+PREPARE stmt_idx_agent_run_started FROM @idx_agent_run_started_sql;
+EXECUTE stmt_idx_agent_run_started;
+DEALLOCATE PREPARE stmt_idx_agent_run_started;
+
+-- 九、系统基础数据：默认角色、默认账号、菜单和角色菜单绑定。
 INSERT INTO `app_role` (`role_code`, `role_name`, `permission_level`, `description`, `enabled`, `created_at`) VALUES
 ('SUPER_ADMIN', '超级管理员', 'ADMIN', '拥有全部菜单和系统管理权限', b'1', NOW(6)),
 ('WAREHOUSE_MANAGER', '仓库主管', 'MANAGER', '可管理仓储业务和基础资料', b'1', NOW(6)),
@@ -386,6 +563,7 @@ INSERT INTO `menu_item` (`parent_id`, `menu_key`, `menu_name`, `menu_type`, `pat
 (NULL, 'part-info', '零件信息', 'PARENT', 'part-info', NULL, 'parts', 70, b'1'),
 (NULL, 'partner', '供应商/客户', 'PARENT', 'partner', NULL, 'partner', 80, b'1'),
 (NULL, 'warehouse-zone', '仓库/库区', 'LEAF', 'warehouse-zone', 'warehouseZone', 'warehouse', 90, b'1'),
+(NULL, 'ai-agent', '智能助手', 'PARENT', 'ai-agent', NULL, 'monitor', 95, b'1'),
 (NULL, 'system-tools', '系统工具', 'LEAF', 'system-tools', 'systemTools', 'tools', 100, b'1'),
 (NULL, 'system-monitor', '系统监控', 'LEAF', 'system-monitor', 'systemMonitor', 'monitor', 110, b'1'),
 (NULL, 'system-management', '系统管理', 'PARENT', 'system-management', NULL, 'system', 120, b'1')
@@ -411,6 +589,7 @@ INSERT INTO `menu_item` (`parent_id`, `menu_key`, `menu_name`, `menu_type`, `pat
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'part-info') p), 'category-management', '分类管理', 'LEAF', 'category-management', 'categoryManagement', 'category', 72, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'partner') p), 'supplier-management', '供应商', 'LEAF', 'supplier-management', 'supplierManagement', 'supplier', 81, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'partner') p), 'customer-management', '客户', 'LEAF', 'customer-management', 'customerManagement', 'customer', 82, b'1'),
+((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'ai-agent') p), 'agent-assistant', 'Agent助手', 'LEAF', 'agent-assistant', 'agentAssistant', 'monitor', 96, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'system-management') p), 'user-management', '用户管理', 'LEAF', 'user-management', 'userManagement', 'user', 121, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'system-management') p), 'role-management', '角色管理', 'LEAF', 'role-management', 'roleManagement', 'role', 122, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'system-management') p), 'menu-management', '菜单管理', 'LEAF', 'menu-management', 'menuManagement', 'menu', 123, b'1'),
@@ -450,19 +629,28 @@ WHERE `menu_key` IN (
   'equipment-info', 'equipment-normal', 'equipment-repack',
   'part-info', 'part-management', 'category-management',
   'partner', 'supplier-management', 'customer-management',
-  'warehouse-zone'
+  'warehouse-zone', 'ai-agent', 'agent-assistant'
 );
 
+INSERT IGNORE INTO `role_menu` (`role_code`, `menu_id`)
+SELECT 'VIEWER', `id` FROM `menu_item`
+WHERE `menu_key` IN ('ai-agent', 'agent-assistant');
+
+INSERT IGNORE INTO `role_menu` (`role_code`, `menu_id`)
+SELECT 'WAREHOUSE_OPERATOR', `id` FROM `menu_item`
+WHERE `menu_key` IN ('ai-agent', 'agent-assistant');
+
+-- 十、系统配置项：包含中文状态说明和默认库存预警阈值。
 INSERT INTO `config_item` (`module_key`, `item_code`, `item_name`, `status`, `remark`, `created_at`) VALUES
-('userManagement', 'admin', '?????', 'ENABLED', '???????', NOW(6)),
-('roleManagement', 'SUPER_ADMIN', '?????', 'ENABLED', '????????', NOW(6)),
-('departmentManagement', 'WMS', '?????', 'ENABLED', '????', NOW(6)),
-('postManagement', 'MANAGER', '????', 'ENABLED', '????', NOW(6)),
-('dictionaryManagement', 'KANBAN_STATUS', '????', 'ENABLED', 'WAIT_SCAN / INBOUND / OUTBOUND ?', NOW(6)),
-('parameterSettings', 'defaultLocation', '????', 'ENABLED', '', NOW(6)),
-('systemTools', 'qrPrinter', '?????', 'ENABLED', '??????????', NOW(6)),
-('categoryManagement', 'DEFAULT', '??????', 'ENABLED', '????????', NOW(6)),
-('inventoryWarning', 'DEFAULT', '????????', 'ENABLED', '{"critical":10,"low":30,"attention":60}', NOW(6))
+('userManagement', 'admin', '系统管理员', 'ENABLED', '默认系统管理员账号', NOW(6)),
+('roleManagement', 'SUPER_ADMIN', '超级管理员', 'ENABLED', '拥有全部菜单和系统管理权限', NOW(6)),
+('departmentManagement', 'WMS', '仓储中心', 'ENABLED', '默认仓储组织', NOW(6)),
+('postManagement', 'MANAGER', '仓库主管', 'ENABLED', '默认仓储管理岗位', NOW(6)),
+('dictionaryManagement', 'KANBAN_STATUS', '看板状态', 'ENABLED', 'WAIT_SCAN 待扫码 / INBOUND 已入库 / ALLOCATED 已分配待出库 / OUTBOUND 已出库 / PARTIAL_INBOUND 部分入库 / PARTIAL_OUTBOUND 部分出库', NOW(6)),
+('parameterSettings', 'defaultLocation', '默认库位', 'ENABLED', '', NOW(6)),
+('systemTools', 'qrPrinter', '二维码打印', 'ENABLED', '用于看板二维码和条码打印', NOW(6)),
+('categoryManagement', 'DEFAULT', '默认分类', 'ENABLED', '默认零件分类', NOW(6)),
+('inventoryWarning', 'DEFAULT', '默认库存预警', 'ENABLED', '{"critical":10,"low":30,"attention":60}', NOW(6))
 ON DUPLICATE KEY UPDATE
   `item_name` = VALUES(`item_name`),
   `status` = VALUES(`status`),

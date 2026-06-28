@@ -32,6 +32,7 @@ replicaCount:
   system: 1
   masterdata: 1
   business: 1
+  agent: 1
   frontend: 1
 
 frontend:
@@ -53,3 +54,6 @@ services:
   business:
     imageName: wms-business-service
     port: 8084
+  agent:
+    imageName: wms-agent-service
+    port: 8085

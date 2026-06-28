@@ -459,7 +459,7 @@ onBeforeUnmount(() => {
           </select>
         </div>
         <p v-if="mode === 'outbound' && !activeOutboundOrders.length" class="scan-error">
-          当前没有可扫码出库的出库单，请先在出库管理中创建并绑定箱级看板。
+          当前没有可扫码出库的出库单，请先在出库管理中创建出库单，系统会自动分配箱级看板。
         </p>
         <div class="footer-actions">
           <label class="toggle-line"><input v-model="autoExecute" type="checkbox" /> 识别后自动执行</label>

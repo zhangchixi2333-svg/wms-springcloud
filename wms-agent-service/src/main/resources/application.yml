@@ -1,0 +1,24 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: wms-agent-service
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3317/wms_cloud?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:wms}
+    password: ${DB_PASSWORD:wms123456}
+
+agent:
+  call-api: ${AGENT_CALL_API:false}
+  forecast-days: ${AGENT_FORECAST_DAYS:30}
+  suggestion-limit: ${AGENT_SUGGESTION_LIMIT:20}
+  rag:
+    enabled: ${AGENT_RAG_ENABLED:false}
+    provider: ${AGENT_RAG_PROVIDER:local}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:8761/eureka/

@@ -7,6 +7,7 @@ import com.example.wms.common.ApiResponse;
 import com.example.wms.service.WmsService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -55,8 +56,14 @@ public class OrderController {
                                                      @RequestParam(required = false) String outboundNo,
                                                      @RequestParam(required = false) String kanbanNo,
                                                      @RequestParam(required = false) Long supplierId,
-                                                     @RequestParam(required = false) String partCode) {
-        return ApiResponse.ok(wmsService.listKanbans(status, inboundNo, outboundNo, kanbanNo, supplierId, partCode));
+                                                     @RequestParam(required = false) String partCode,
+                                                     @RequestParam(defaultValue = "false") boolean includeChildren) {
+        return ApiResponse.ok(wmsService.listKanbans(status, inboundNo, outboundNo, kanbanNo, supplierId, partCode, includeChildren));
+    }
+
+    @GetMapping("/kanbans/{parentId}/children")
+    public ApiResponse<List<KanbanView>> listKanbanChildren(@PathVariable Long parentId) {
+        return ApiResponse.ok(wmsService.listKanbanChildren(parentId));
     }
 
     @GetMapping("/outbound-orders")
@@ -84,7 +91,12 @@ public class OrderController {
     }
 
     public record OutboundOrderCreateRequest(Long customerId,
-                                             @NotEmpty List<Long> kanbanIds) {
+                                             @NotEmpty List<OutboundOrderItemRequest> items) {
+    }
+
+    public record OutboundOrderItemRequest(@NotNull Long partId,
+                                           @NotNull @Min(1) Integer boxCount,
+                                           String locationCode) {
     }
 
     public record InboundOrderView(Long id,
@@ -142,6 +154,7 @@ public class OrderController {
                              Integer boxIndex,
                              String inboundNo,
                              String outboundNo,
+                             Long partId,
                              String partCode,
                              String partName,
                              String unit,
@@ -157,6 +170,7 @@ public class OrderController {
                              String warehouseName,
                              String zoneName,
                              String status,
+                             Long locationId,
                              String locationCode,
                              LocalDateTime createdAt,
                              LocalDateTime inboundTime,

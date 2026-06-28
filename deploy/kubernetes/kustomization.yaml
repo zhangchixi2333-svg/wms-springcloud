@@ -6,6 +6,7 @@ resources:
   - services/system-service.yaml
   - services/masterdata-service.yaml
   - services/business-service.yaml
+  - services/agent-service.yaml
   - services/gateway.yaml
   - frontend/frontend.yaml
 

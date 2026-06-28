@@ -121,7 +121,10 @@ async function submitScanByEnter() {
   await submitScan()
 }
 
-function openPrint(item: Kanban) {
+async function openPrint(item: Kanban) {
+  if (item.parentKanban && !(item.children ?? []).length) {
+    await props.model.actions.loadKanbanChildren(item.id)
+  }
   selectedKanban.value = item
   viewMode.value = 'print'
 }
@@ -150,8 +153,12 @@ function outboundNoList(value: string | null | undefined) {
     .filter((item) => item && item !== '-')))
 }
 
-function toggleExpanded(kanbanId: number) {
-  expandedParents[kanbanId] = !expandedParents[kanbanId]
+async function toggleExpanded(kanbanId: number) {
+  const nextExpanded = !expandedParents[kanbanId]
+  expandedParents[kanbanId] = nextExpanded
+  if (nextExpanded) {
+    await props.model.actions.loadKanbanChildren(kanbanId)
+  }
 }
 
 function childStatusSummary(item: Kanban) {

@@ -162,6 +162,7 @@ export type Kanban = {
   boxIndex: number;
   inboundNo: string;
   outboundNo: string;
+  partId: number;
   partCode: string;
   partName: string;
   unit: string;
@@ -177,6 +178,7 @@ export type Kanban = {
   warehouseName: string;
   zoneName: string;
   status: string;
+  locationId: number | null;
   locationCode: string;
   createdAt: string;
   inboundTime: string | null;
@@ -223,6 +225,13 @@ export type TransactionRow = {
   createdAt: string;
 }
 
+export type TransactionVersion = {
+  total: number;
+  latestId: number | null;
+  latestTransactionNo: string;
+  latestCreatedAt: string | null;
+}
+
 export type ConfigItem = {
   id: number;
   moduleKey: string;
@@ -230,6 +239,97 @@ export type ConfigItem = {
   itemName: string;
   status: string;
   remark: string;
+  createdAt: string;
+}
+
+export type AgentSuggestion = {
+  id: number | null;
+  runId: number | null;
+  suggestionType: string;
+  riskLevel: string;
+  partId: number | null;
+  partCode: string | null;
+  title: string;
+  content: string;
+  actionKey: string | null;
+  targetPageKey: string | null;
+  targetBusinessNo: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export type AgentOverview = {
+  callApi: boolean;
+  ragEnabled: boolean;
+  ragProvider: string;
+  partCount: number;
+  currentQty: number;
+  criticalCount: number;
+  lowCount: number;
+  attentionCount: number;
+  topSuggestions: AgentSuggestion[];
+}
+
+export type AgentForecastRow = {
+  partId: number;
+  partCode: string;
+  partName: string;
+  currentQty: number;
+  avgDailyOutQty: number;
+  forecastDays: number;
+  forecastQty: number;
+  estimatedStockoutDate: string | null;
+  riskLevel: string;
+  riskLabel: string;
+  suggestedReplenishQty: number;
+  criticalThreshold: number;
+  lowThreshold: number;
+  attentionThreshold: number;
+}
+
+export type AgentRun = {
+  id: number;
+  runNo: string;
+  status: string;
+  callApi: boolean;
+  forecastDays: number;
+  suggestionCount: number;
+  startedAt: string;
+  finishedAt: string | null;
+  errorMessage: string | null;
+}
+
+export type AgentAnswer = {
+  answer: string;
+  callApi: boolean;
+  suggestions: AgentSuggestion[];
+}
+
+export type AgentHealth = {
+  status: string;
+  callApi: boolean;
+  ragEnabled: boolean;
+  ragProvider: string;
+  mode: string;
+}
+
+export type AgentDashboard = {
+  health: AgentHealth;
+  overview: AgentOverview;
+  forecastRows: AgentForecastRow[];
+  suggestions: AgentSuggestion[];
+  latestRun: AgentRun | null;
+  ragDocuments: RagDocument[];
+}
+
+export type RagDocument = {
+  id: number;
+  docKey: string;
+  title: string;
+  sourceType: string;
+  content: string;
+  metadataJson: string;
+  enabled: boolean;
   createdAt: string;
 }
 
@@ -250,7 +350,9 @@ export type InboundDraftItem = {
 }
 
 export type OutboundDraftItem = {
-  kanbanId: number;
+  partId: number;
+  boxCount: number;
+  locationCode: string;
 }
 
 export type AppState = {
@@ -281,6 +383,7 @@ export type AppActions = {
   refreshAll: () => Promise<void>;
   refreshMenus: () => Promise<void>;
   refreshSystemSecurity: () => Promise<void>;
+  loadKanbanChildren: (parentId: number) => Promise<Kanban[]>;
   createUser: (payload: { username: string; password?: string; displayName: string; roleName: string; avatarColor?: string }) => Promise<void>;
   updateUser: (id: number, payload: { username: string; password?: string; displayName: string; roleName: string; avatarColor?: string }) => Promise<void>;
   deleteUser: (id: number) => Promise<void>;
@@ -316,7 +419,7 @@ export type AppActions = {
     warehouseType: 'OWN' | 'THIRD_PARTY'
   }) => Promise<void>;
   createInboundOrder: (payload: { supplierId: number; items: InboundDraftItem[] }) => Promise<void>;
-  createOutboundOrder: (payload: { customerId: number | null; kanbanIds: number[] }) => Promise<void>;
+  createOutboundOrder: (payload: { customerId: number | null; items: OutboundDraftItem[] }) => Promise<void>;
   manualInventoryEntry: (payload: { partId: number; locationId: number; qty: number; remark: string }) => Promise<void>;
   generateKanbans: (orderId: number) => Promise<void>;
   scanInbound: (payload: { barcode: string; locationCode: string }) => Promise<ScanResult>;

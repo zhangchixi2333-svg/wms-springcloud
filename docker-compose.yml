@@ -16,6 +16,18 @@ services:
     volumes:
       - wms_cloud_mysql80_data:/var/lib/mysql
 
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: wms-agent-qdrant
+    profiles:
+      - rag
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+    volumes:
+      - wms_agent_qdrant_data:/qdrant/storage
+
 volumes:
   wms_cloud_mysql_data:
   wms_cloud_mysql80_data:
+  wms_agent_qdrant_data:

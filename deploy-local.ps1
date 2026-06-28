@@ -80,7 +80,8 @@ $services = @(
   "wms-gateway",
   "wms-system-service",
   "wms-masterdata-service",
-  "wms-business-service"
+  "wms-business-service",
+  "wms-agent-service"
 )
 
 if (-not $SkipBuild) {
@@ -137,6 +138,7 @@ $deployments = @(
   "wms-system-service",
   "wms-masterdata-service",
   "wms-business-service",
+  "wms-agent-service",
   "wms-frontend"
 )
 

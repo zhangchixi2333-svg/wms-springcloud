@@ -39,6 +39,16 @@ const expandedKanbanIds = reactive<Record<number, boolean>>({})
 const activePartCode = ref('')
 const activeTransactionId = ref<number | null>(null)
 const thresholdSaving = ref(false)
+const showSummaryBoard = ref(false)
+const showAdvancedFilters = ref(false)
+const thresholdEditorOpen = ref(false)
+const thresholdEditorMode = ref<'single' | 'batch'>('single')
+const activeThresholdPart = ref<{ partCode: string; partName: string } | null>(null)
+const thresholdEditorDraft = reactive<WarningThresholdConfig>({
+  critical: 0,
+  low: 0,
+  attention: 0,
+})
 
 const inventoryWarehouseOptions = computed(() => warehouseOptions(props.model.state.locations))
 const inventoryZoneOptions = computed(() => zoneOptions(props.model.state.locations, filters.warehouseName))
@@ -155,10 +165,6 @@ function ensureThresholdDraft(partCode: string) {
   return thresholdDrafts[partCode]
 }
 
-function updateThresholdDraft(partCode: string, key: WarningLevelKey, value: string) {
-  ensureThresholdDraft(partCode)[key] = Math.max(0, Number(value) || 0)
-}
-
 function warningLevel(partCode: string, totalQty: number) {
   const config = thresholdConfig(partCode)
   if (config.critical > 0 && totalQty <= config.critical) return 'critical'
@@ -172,6 +178,7 @@ function warningLevelLabel(level: string) {
 }
 
 const allSelected = computed(() => partRows.value.length > 0 && partRows.value.every((row) => selectedPartCodes[row.partCode]))
+const selectedRows = computed(() => partRows.value.filter((row) => selectedPartCodes[row.partCode]))
 const summary = computed(() => ({
   rowCount: filteredInventoryRows.value.length,
   totalQty: partRows.value.reduce((total, item) => total + Number(item.totalQty), 0),
@@ -298,6 +305,14 @@ function resetFilters() {
   filters.supplierId = 0
 }
 
+function toggleSummaryBoard() {
+  showSummaryBoard.value = !showSummaryBoard.value
+}
+
+function toggleAdvancedFilters() {
+  showAdvancedFilters.value = !showAdvancedFilters.value
+}
+
 async function loadThresholds() {
   thresholdItems.value = await api.listConfigItems(WARNING_MODULE_KEY)
   Object.keys(thresholdDrafts).forEach((key) => delete thresholdDrafts[key])
@@ -312,10 +327,48 @@ function toggleSelectAll(checked: boolean) {
   })
 }
 
-async function saveThresholdForPart(row: { partCode: string; partName: string }) {
+function thresholdSummaryText(partCode: string) {
+  const config = thresholdConfig(partCode)
+  const values = [
+    config.critical > 0 ? `严重不足≤${config.critical}` : '',
+    config.low > 0 ? `低库存≤${config.low}` : '',
+    config.attention > 0 ? `关注≤${config.attention}` : '',
+  ].filter(Boolean)
+  return values.length ? values.join(' / ') : '未设置'
+}
+
+function copyThresholdConfigToEditor(config: WarningThresholdConfig) {
+  thresholdEditorDraft.critical = config.critical
+  thresholdEditorDraft.low = config.low
+  thresholdEditorDraft.attention = config.attention
+}
+
+function openSingleThresholdEditor(row: { partCode: string; partName: string }) {
+  thresholdEditorMode.value = 'single'
+  activeThresholdPart.value = { partCode: row.partCode, partName: row.partName }
+  copyThresholdConfigToEditor(ensureThresholdDraft(row.partCode))
+  thresholdEditorOpen.value = true
+}
+
+function openBatchThresholdEditor() {
+  if (!selectedRows.value.length) {
+    props.model.actions.setNotice('请先勾选要批量设置阈值的零件')
+    return
+  }
+  thresholdEditorMode.value = 'batch'
+  activeThresholdPart.value = null
+  copyThresholdConfigToEditor(batchThresholdDraft)
+  thresholdEditorOpen.value = true
+}
+
+function closeThresholdEditor() {
+  thresholdEditorOpen.value = false
+}
+
+async function saveThresholdForPart(row: { partCode: string; partName: string }, sourceConfig?: WarningThresholdConfig) {
   thresholdSaving.value = true
   try {
-    const draft = ensureThresholdDraft(row.partCode)
+    const draft = normalizeThresholdConfig(sourceConfig ?? ensureThresholdDraft(row.partCode))
     const payload = {
       moduleKey: WARNING_MODULE_KEY,
       itemCode: row.partCode,
@@ -337,8 +390,8 @@ async function saveThresholdForPart(row: { partCode: string; partName: string })
 }
 
 async function batchSaveThreshold() {
-  const selected = partRows.value.filter((row) => selectedPartCodes[row.partCode])
-  const batchConfig = normalizeThresholdConfig(batchThresholdDraft)
+  const selected = selectedRows.value
+  const batchConfig = normalizeThresholdConfig(thresholdEditorDraft)
   if (!selected.length || Object.values(batchConfig).every((value) => value <= 0)) {
     props.model.actions.setNotice('请选择零件并至少填写一个大于 0 的预警阈值')
     return
@@ -361,18 +414,41 @@ async function batchSaveThreshold() {
       }
     }
     await loadThresholds()
+    batchThresholdDraft.critical = batchConfig.critical
+    batchThresholdDraft.low = batchConfig.low
+    batchThresholdDraft.attention = batchConfig.attention
     props.model.actions.setNotice(`已批量设置 ${selected.length} 个零件的分级预警阈值`)
   } finally {
     thresholdSaving.value = false
   }
 }
 
+async function saveThresholdEditor() {
+  const config = normalizeThresholdConfig(thresholdEditorDraft)
+  if (Object.values(config).every((value) => value <= 0)) {
+    props.model.actions.setNotice('请至少填写一个大于 0 的预警阈值')
+    return
+  }
+  if (thresholdEditorMode.value === 'single') {
+    if (!activeThresholdPart.value) return
+    thresholdDrafts[activeThresholdPart.value.partCode] = config
+    await saveThresholdForPart(activeThresholdPart.value, config)
+  } else {
+    await batchSaveThreshold()
+  }
+  closeThresholdEditor()
+}
+
 function togglePartExpand(partCode: string) {
   expandedPartCodes[partCode] = !expandedPartCodes[partCode]
 }
 
-function toggleKanbanExpand(id: number) {
-  expandedKanbanIds[id] = !expandedKanbanIds[id]
+async function toggleKanbanExpand(id: number) {
+  const nextExpanded = !expandedKanbanIds[id]
+  expandedKanbanIds[id] = nextExpanded
+  if (nextExpanded) {
+    await props.model.actions.loadKanbanChildren(id)
+  }
 }
 
 function openTransactions(partCode: string) {
@@ -404,8 +480,17 @@ onMounted(async () => {
           <h3>库存看板</h3>
           <p>按零件聚合库存，支持多级预警、看板展开和库存流水图。</p>
         </div>
+        <div class="action-row">
+          <button class="secondary-button" @click="toggleSummaryBoard">{{ showSummaryBoard ? '隐藏总看板' : '查看总看板' }}</button>
+          <button class="secondary-button" @click="toggleAdvancedFilters">{{ showAdvancedFilters ? '收起筛选' : '更多筛选' }}</button>
+          <button class="secondary-button" @click="resetFilters">重置筛选</button>
+        </div>
       </div>
-      <div class="form-grid four">
+      <div class="compact-filter-row">
+        <input v-model="filters.materialKeyword" placeholder="物料 / 零件号" />
+        <span class="filter-summary">零件 {{ summary.partCount }} 个，预警 {{ summary.warningCount }} 个</span>
+      </div>
+      <div v-if="showAdvancedFilters" class="form-grid three advanced-filter-grid">
         <select v-model="filters.warehouseName" @change="filters.zoneName = ''">
           <option value="">全部仓库</option>
           <option v-for="warehouse in inventoryWarehouseOptions" :key="warehouse" :value="warehouse">{{ warehouse }}</option>
@@ -414,18 +499,14 @@ onMounted(async () => {
           <option value="">全部库区</option>
           <option v-for="zone in inventoryZoneOptions" :key="zone" :value="zone">{{ zone }}</option>
         </select>
-        <input v-model="filters.materialKeyword" placeholder="物料 / 零件号" />
         <select v-model.number="filters.supplierId">
           <option :value="0">全部供应商</option>
           <option v-for="item in model.state.suppliers" :key="item.id" :value="item.id">{{ item.supplierCode }} | {{ item.supplierName }}</option>
         </select>
       </div>
-      <div class="filter-actions">
-        <button class="secondary-button" @click="resetFilters">重置筛选</button>
-      </div>
     </section>
 
-    <section class="summary-grid">
+    <section v-if="showSummaryBoard" class="summary-grid">
       <div class="panel summary-card"><span class="summary-label">库存记录数</span><strong>{{ summary.rowCount }}</strong></div>
       <div class="panel summary-card"><span class="summary-label">库存总量</span><strong>{{ summary.totalQty }}</strong></div>
       <div class="panel summary-card"><span class="summary-label">涉及零件</span><strong>{{ summary.partCount }}</strong></div>
@@ -438,28 +519,14 @@ onMounted(async () => {
     <section class="panel">
       <div class="section-head">
         <div>
-          <h3>批量设置预警阈值</h3>
-          <p>可统一设置严重不足、低库存、关注三档阈值。</p>
+          <h3>零件库存</h3>
+          <p>勾选零件后可在操作区批量设置阈值；点击行内按钮可展开库位和看板。</p>
         </div>
-        <div class="warning-actions">
-          <label class="threshold-field critical">
-            <span>严重不足阈值</span>
-            <input v-model.number="batchThresholdDraft.critical" type="number" min="0" step="0.001" />
-          </label>
-          <label class="threshold-field low">
-            <span>低库存阈值</span>
-            <input v-model.number="batchThresholdDraft.low" type="number" min="0" step="0.001" />
-          </label>
-          <label class="threshold-field attention">
-            <span>关注阈值</span>
-            <input v-model.number="batchThresholdDraft.attention" type="number" min="0" step="0.001" />
-          </label>
-          <button :disabled="thresholdSaving" @click="batchSaveThreshold">批量保存</button>
+        <div class="action-row">
+          <span class="selected-count">已选 {{ selectedRows.length }} 个</span>
+          <button :disabled="!selectedRows.length || thresholdSaving" @click="openBatchThresholdEditor">批量设置阈值</button>
         </div>
       </div>
-    </section>
-
-    <section class="panel">
       <table class="table">
         <thead>
           <tr>
@@ -482,27 +549,12 @@ onMounted(async () => {
               <td>{{ row.partName }}</td>
               <td>{{ row.supplierName }}</td>
               <td>{{ row.totalQty }}</td>
-              <td>
-                <div class="threshold-grid">
-                  <label class="threshold-field critical">
-                    <span>严重不足</span>
-                    <input :value="ensureThresholdDraft(row.partCode).critical" type="number" min="0" step="0.001" @input="updateThresholdDraft(row.partCode, 'critical', ($event.target as HTMLInputElement).value)" />
-                  </label>
-                  <label class="threshold-field low">
-                    <span>低库存</span>
-                    <input :value="ensureThresholdDraft(row.partCode).low" type="number" min="0" step="0.001" @input="updateThresholdDraft(row.partCode, 'low', ($event.target as HTMLInputElement).value)" />
-                  </label>
-                  <label class="threshold-field attention">
-                    <span>关注</span>
-                    <input :value="ensureThresholdDraft(row.partCode).attention" type="number" min="0" step="0.001" @input="updateThresholdDraft(row.partCode, 'attention', ($event.target as HTMLInputElement).value)" />
-                  </label>
-                  <button class="secondary-button" :disabled="thresholdSaving" @click="saveThresholdForPart(row)">保存</button>
-                </div>
-              </td>
+              <td class="threshold-summary">{{ thresholdSummaryText(row.partCode) }}</td>
               <td><span :class="['warning-badge', warningLevel(row.partCode, row.totalQty) || 'normal']">{{ warningLevelLabel(warningLevel(row.partCode, row.totalQty)) }}</span></td>
               <td>{{ new Date(row.latestUpdatedAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
               <td class="action-row">
                 <button class="secondary-button" @click="togglePartExpand(row.partCode)">{{ expandedPartCodes[row.partCode] ? '收起库存' : '展开库存' }}</button>
+                <button class="secondary-button" :disabled="thresholdSaving" @click="openSingleThresholdEditor(row)">设置阈值</button>
                 <button class="secondary-button" @click="openTransactions(row.partCode)">库存流水</button>
               </td>
             </tr>
@@ -616,14 +668,56 @@ onMounted(async () => {
         </tbody>
       </table>
     </section>
+
+    <teleport to="body">
+      <div v-if="thresholdEditorOpen" class="modal-backdrop">
+        <section class="modal-panel threshold-modal">
+          <div class="section-head">
+            <div>
+              <h3>{{ thresholdEditorMode === 'batch' ? '批量设置预警阈值' : `设置阈值：${activeThresholdPart?.partCode}` }}</h3>
+              <p>{{ thresholdEditorMode === 'batch' ? `将统一应用到已选 ${selectedRows.length} 个零件。` : '阈值会保存到系统配置，下次进入页面仍然生效。' }}</p>
+            </div>
+            <div class="action-row">
+              <button :disabled="thresholdSaving" @click="saveThresholdEditor">保存</button>
+              <button class="secondary-button" @click="closeThresholdEditor">关闭</button>
+            </div>
+          </div>
+          <div class="threshold-editor-grid">
+            <label class="threshold-field critical">
+              <span>严重不足阈值</span>
+              <input v-model.number="thresholdEditorDraft.critical" type="number" min="0" step="0.001" />
+            </label>
+            <label class="threshold-field low">
+              <span>低库存阈值</span>
+              <input v-model.number="thresholdEditorDraft.low" type="number" min="0" step="0.001" />
+            </label>
+            <label class="threshold-field attention">
+              <span>关注阈值</span>
+              <input v-model.number="thresholdEditorDraft.attention" type="number" min="0" step="0.001" />
+            </label>
+          </div>
+        </section>
+      </div>
+    </teleport>
   </section>
 </template>
 
 <style scoped>
-.filter-actions {
-  display: flex;
-  gap: 8px;
+.compact-filter-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 360px) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.advanced-filter-grid {
   margin-top: 12px;
+}
+
+.filter-summary,
+.selected-count {
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
 .summary-grid {
@@ -647,20 +741,6 @@ onMounted(async () => {
 .low-card strong, tr.warning-low td { color: #ea580c; }
 .attention-card strong, tr.warning-attention td { color: #d97706; }
 
-.threshold-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(96px, 1fr)) auto;
-  gap: 8px;
-  align-items: end;
-}
-
-.warning-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(132px, 1fr)) auto;
-  gap: 10px;
-  align-items: end;
-}
-
 .threshold-field {
   display: grid;
   gap: 4px;
@@ -680,6 +760,19 @@ onMounted(async () => {
 
 .threshold-field input {
   min-width: 0;
+}
+
+.threshold-summary {
+  max-width: 280px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.threshold-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .warning-badge {
@@ -795,9 +888,34 @@ tr.active td {
   background: rgba(37, 99, 235, 0.08);
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.modal-panel {
+  width: min(680px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--panel-bg, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
+}
+
 @media (max-width: 1100px) {
   .summary-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .compact-filter-row {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -806,8 +924,7 @@ tr.active td {
     grid-template-columns: 1fr;
   }
 
-  .threshold-grid,
-  .warning-actions {
+  .threshold-editor-grid {
     grid-template-columns: 1fr;
   }
 }
