@@ -277,7 +277,6 @@ jobs:
             if helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
               -n "${DEPLOY_NAMESPACE}" \
               --create-namespace \
-              --debug \
               --set "image.repository=${IMAGE_REPOSITORY}" \
               --set "image.tag=${VERSION}" \
               --set "mysql.image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" \
@@ -309,7 +308,30 @@ jobs:
             kubectl wait --for=condition=Ready pod/mysql-0 -n "${DEPLOY_NAMESPACE}" --timeout=600s
 
             kubectl get job -n "${DEPLOY_NAMESPACE}" || true
-            kubectl wait --for=condition=complete job/wms-mysql-init -n "${DEPLOY_NAMESPACE}" --timeout=600s
+            echo "===== Wait MySQL init job ====="
+            for i in $(seq 1 120); do
+              JOB_STATE=$(kubectl get job wms-mysql-init -n "${DEPLOY_NAMESPACE}" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}:{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)
+              kubectl get job wms-mysql-init -n "${DEPLOY_NAMESPACE}" || true
+              kubectl get pods -n "${DEPLOY_NAMESPACE}" -l job-name=wms-mysql-init -o wide || true
+              if [ "${JOB_STATE}" = "True:" ]; then
+                echo "MySQL init job completed"
+                break
+              fi
+              if [ "${JOB_STATE}" = ":True" ]; then
+                echo "MySQL init job failed"
+                kubectl describe job wms-mysql-init -n "${DEPLOY_NAMESPACE}" || true
+                kubectl logs job/wms-mysql-init -n "${DEPLOY_NAMESPACE}" --tail=300 || true
+                exit 1
+              fi
+              if [ "${i}" -eq 120 ]; then
+                echo "MySQL init job did not complete in time"
+                kubectl describe job wms-mysql-init -n "${DEPLOY_NAMESPACE}" || true
+                kubectl logs job/wms-mysql-init -n "${DEPLOY_NAMESPACE}" --tail=300 || true
+                kubectl get events -n "${DEPLOY_NAMESPACE}" --sort-by=.lastTimestamp | tail -n 80 || true
+                exit 1
+              fi
+              sleep 2
+            done
             kubectl logs job/wms-mysql-init -n "${DEPLOY_NAMESPACE}" --tail=100 || true
 
             kubectl rollout status deployment/wms-discovery -n "${DEPLOY_NAMESPACE}" --timeout=600s
