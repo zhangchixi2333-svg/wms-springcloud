@@ -282,9 +282,10 @@ jobs:
               --set "mysql.image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" \
               --set "image.pullSecrets[0].name=aliyun-acr" \
               ${HELM_INGRESS_ARGS} \
-              2>&1 | tee /tmp/helm-upgrade.log
-            HELM_EXIT=${PIPESTATUS[0]}
+              >/tmp/helm-upgrade.log 2>&1
+            HELM_EXIT=$?
             set -e
+            cat /tmp/helm-upgrade.log || true
             if [ "${HELM_EXIT}" -ne 0 ]; then
               echo "Helm upgrade failed with exit code ${HELM_EXIT}"
               echo "===== Helm history after failure ====="
@@ -295,6 +296,10 @@ jobs:
               grep -E '^kind: |^  name: ' /tmp/helm-template.yaml | head -n 120 || true
               echo "===== Cluster state after Helm failure ====="
               kubectl get pods,jobs,svc,endpoints -n "${DEPLOY_NAMESPACE}" -o wide || true
+              echo "===== MySQL init job describe after failure ====="
+              kubectl describe job wms-mysql-init -n "${DEPLOY_NAMESPACE}" || true
+              echo "===== MySQL init pod logs after failure ====="
+              kubectl logs job/wms-mysql-init -n "${DEPLOY_NAMESPACE}" --tail=300 || true
               kubectl get events -n "${DEPLOY_NAMESPACE}" --sort-by=.lastTimestamp | tail -n 80 || true
               exit "${HELM_EXIT}"
             fi
