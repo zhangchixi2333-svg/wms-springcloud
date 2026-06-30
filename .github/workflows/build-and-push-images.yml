@@ -248,7 +248,6 @@ jobs:
             cat "${DEPLOY_PATH}/deploy/helm/wms/Chart.yaml"
             echo "===== Helm lint ====="
             helm lint "${DEPLOY_PATH}/deploy/helm/wms"
-            echo "===== Helm upgrade ====="
             HELM_INGRESS_ARGS=""
             if [ "${WMS_INGRESS_ENABLED:-false}" = "true" ]; then
               HELM_INGRESS_ARGS="${HELM_INGRESS_ARGS} --set ingress.enabled=true"
@@ -262,22 +261,41 @@ jobs:
                 fi
               fi
             fi
-            set +e
-            helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
+            echo "===== Helm template check ====="
+            helm template "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
               -n "${DEPLOY_NAMESPACE}" \
-              --create-namespace \
               --set "image.repository=${IMAGE_REPOSITORY}" \
               --set "image.tag=${VERSION}" \
               --set "mysql.image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" \
               --set "image.pullSecrets[0].name=aliyun-acr" \
               ${HELM_INGRESS_ARGS} \
-              >/tmp/helm-upgrade.log 2>&1
-            HELM_EXIT=$?
+              >/tmp/helm-template.yaml
+            grep -E '^kind: |^  name: ' /tmp/helm-template.yaml | head -n 80 || true
+            echo "===== Helm upgrade ====="
+            set +e
+            helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
+              -n "${DEPLOY_NAMESPACE}" \
+              --create-namespace \
+              --debug \
+              --set "image.repository=${IMAGE_REPOSITORY}" \
+              --set "image.tag=${VERSION}" \
+              --set "mysql.image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" \
+              --set "image.pullSecrets[0].name=aliyun-acr" \
+              ${HELM_INGRESS_ARGS} \
+              2>&1 | tee /tmp/helm-upgrade.log
+            HELM_EXIT=${PIPESTATUS[0]}
             set -e
-            cat /tmp/helm-upgrade.log
             if [ "${HELM_EXIT}" -ne 0 ]; then
               echo "Helm upgrade failed with exit code ${HELM_EXIT}"
-              cat /tmp/helm-upgrade.log || true
+              echo "===== Helm history after failure ====="
+              helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" || true
+              echo "===== Helm status after failure ====="
+              helm status "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" || true
+              echo "===== Rendered resources around failure ====="
+              grep -E '^kind: |^  name: ' /tmp/helm-template.yaml | head -n 120 || true
+              echo "===== Cluster state after Helm failure ====="
+              kubectl get pods,jobs,svc,endpoints -n "${DEPLOY_NAMESPACE}" -o wide || true
+              kubectl get events -n "${DEPLOY_NAMESPACE}" --sort-by=.lastTimestamp | tail -n 80 || true
               exit "${HELM_EXIT}"
             fi
 
