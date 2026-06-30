@@ -3,10 +3,6 @@ kind: Job
 metadata:
   name: wms-mysql-init
   namespace: {{ include "wms.namespace" . }}
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "10"
-    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 6
   activeDeadlineSeconds: 600

@@ -271,9 +271,10 @@ jobs:
               ${HELM_INGRESS_ARGS} \
               >/tmp/helm-template.yaml
             grep -E '^kind: |^  name: ' /tmp/helm-template.yaml | head -n 80 || true
+            echo "===== Recreate MySQL init job before Helm upgrade ====="
+            kubectl delete job wms-mysql-init -n "${DEPLOY_NAMESPACE}" --ignore-not-found --wait=false
             echo "===== Helm upgrade ====="
-            set +e
-            helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
+            if helm upgrade --install "${DEPLOY_RELEASE}" "${DEPLOY_PATH}/deploy/helm/wms" \
               -n "${DEPLOY_NAMESPACE}" \
               --create-namespace \
               --debug \
@@ -281,12 +282,10 @@ jobs:
               --set "image.tag=${VERSION}" \
               --set "mysql.image=${IMAGE_REPOSITORY}:${MYSQL_ACR_TAG}" \
               --set "image.pullSecrets[0].name=aliyun-acr" \
-              ${HELM_INGRESS_ARGS} \
-              >/tmp/helm-upgrade.log 2>&1
-            HELM_EXIT=$?
-            set -e
-            cat /tmp/helm-upgrade.log || true
-            if [ "${HELM_EXIT}" -ne 0 ]; then
+              ${HELM_INGRESS_ARGS}; then
+              echo "Helm upgrade succeeded"
+            else
+              HELM_EXIT=$?
               echo "Helm upgrade failed with exit code ${HELM_EXIT}"
               echo "===== Helm history after failure ====="
               helm history "${DEPLOY_RELEASE}" -n "${DEPLOY_NAMESPACE}" || true
