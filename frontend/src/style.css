@@ -17,6 +17,10 @@
   --accent: #0f766e;
   --accent-dark: #13323f;
   --danger: #b42318;
+  --text-secondary: var(--muted);
+  --border-color: var(--border);
+  --primary-color: var(--accent);
+  --panel-bg: var(--surface);
 }
 
 * {
