@@ -1,8 +1,8 @@
 ﻿-- WMS Spring Cloud MySQL 完整初始化脚本。
--- 适用场景：本地 Docker Compose、原生 Kubernetes、Helm 初始化 Job。
--- 幂等原则：只创建缺失库表、补齐缺失字段和索引、更新系统基础配置；不会 DROP 或 TRUNCATE 任何业务表。
--- 数据原则：只保留账号、角色、菜单、权限、系统配置和默认库存预警；不写入供应商、客户、零件、入库、出库、库存、看板等业务演示数据。
--- 同步要求：修改本文件后必须同步到 deploy/helm/wms/files/wms-cloud-init.sql 和 deploy/kubernetes/mysql/wms-cloud-init.sql。
+-- 适用场景：本地 Docker Compose 手动重置和开发环境初始化。
+-- 重置原则：创建或补齐表结构后，清空入库、出库、看板、库存、流水、Agent 运行记录等生产数据。
+-- 数据原则：初始化后只保留系统账号、角色、菜单、配置，以及固定供应商、客户、库位、器具和零件基础资料。
+-- 部署边界：云端 deploy 目录暂不同步本次业务重置脚本，避免误清云端生产数据。
 
 -- 一、数据库和字符集。
 CREATE DATABASE IF NOT EXISTS `wms_cloud`
@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS `part` (
   `part_code` VARCHAR(64) NOT NULL,
   `part_name` VARCHAR(128) NOT NULL,
   `unit` VARCHAR(32) NOT NULL,
+  `category_code` VARCHAR(64) DEFAULT 'DEFAULT',
   `supplier_id` BIGINT DEFAULT NULL,
   `default_equipment_code` VARCHAR(64) DEFAULT NULL,
   `default_package_capacity` DECIMAL(18,3) DEFAULT NULL,
@@ -115,6 +116,38 @@ SET @part_default_equipment_code_sql := IF(
 PREPARE stmt_part_default_equipment_code FROM @part_default_equipment_code_sql;
 EXECUTE stmt_part_default_equipment_code;
 DEALLOCATE PREPARE stmt_part_default_equipment_code;
+SET @part_category_code_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = 'wms_cloud'
+    AND TABLE_NAME = 'part'
+    AND COLUMN_NAME = 'category_code'
+);
+SET @part_category_code_sql := IF(
+  @part_category_code_exists = 0,
+  'ALTER TABLE part ADD COLUMN category_code VARCHAR(64) DEFAULT ''DEFAULT'' AFTER unit',
+  'SELECT 1'
+);
+PREPARE stmt_part_category_code FROM @part_category_code_sql;
+EXECUTE stmt_part_category_code;
+DEALLOCATE PREPARE stmt_part_category_code;
+UPDATE part SET category_code = 'DEFAULT' WHERE category_code IS NULL OR category_code = '';
+
+SET @part_default_package_capacity_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = 'wms_cloud'
+    AND TABLE_NAME = 'part'
+    AND COLUMN_NAME = 'default_package_capacity'
+);
+SET @part_default_package_capacity_sql := IF(
+  @part_default_package_capacity_exists = 0,
+  'ALTER TABLE `part` ADD COLUMN `default_package_capacity` DECIMAL(18,3) DEFAULT NULL AFTER `default_equipment_code`',
+  'SELECT 1'
+);
+PREPARE stmt_part_default_package_capacity FROM @part_default_package_capacity_sql;
+EXECUTE stmt_part_default_package_capacity;
+DEALLOCATE PREPARE stmt_part_default_package_capacity;
 
 CREATE TABLE IF NOT EXISTS `equipment` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -141,6 +174,22 @@ CREATE TABLE IF NOT EXISTS `location` (
   UNIQUE KEY `uk_location_code` (`location_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+SET @location_warehouse_type_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = 'wms_cloud'
+    AND TABLE_NAME = 'location'
+    AND COLUMN_NAME = 'warehouse_type'
+);
+SET @location_warehouse_type_sql := IF(
+  @location_warehouse_type_exists = 0,
+  'ALTER TABLE `location` ADD COLUMN `warehouse_type` VARCHAR(32) NOT NULL DEFAULT ''OWN'' AFTER `zone_name`',
+  'SELECT 1'
+);
+PREPARE stmt_location_warehouse_type FROM @location_warehouse_type_sql;
+EXECUTE stmt_location_warehouse_type;
+DEALLOCATE PREPARE stmt_location_warehouse_type;
+
 -- 三、仓储业务表结构：入库、出库、看板、库存和库存流水。
 CREATE TABLE IF NOT EXISTS `inbound_order` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -149,7 +198,9 @@ CREATE TABLE IF NOT EXISTS `inbound_order` (
   `status` VARCHAR(32) NOT NULL,
   `supplier_id` BIGINT NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_inbound_no` (`inbound_no`)
+  UNIQUE KEY `uk_inbound_no` (`inbound_no`),
+  KEY `idx_inbound_status_supplier_created` (`status`, `supplier_id`, `created_at`),
+  KEY `idx_inbound_created` (`created_at`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `inbound_order_item` (
@@ -163,7 +214,9 @@ CREATE TABLE IF NOT EXISTS `inbound_order_item` (
   `unit_per_box` DECIMAL(18,3) DEFAULT NULL,
   `pending_repack` BIT(1) NOT NULL,
   `warehouse_zone` VARCHAR(128) DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_inbound_item_order` (`inbound_order_id`),
+  KEY `idx_inbound_item_part` (`part_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `outbound_order` (
@@ -185,9 +238,29 @@ CREATE TABLE IF NOT EXISTS `outbound_order_item` (
   `kanban_no` VARCHAR(64) DEFAULT NULL,
   `planned_qty` DECIMAL(18,3) NOT NULL,
   `scanned_qty` DECIMAL(18,3) NOT NULL,
+  `box_count` INT NOT NULL DEFAULT 1,
+  `equipment_code` VARCHAR(64) DEFAULT NULL,
+  `unit_per_box` DECIMAL(18,3) NOT NULL DEFAULT 0.000,
+  `location_code` VARCHAR(64) DEFAULT NULL,
   `warehouse_name` VARCHAR(128) DEFAULT NULL,
   `zone_name` VARCHAR(128) DEFAULT NULL,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `outbound_allocation` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `outbound_order_id` BIGINT NOT NULL,
+  `outbound_order_item_id` BIGINT NOT NULL,
+  `kanban_id` BIGINT NOT NULL,
+  `allocated_qty` DECIMAL(18,3) NOT NULL,
+  `outbound_qty` DECIMAL(18,3) NOT NULL,
+  `status` VARCHAR(32) NOT NULL,
+  `created_at` DATETIME(6) NOT NULL,
+  `outbound_time` DATETIME(6) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_outbound_alloc_order` (`outbound_order_id`),
+  KEY `idx_outbound_alloc_item` (`outbound_order_item_id`),
+  KEY `idx_outbound_alloc_kanban` (`kanban_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `kanban` (
@@ -207,9 +280,16 @@ CREATE TABLE IF NOT EXISTS `kanban` (
   `parent_kanban_id` BIGINT DEFAULT NULL,
   `part_id` BIGINT NOT NULL,
   `qty` DECIMAL(18,3) NOT NULL,
+  `available_qty` DECIMAL(18,3) DEFAULT NULL,
+  `reserved_qty` DECIMAL(18,3) DEFAULT 0.000,
+  `reserved_transfer_qty` DECIMAL(18,3) DEFAULT 0.000,
+  `outbound_qty` DECIMAL(18,3) DEFAULT 0.000,
+  `source_kanban_id` BIGINT DEFAULT NULL,
+  `transfer_order_no` VARCHAR(512) DEFAULT NULL,
+  `frozen_previous_status` VARCHAR(32) DEFAULT NULL,
   `status` VARCHAR(32) NOT NULL,
   `supplier_id` BIGINT NOT NULL,
-  `outbound_order_no` VARCHAR(64) DEFAULT NULL,
+  `outbound_order_no` VARCHAR(512) DEFAULT NULL,
   `qr_content` VARCHAR(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_kanban_barcode` (`barcode`),
@@ -246,6 +326,199 @@ SET @sql = (
     ),
     'SELECT 1',
     'ALTER TABLE `outbound_order_item` ADD COLUMN `kanban_id` BIGINT DEFAULT NULL AFTER `part_id`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'reserved_transfer_qty'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `reserved_transfer_qty` DECIMAL(18,3) DEFAULT 0.000 AFTER `reserved_qty`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'outbound_order_item'
+        AND COLUMN_NAME = 'box_count'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `outbound_order_item` ADD COLUMN `box_count` INT NOT NULL DEFAULT 1 AFTER `scanned_qty`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'source_kanban_id'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `source_kanban_id` BIGINT DEFAULT NULL AFTER `outbound_qty`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'transfer_order_no'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `transfer_order_no` VARCHAR(512) DEFAULT NULL AFTER `source_kanban_id`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+ALTER TABLE `kanban`
+  MODIFY COLUMN `transfer_order_no` VARCHAR(512) DEFAULT NULL;
+
+ALTER TABLE `kanban`
+  MODIFY COLUMN `outbound_order_no` VARCHAR(512) DEFAULT NULL;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'frozen_previous_status'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `frozen_previous_status` VARCHAR(32) DEFAULT NULL AFTER `transfer_order_no`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'outbound_order_item'
+        AND COLUMN_NAME = 'unit_per_box'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `outbound_order_item` ADD COLUMN `unit_per_box` DECIMAL(18,3) NOT NULL DEFAULT 0.000 AFTER `box_count`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'outbound_order_item'
+        AND COLUMN_NAME = 'equipment_code'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `outbound_order_item` ADD COLUMN `equipment_code` VARCHAR(64) DEFAULT NULL AFTER `box_count`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'outbound_order_item'
+        AND COLUMN_NAME = 'location_code'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `outbound_order_item` ADD COLUMN `location_code` VARCHAR(64) DEFAULT NULL AFTER `unit_per_box`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'available_qty'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `available_qty` DECIMAL(18,3) DEFAULT NULL AFTER `qty`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'reserved_qty'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `reserved_qty` DECIMAL(18,3) DEFAULT 0.000 AFTER `available_qty`'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'kanban'
+        AND COLUMN_NAME = 'outbound_qty'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `kanban` ADD COLUMN `outbound_qty` DECIMAL(18,3) DEFAULT 0.000 AFTER `reserved_qty`'
   )
 );
 PREPARE stmt FROM @sql;
@@ -337,6 +610,85 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+UPDATE `kanban`
+SET `available_qty` = COALESCE(`available_qty`, `qty` - COALESCE(`outbound_qty`, 0)),
+    `reserved_qty` = COALESCE(`reserved_qty`, 0),
+    `reserved_transfer_qty` = COALESCE(`reserved_transfer_qty`, 0),
+    `outbound_qty` = COALESCE(`outbound_qty`, 0)
+WHERE `parent_kanban` = b'0';
+
+UPDATE `outbound_order_item`
+SET `box_count` = COALESCE(`box_count`, 1),
+    `unit_per_box` = CASE WHEN `unit_per_box` IS NULL OR `unit_per_box` = 0 THEN `planned_qty` ELSE `unit_per_box` END;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'inbound_order'
+        AND INDEX_NAME = 'idx_inbound_status_supplier_created'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inbound_order` ADD INDEX `idx_inbound_status_supplier_created` (`status`, `supplier_id`, `created_at`)'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'inbound_order'
+        AND INDEX_NAME = 'idx_inbound_created'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inbound_order` ADD INDEX `idx_inbound_created` (`created_at`, `id`)'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'inbound_order_item'
+        AND INDEX_NAME = 'idx_inbound_item_order'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inbound_order_item` ADD INDEX `idx_inbound_item_order` (`inbound_order_id`)'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(
+    EXISTS(
+      SELECT 1
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'inbound_order_item'
+        AND INDEX_NAME = 'idx_inbound_item_part'
+    ),
+    'SELECT 1',
+    'ALTER TABLE `inbound_order_item` ADD INDEX `idx_inbound_item_part` (`part_id`)'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 五、库存余额和库存流水表结构。
 CREATE TABLE IF NOT EXISTS `inventory` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -355,6 +707,7 @@ CREATE TABLE IF NOT EXISTS `inventory_transaction` (
   `business_type` VARCHAR(32) NOT NULL,
   `created_at` DATETIME(6) NOT NULL,
   `location_id` BIGINT NOT NULL,
+  `operation_no` VARCHAR(64) NOT NULL,
   `part_id` BIGINT NOT NULL,
   `qty_change` DECIMAL(18,3) NOT NULL,
   `remark` VARCHAR(255) DEFAULT NULL,
@@ -362,6 +715,48 @@ CREATE TABLE IF NOT EXISTS `inventory_transaction` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_inventory_transaction_no` (`transaction_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `inventory_operation_order` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `operation_no` VARCHAR(64) NOT NULL,
+  `operation_type` VARCHAR(32) NOT NULL,
+  `business_no` VARCHAR(64) DEFAULT NULL,
+  `source_kanban_no` VARCHAR(64) DEFAULT NULL,
+  `target_kanban_no` VARCHAR(64) DEFAULT NULL,
+  `source_barcode` VARCHAR(128) DEFAULT NULL,
+  `target_barcode` VARCHAR(128) DEFAULT NULL,
+  `part_id` BIGINT NOT NULL,
+  `source_location_id` BIGINT DEFAULT NULL,
+  `target_location_id` BIGINT DEFAULT NULL,
+  `qty` DECIMAL(18,3) NOT NULL,
+  `source_status` VARCHAR(32) DEFAULT NULL,
+  `target_status` VARCHAR(32) DEFAULT NULL,
+  `remark` VARCHAR(255) DEFAULT NULL,
+  `created_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_inventory_operation_no` (`operation_no`, `id`),
+  KEY `idx_inventory_operation_part_created` (`part_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @inventory_tx_operation_no_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'inventory_transaction'
+    AND COLUMN_NAME = 'operation_no'
+);
+SET @inventory_tx_operation_no_sql := IF(
+  @inventory_tx_operation_no_exists = 0,
+  'ALTER TABLE `inventory_transaction` ADD COLUMN `operation_no` VARCHAR(64) NOT NULL DEFAULT '''' AFTER `location_id`',
+  'SELECT 1'
+);
+PREPARE stmt_inventory_tx_operation_no FROM @inventory_tx_operation_no_sql;
+EXECUTE stmt_inventory_tx_operation_no;
+DEALLOCATE PREPARE stmt_inventory_tx_operation_no;
+
+UPDATE `inventory_transaction`
+SET `operation_no` = `business_no`
+WHERE `operation_no` IS NULL OR `operation_no` = '';
 
 -- 六、查询性能索引：库存看板、流水趋势和配置查询会使用这些索引。
 SET @idx_inventory_part_exists := (
@@ -395,6 +790,22 @@ SET @idx_inventory_tx_part_created_sql := IF(
 PREPARE stmt_idx_inventory_tx_part_created FROM @idx_inventory_tx_part_created_sql;
 EXECUTE stmt_idx_inventory_tx_part_created;
 DEALLOCATE PREPARE stmt_idx_inventory_tx_part_created;
+
+SET @idx_inventory_tx_operation_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'inventory_transaction'
+    AND INDEX_NAME = 'idx_inventory_tx_operation'
+);
+SET @idx_inventory_tx_operation_sql := IF(
+  @idx_inventory_tx_operation_exists = 0,
+  'ALTER TABLE `inventory_transaction` ADD INDEX `idx_inventory_tx_operation` (`operation_no`, `created_at`)',
+  'SELECT 1'
+);
+PREPARE stmt_idx_inventory_tx_operation FROM @idx_inventory_tx_operation_sql;
+EXECUTE stmt_idx_inventory_tx_operation;
+DEALLOCATE PREPARE stmt_idx_inventory_tx_operation;
 
 SET @idx_config_module_status_exists := (
   SELECT COUNT(*)
@@ -564,7 +975,116 @@ PREPARE stmt_idx_agent_run_started FROM @idx_agent_run_started_sql;
 EXECUTE stmt_idx_agent_run_started;
 DEALLOCATE PREPARE stmt_idx_agent_run_started;
 
--- 九、系统基础数据：默认角色、默认账号、菜单和角色菜单绑定。
+-- 九、本地业务数据重置：清空生产单据和运行记录，只保留后续插入的基础资料。
+SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE `outbound_allocation`;
+TRUNCATE TABLE `inventory_operation_order`;
+TRUNCATE TABLE `inventory_transaction`;
+TRUNCATE TABLE `inventory`;
+TRUNCATE TABLE `kanban`;
+TRUNCATE TABLE `outbound_order_item`;
+TRUNCATE TABLE `outbound_order`;
+TRUNCATE TABLE `inbound_order_item`;
+TRUNCATE TABLE `inbound_order`;
+TRUNCATE TABLE `agent_forecast_snapshot`;
+TRUNCATE TABLE `agent_suggestion`;
+TRUNCATE TABLE `agent_chat_message`;
+TRUNCATE TABLE `agent_rag_chunk`;
+TRUNCATE TABLE `agent_rag_document`;
+TRUNCATE TABLE `agent_user_profile`;
+TRUNCATE TABLE `agent_pipeline_trace`;
+TRUNCATE TABLE `agent_run`;
+TRUNCATE TABLE `part`;
+TRUNCATE TABLE `supplier`;
+TRUNCATE TABLE `customer`;
+TRUNCATE TABLE `equipment`;
+TRUNCATE TABLE `location`;
+SET FOREIGN_KEY_CHECKS = 1;
+
+INSERT INTO `supplier` (`supplier_code`, `supplier_name`) VALUES
+('SUP-001', '浮梁精密制造有限公司'),
+('SUP-002', '昌南电子部件有限公司'),
+('SUP-003', '景德传动科技有限公司'),
+('SUP-004', '瓷都包装材料有限公司'),
+('SUP-005', '赣东北金属制品有限公司');
+
+INSERT INTO `customer` (`customer_code`, `customer_name`) VALUES
+('CUS-001', '华东总装客户'),
+('CUS-002', '华南售后客户'),
+('CUS-003', '西南备件客户');
+
+INSERT INTO `location` (`location_code`, `location_name`, `warehouse_name`, `zone_name`, `warehouse_type`) VALUES
+('LOC-A-01', '总仓A区一号位', '总仓', 'A区', 'OWN'),
+('LOC-A-02', '总仓A区二号位', '总仓', 'A区', 'OWN'),
+('LOC-B-01', '总仓B区一号位', '总仓', 'B区', 'OWN'),
+('LOC-B-02', '总仓B区二号位', '总仓', 'B区', 'OWN'),
+('LOC-QC-01', '质检仓待检位', '质检仓', '待检区', 'OWN'),
+('LOC-TP-01', '第三方仓一号位', '第三方仓', '外协区', 'THIRD_PARTY'),
+('LOC-TP-02', '第三方仓二号位', '第三方仓', '外协区', 'THIRD_PARTY');
+
+INSERT INTO `equipment` (`equipment_code`, `equipment_name`, `equipment_model`, `equipment_type`, `capacity`, `status`, `warehouse_name`, `zone_name`) VALUES
+('BOX-S', '小周转箱', 'S-50', 'BOX', 50.000, 'ENABLED', '总仓', 'A区'),
+('BOX-M', '标准周转箱', 'M-100', 'BOX', 100.000, 'ENABLED', '总仓', 'A区'),
+('BOX-L', '大周转箱', 'L-200', 'BOX', 200.000, 'ENABLED', '总仓', 'B区'),
+('RACK-A', 'A型料架', 'RA-500', 'RACK', 500.000, 'ENABLED', '总仓', 'B区'),
+('TP-BOX', '外协周转箱', 'TP-100', 'BOX', 100.000, 'ENABLED', '第三方仓', '外协区');
+
+INSERT INTO `part` (`part_code`, `part_name`, `unit`, `supplier_id`, `default_equipment_code`, `default_package_capacity`) VALUES
+('P-0001', '定位销A型', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001'), 'BOX-S', 50.000),
+('P-0002', '定位销B型', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001'), 'BOX-S', 50.000),
+('P-0003', '锁紧螺母M8', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001'), 'BOX-M', 100.000),
+('P-0004', '锁紧螺母M10', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001'), 'BOX-M', 100.000),
+('P-0005', '支撑垫片薄型', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001'), 'BOX-M', 100.000),
+('P-0006', '支撑垫片厚型', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001'), 'BOX-M', 100.000),
+('P-0007', '导向套短款', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001'), 'BOX-S', 50.000),
+('P-0008', '导向套长款', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-001'), 'BOX-S', 50.000),
+('P-0009', '控制板A版', '块', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-002'), 'BOX-S', 50.000),
+('P-0010', '控制板B版', '块', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-002'), 'BOX-S', 50.000),
+('P-0011', '传感器线束短', '根', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-002'), 'BOX-M', 100.000),
+('P-0012', '传感器线束长', '根', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-002'), 'BOX-M', 100.000),
+('P-0013', '端子排8位', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-002'), 'BOX-M', 100.000),
+('P-0014', '端子排12位', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-002'), 'BOX-M', 100.000),
+('P-0015', '微动开关', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-002'), 'BOX-S', 50.000),
+('P-0016', '状态指示灯', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-002'), 'BOX-S', 50.000),
+('P-0017', '主动齿轮18齿', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-003'), 'BOX-S', 50.000),
+('P-0018', '主动齿轮24齿', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-003'), 'BOX-S', 50.000),
+('P-0019', '从动齿轮32齿', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-003'), 'BOX-S', 50.000),
+('P-0020', '从动齿轮40齿', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-003'), 'BOX-S', 50.000),
+('P-0021', '传动轴短', '根', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-003'), 'BOX-L', 200.000),
+('P-0022', '传动轴长', '根', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-003'), 'RACK-A', 500.000),
+('P-0023', '轴承座A型', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-003'), 'BOX-L', 200.000),
+('P-0024', '轴承座B型', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-003'), 'BOX-L', 200.000),
+('P-0025', '防潮内衬小', '张', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-004'), 'BOX-M', 100.000),
+('P-0026', '防潮内衬大', '张', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-004'), 'BOX-L', 200.000),
+('P-0027', '缓冲泡棉10mm', '张', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-004'), 'BOX-L', 200.000),
+('P-0028', '缓冲泡棉20mm', '张', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-004'), 'BOX-L', 200.000),
+('P-0029', '标签纸60mm', '卷', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-004'), 'BOX-S', 50.000),
+('P-0030', '标签纸80mm', '卷', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-004'), 'BOX-S', 50.000),
+('P-0031', '封箱胶带透明', '卷', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-004'), 'BOX-M', 100.000),
+('P-0032', '封箱胶带黄色', '卷', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-004'), 'BOX-M', 100.000),
+('P-0033', '冲压支架左', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-005'), 'BOX-L', 200.000),
+('P-0034', '冲压支架右', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-005'), 'BOX-L', 200.000),
+('P-0035', '固定底板小', '块', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-005'), 'BOX-L', 200.000),
+('P-0036', '固定底板大', '块', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-005'), 'RACK-A', 500.000),
+('P-0037', '防护罩上盖', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-005'), 'RACK-A', 500.000),
+('P-0038', '防护罩下盖', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-005'), 'RACK-A', 500.000),
+('P-0039', '外协半成品A', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-005'), 'TP-BOX', 100.000),
+('P-0040', '外协半成品B', '个', (SELECT `id` FROM `supplier` WHERE `supplier_code` = 'SUP-005'), 'TP-BOX', 100.000);
+
+UPDATE `part` SET `category_code` = 'MECHANICAL'
+WHERE `part_code` IN (
+  'P-0001', 'P-0002', 'P-0003', 'P-0004', 'P-0005', 'P-0006', 'P-0007', 'P-0008',
+  'P-0017', 'P-0018', 'P-0019', 'P-0020', 'P-0021', 'P-0022', 'P-0023', 'P-0024',
+  'P-0033', 'P-0034', 'P-0035', 'P-0036', 'P-0037', 'P-0038'
+);
+UPDATE `part` SET `category_code` = 'ELECTRONIC'
+WHERE `part_code` IN ('P-0009', 'P-0010', 'P-0011', 'P-0012', 'P-0013', 'P-0014', 'P-0015', 'P-0016');
+UPDATE `part` SET `category_code` = 'PACKAGING'
+WHERE `part_code` IN ('P-0025', 'P-0026', 'P-0027', 'P-0028', 'P-0029', 'P-0030', 'P-0031', 'P-0032');
+UPDATE `part` SET `category_code` = 'OUTSOURCED'
+WHERE `part_code` IN ('P-0039', 'P-0040');
+
+-- 十、系统基础数据：默认角色、默认账号、菜单和角色菜单绑定。
 INSERT INTO `app_role` (`role_code`, `role_name`, `permission_level`, `description`, `enabled`, `created_at`) VALUES
 ('SUPER_ADMIN', '超级管理员', 'ADMIN', '拥有全部菜单和系统管理权限', b'1', NOW(6)),
 ('WAREHOUSE_MANAGER', '仓库主管', 'MANAGER', '可管理仓储业务和基础资料', b'1', NOW(6)),
@@ -612,9 +1132,11 @@ INSERT INTO `menu_item` (`parent_id`, `menu_key`, `menu_name`, `menu_type`, `pat
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'inbound', '入库', 'LEAF', 'inbound', 'inbound', 'inbound', 21, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'outbound', '出库', 'LEAF', 'outbound', 'outbound', 'outbound', 22, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'mobile-scan', '移动扫码', 'LEAF', 'mobile-scan', 'mobileScan', 'scan', 23, b'1'),
-((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'repack', '转包', 'LEAF', 'repack', 'repack', 'repack', 23, b'1'),
-((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'repack-balance', '转包结余', 'LEAF', 'repack-balance', 'repackBalance', 'balance', 24, b'1'),
-((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'transfer-freeze', '移库/封存', 'LEAF', 'transfer-freeze', 'transferFreeze', 'transfer', 25, b'1'),
+((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'repack', '库存迁移/转包', 'LEAF', 'repack', 'repack', 'repack', 23, b'1'),
+((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'repack-balance', '库存迁移/转包', 'LEAF', 'repack-balance', 'repack', 'repack', 24, b'0'),
+((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'transfer', '移库', 'LEAF', 'transfer', 'transfer', 'transfer', 25, b'1'),
+((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'freeze', '封存', 'LEAF', 'freeze', 'freeze', 'lock', 26, b'1'),
+((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'inventory-ops') p), 'transfer-freeze', '移库/封存', 'LEAF', 'transfer-freeze', 'transferFreeze', 'transfer', 27, b'0'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'equipment-info') p), 'equipment-normal', '普通器具', 'LEAF', 'equipment-normal', 'equipmentNormal', 'box', 61, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'equipment-info') p), 'equipment-repack', '转包器具', 'LEAF', 'equipment-repack', 'equipmentRepack', 'package', 62, b'1'),
 ((SELECT `id` FROM (SELECT `id` FROM `menu_item` WHERE `menu_key` = 'part-info') p), 'part-management', '零件管理', 'LEAF', 'part-management', 'partManagement', 'parts', 71, b'1'),
@@ -649,14 +1171,14 @@ WHERE `menu_key` IN ('home', 'inventory-board', 'kanban-info', 'io-records');
 INSERT IGNORE INTO `role_menu` (`role_code`, `menu_id`)
 SELECT 'WAREHOUSE_OPERATOR', `id` FROM `menu_item`
 WHERE `menu_key` IN (
-  'home', 'inventory-ops', 'inbound', 'outbound', 'repack', 'repack-balance', 'transfer-freeze',
+  'home', 'inventory-ops', 'inbound', 'outbound', 'repack', 'transfer', 'freeze',
   'inventory-board', 'kanban-info', 'io-records'
 );
 
 INSERT IGNORE INTO `role_menu` (`role_code`, `menu_id`)
 SELECT 'WAREHOUSE_MANAGER', `id` FROM `menu_item`
 WHERE `menu_key` IN (
-  'home', 'inventory-ops', 'inbound', 'outbound', 'repack', 'repack-balance', 'transfer-freeze',
+  'home', 'inventory-ops', 'inbound', 'outbound', 'repack', 'transfer', 'freeze',
   'inventory-board', 'kanban-info', 'io-records',
   'equipment-info', 'equipment-normal', 'equipment-repack',
   'part-info', 'part-management', 'category-management',
@@ -682,9 +1204,18 @@ INSERT INTO `config_item` (`module_key`, `item_code`, `item_name`, `status`, `re
 ('parameterSettings', 'defaultLocation', '默认库位', 'ENABLED', '', NOW(6)),
 ('systemTools', 'qrPrinter', '二维码打印', 'ENABLED', '用于看板二维码和条码打印', NOW(6)),
 ('categoryManagement', 'DEFAULT', '默认分类', 'ENABLED', '默认零件分类', NOW(6)),
+('categoryManagement', 'MECHANICAL', '机械件', 'ENABLED', '齿轮、轴、支架等机械零件', NOW(6)),
+('categoryManagement', 'ELECTRONIC', '电子件', 'ENABLED', '控制板、线束、传感器等电子零件', NOW(6)),
+('categoryManagement', 'PACKAGING', '包装辅料', 'ENABLED', '内衬、标签、胶带等包装材料', NOW(6)),
+('categoryManagement', 'OUTSOURCED', '外协件', 'ENABLED', '第三方转包或外协半成品', NOW(6)),
 ('inventoryWarning', 'DEFAULT', '默认库存预警', 'ENABLED', '{"critical":10,"low":30,"attention":60}', NOW(6))
 ON DUPLICATE KEY UPDATE
   `item_name` = VALUES(`item_name`),
   `status` = VALUES(`status`),
   `remark` = VALUES(`remark`);
+
+
+
+
+
 

@@ -5,6 +5,11 @@ package com.example.wms.repo;
 
 import com.example.wms.domain.InboundOrder;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface InboundOrderRepository extends JpaRepository<InboundOrder, Long> {
+import java.util.Optional;
+
+public interface InboundOrderRepository extends JpaRepository<InboundOrder, Long>, JpaSpecificationExecutor<InboundOrder> {
+
+    Optional<InboundOrder> findByInboundNoIgnoreCase(String inboundNo);
 }

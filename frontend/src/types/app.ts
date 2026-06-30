@@ -40,6 +40,14 @@ export type AuthSession = {
   user: CurrentUser;
 }
 
+export type PageResult<T> = {
+  records: T[];
+  total: number;
+  page: number;
+  size: number;
+  totalPages: number;
+}
+
 export type SystemUser = {
   id: number;
   username: string;
@@ -76,6 +84,7 @@ export type Part = {
   partCode: string;
   partName: string;
   unit: string;
+  categoryCode: string | null;
   supplierId: number | null;
   defaultEquipmentCode: string | null;
   defaultUnitPerBox: number | null;
@@ -120,6 +129,7 @@ export type InboundOrderItem = {
 export type InboundOrder = {
   id: number;
   inboundNo: string;
+  qrContent: string;
   supplierId: number;
   supplierName: string;
   status: string;
@@ -131,12 +141,17 @@ export type OutboundOrderItem = {
   id: number;
   kanbanId: number | null;
   kanbanNo: string;
+  allocationDetail: string;
   partId: number;
   partCode: string;
   partName: string;
   unit: string;
   plannedQty: number;
   scannedQty: number;
+  boxCount: number;
+  equipmentCode: string | null;
+  unitPerBox: number;
+  locationCode: string;
   warehouseName: string;
   zoneName: string;
 }
@@ -144,6 +159,7 @@ export type OutboundOrderItem = {
 export type OutboundOrder = {
   id: number;
   outboundNo: string;
+  qrContent: string;
   customerId: number | null;
   customerName: string;
   inboundOrderNos: string[];
@@ -157,8 +173,6 @@ export type Kanban = {
   kanbanNo: string;
   barcode: string;
   qrContent: string;
-  parentKanbanId: number | null;
-  parentKanban: boolean;
   boxIndex: number;
   inboundNo: string;
   outboundNo: string;
@@ -170,6 +184,13 @@ export type Kanban = {
   supplierName: string;
   batchNo: string;
   qty: number;
+  availableQty: number;
+  reservedQty: number;
+  reservedTransferQty: number;
+  outboundQty: number;
+  sourceKanbanId: number | null;
+  transferOrderNo: string;
+  frozenPreviousStatus: string;
   boxCount: number;
   pendingRepack: boolean;
   equipmentCode: string;
@@ -177,13 +198,13 @@ export type Kanban = {
   unitPerBox: number;
   warehouseName: string;
   zoneName: string;
+  warehouseType: 'OWN' | 'THIRD_PARTY';
   status: string;
   locationId: number | null;
   locationCode: string;
   createdAt: string;
   inboundTime: string | null;
   outboundTime: string | null;
-  children: Kanban[];
 }
 
 export type ScanResult = {
@@ -191,7 +212,7 @@ export type ScanResult = {
   message: string;
   barcode: string;
   scannedKanbanNo: string;
-  parentKanbanNo: string | null;
+  inboundOrderNo: string | null;
   outboundOrderNo: string | null;
   status: string;
   affectedCount: number;
@@ -212,16 +233,48 @@ export type InventoryRow = {
   updatedAt: string;
 }
 
+export type InventoryPartSummary = {
+  partId: number;
+  partCode: string;
+  partName: string;
+  supplierId: number | null;
+  supplierName: string;
+  totalQty: number;
+  locationCount: number;
+  latestUpdatedAt: string;
+}
+
 export type TransactionRow = {
   id: number;
   transactionNo: string;
   businessType: string;
   businessNo: string;
+  operationNo: string;
   barcode: string;
   partCode: string;
   locationCode: string;
   qtyChange: number;
   remark: string;
+  createdAt: string;
+}
+
+export type InventoryOperationOrderRow = {
+  id: number;
+  operationNo: string;
+  operationType: string;
+  businessNo: string;
+  sourceKanbanNo: string | null;
+  targetKanbanNo: string | null;
+  sourceBarcode: string | null;
+  targetBarcode: string | null;
+  partId: number;
+  partCode: string;
+  sourceLocationCode: string;
+  targetLocationCode: string;
+  qty: number;
+  sourceStatus: string | null;
+  targetStatus: string | null;
+  remark: string | null;
   createdAt: string;
 }
 
@@ -433,17 +486,20 @@ export type WorkspaceTab = {
 
 export type InboundDraftItem = {
   partId: number;
-  plannedQty: number;
-  boxCount: number;
+  plannedQty: number | null;
+  boxCount: number | null;
   pendingRepack: boolean;
   equipmentCode: string;
-  unitPerBox: number;
+  unitPerBox: number | null;
   warehouseZone: string;
 }
 
 export type OutboundDraftItem = {
   partId: number;
+  plannedQty: number;
   boxCount: number;
+  equipmentCode?: string | null;
+  unitPerBox: number;
   locationCode: string;
 }
 
@@ -475,7 +531,6 @@ export type AppActions = {
   refreshAll: () => Promise<void>;
   refreshMenus: () => Promise<void>;
   refreshSystemSecurity: () => Promise<void>;
-  loadKanbanChildren: (parentId: number) => Promise<Kanban[]>;
   createUser: (payload: { username: string; password?: string; displayName: string; roleName: string; avatarColor?: string }) => Promise<void>;
   updateUser: (id: number, payload: { username: string; password?: string; displayName: string; roleName: string; avatarColor?: string }) => Promise<void>;
   deleteUser: (id: number) => Promise<void>;
@@ -484,15 +539,19 @@ export type AppActions = {
   deleteRole: (id: number) => Promise<void>;
   assignRoleMenus: (roleCode: string, menuIds: number[]) => Promise<void>;
   createSupplier: (payload: { supplierCode: string; supplierName: string }) => Promise<void>;
+  deleteSupplier: (id: number) => Promise<void>;
   createCustomer: (payload: { customerCode: string; customerName: string }) => Promise<void>;
+  deleteCustomer: (id: number) => Promise<void>;
   createPart: (payload: {
     partCode: string;
     partName: string;
     unit: string;
+    categoryCode?: string | null;
     supplierId?: number | null;
     defaultEquipmentCode?: string | null;
     defaultUnitPerBox?: number | null;
   }) => Promise<void>;
+  deletePart: (id: number) => Promise<void>;
   createEquipment: (payload: {
     equipmentCode: string
     equipmentName: string
@@ -510,17 +569,24 @@ export type AppActions = {
     zoneName: string
     warehouseType: 'OWN' | 'THIRD_PARTY'
   }) => Promise<void>;
+  deleteLocation: (id: number) => Promise<void>;
   createInboundOrder: (payload: { supplierId: number; items: InboundDraftItem[] }) => Promise<void>;
+  returnInboundOrder: (orderId: number) => Promise<void>;
   createOutboundOrder: (payload: { customerId: number | null; items: OutboundDraftItem[] }) => Promise<void>;
+  cancelOutboundOrder: (orderId: number) => Promise<void>;
   manualInventoryEntry: (payload: { partId: number; locationId: number; qty: number; remark: string }) => Promise<void>;
   generateKanbans: (orderId: number) => Promise<void>;
   scanInbound: (payload: { barcode: string; locationCode: string }) => Promise<ScanResult>;
+  scanInboundBatch: (payload: { scanCode: string; locationCode: string; kanbanIds: number[] }) => Promise<ScanResult>;
   scanOutbound: (payload: { barcode: string; outboundOrderNo: string }) => Promise<ScanResult>;
-  transferKanban: (payload: { barcode: string; inboundOrderNo: string; locationCode: string; remark?: string }) => Promise<void>;
+  transferKanban: (payload: { barcode: string; inboundOrderNo: string; locationCode: string; qty?: number | null; remark?: string }) => Promise<void>;
+  transferKanbans: (payload: { barcodes: string[]; locationCode: string; remark?: string }) => Promise<void>;
   freezeKanban: (payload: { barcode: string; frozen: boolean; remark?: string }) => Promise<void>;
-  repackOutbound: (payload: { barcode: string; locationCode: string; remark?: string }) => Promise<void>;
+  freezeKanbans: (payload: { barcodes: string[]; frozen: boolean; remark?: string }) => Promise<void>;
+  repackOutbound: (payload: { barcode: string; locationCode: string; qty?: number | null; remark?: string }) => Promise<void>;
+  repackOutboundBatch: (payload: { barcodes: string[]; locationCode: string; remark?: string }) => Promise<void>;
   repackInbound: (payload: { barcode: string; locationCode: string; qty: number; remark?: string }) => Promise<void>;
-  adjustKanbanBalance: (payload: { barcode: string; qty: number; remark?: string }) => Promise<void>;
+  repackInboundBatch: (payload: { barcodes: string[]; locationCode: string; remark?: string }) => Promise<void>;
   createMenu: (payload: Omit<FlatMenu, 'id' | 'visible'> & { visible?: boolean }) => Promise<void>;
   updateMenu: (id: number, payload: Omit<FlatMenu, 'id'>) => Promise<void>;
   deleteMenu: (id: number) => Promise<void>;

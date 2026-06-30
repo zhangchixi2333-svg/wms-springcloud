@@ -95,6 +95,12 @@ select {
   padding: 0 22px 22px;
 }
 
+.workspace-body > *,
+.stack,
+.panel {
+  min-width: 0;
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -294,6 +300,17 @@ select {
 .secondary-button {
   background: var(--surface-alt);
   color: var(--text);
+}
+
+.batch-action-button {
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.batch-action-button:hover:not(:disabled) {
+  background: rgba(15, 118, 110, 0.14);
 }
 
 .inbound {

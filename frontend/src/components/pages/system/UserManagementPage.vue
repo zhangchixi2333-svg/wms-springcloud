@@ -1,9 +1,11 @@
 <!-- 本文件实现 UserManagementPage 页面组件。 -->
 <script setup lang="ts">
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import PageModal from '../../shared/PageModal.vue'
 import type { PageModel, SystemUser } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
+const editorOpen = ref(false)
 
 const form = reactive({
   id: 0,
@@ -31,6 +33,16 @@ function resetForm() {
   form.avatarColor = ''
 }
 
+function openCreateUser() {
+  resetForm()
+  editorOpen.value = true
+}
+
+function closeEditor() {
+  editorOpen.value = false
+  resetForm()
+}
+
 function editUser(user: SystemUser) {
   form.id = user.id
   form.username = user.username
@@ -38,6 +50,7 @@ function editUser(user: SystemUser) {
   form.displayName = user.displayName
   form.roleName = user.roleName
   form.avatarColor = user.avatarColor
+  editorOpen.value = true
 }
 
 async function submit() {
@@ -53,7 +66,7 @@ async function submit() {
   } else {
     await props.model.actions.createUser(payload)
   }
-  resetForm()
+  closeEditor()
 }
 
 async function removeUser(id: number) {
@@ -71,7 +84,8 @@ watch(roleOptions, ensureRoleSelected, { immediate: true })
 
 <template>
   <section class="stack">
-    <section class="panel">
+    <PageModal :open="editorOpen" @close="closeEditor">
+      <section class="panel">
       <div class="section-head">
         <div>
           <h3>用户管理</h3>
@@ -94,11 +108,21 @@ watch(roleOptions, ensureRoleSelected, { immediate: true })
       <p v-if="!roleOptions.length" class="muted role-empty">暂无可用角色，请先在角色管理中创建并启用角色。</p>
       <div class="button-row">
         <button @click="submit">{{ form.id ? '更新用户' : '新增用户' }}</button>
-        <button class="secondary-button" @click="resetForm">清空表单</button>
+        <button class="secondary-button" @click="closeEditor">返回列表</button>
       </div>
-    </section>
+      </section>
+    </PageModal>
 
     <section class="panel">
+      <div class="section-head">
+        <div>
+          <h3>用户列表</h3>
+          <p>新增或编辑用户会在当前页面浮窗中完成。</p>
+        </div>
+        <div class="actions">
+          <button @click="openCreateUser">新增用户</button>
+        </div>
+      </div>
       <table class="table">
         <thead>
           <tr>

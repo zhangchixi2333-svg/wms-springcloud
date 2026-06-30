@@ -4,6 +4,7 @@ const API_BASE =
   '/api'
 
 const TOKEN_KEY = 'wms-auth-token'
+const DEFAULT_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 20000)
 
 const statusMessageMap: Record<number, string> = {
   400: '请求参数有误',
@@ -39,27 +40,47 @@ export function clearAuthToken() {
 
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getAuthToken()
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  const externalSignal = options?.signal
+  const abortFromExternal = () => controller.abort()
+  if (externalSignal?.aborted) {
+    controller.abort()
+  } else {
+    externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
+  }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options?.headers ?? {}),
-    },
-  })
-
-  const text = await response.text()
-  let payload: { success?: boolean; message?: string; data?: T }
   try {
-    payload = text ? JSON.parse(text) : { success: response.ok, message: response.statusText }
-  } catch {
-    payload = { success: response.ok, message: text || response.statusText }
-  }
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options?.headers ?? {}),
+      },
+    })
 
-  if (!response.ok || payload.success === false) {
-    throw new ApiRequestError(payload.message || statusMessageMap[response.status] || '请求失败', response.status)
-  }
+    const text = await response.text()
+    let payload: { success?: boolean; message?: string; data?: T }
+    try {
+      payload = text ? JSON.parse(text) : { success: response.ok, message: response.statusText }
+    } catch {
+      payload = { success: response.ok, message: text || response.statusText }
+    }
 
-  return payload.data as T
+    if (!response.ok || payload.success === false) {
+      throw new ApiRequestError(payload.message || statusMessageMap[response.status] || '请求失败', response.status)
+    }
+
+    return payload.data as T
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiRequestError('请求超时，请检查网络或稍后重试', 408)
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeoutId)
+    externalSignal?.removeEventListener('abort', abortFromExternal)
+  }
 }

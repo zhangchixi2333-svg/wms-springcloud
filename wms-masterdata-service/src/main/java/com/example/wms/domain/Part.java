@@ -23,6 +23,9 @@ public class Part {
     @Column(nullable = false, length = 32)
     private String unit;
 
+    @Column(name = "category_code", length = 64)
+    private String categoryCode;
+
     @Column(name = "supplier_id")
     private Long supplierId;
 
@@ -58,6 +61,14 @@ public class Part {
 
     public void setUnit(String unit) {
         this.unit = unit;
+    }
+
+    public String getCategoryCode() {
+        return categoryCode;
+    }
+
+    public void setCategoryCode(String categoryCode) {
+        this.categoryCode = categoryCode;
     }
 
     public Long getSupplierId() {

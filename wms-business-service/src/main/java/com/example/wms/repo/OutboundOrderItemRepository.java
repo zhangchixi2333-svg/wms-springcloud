@@ -13,5 +13,7 @@ public interface OutboundOrderItemRepository extends JpaRepository<OutboundOrder
 
     List<OutboundOrderItem> findByOutboundOrderId(Long outboundOrderId);
 
+    List<OutboundOrderItem> findByOutboundOrderIdIn(List<Long> outboundOrderIds);
+
     Optional<OutboundOrderItem> findByOutboundOrderIdAndKanbanId(Long outboundOrderId, Long kanbanId);
 }

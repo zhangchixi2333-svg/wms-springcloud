@@ -8,6 +8,7 @@ export type WarehouseZoneOption = {
   value: string
   warehouseName: string
   zoneName: string
+  warehouseType: 'OWN' | 'THIRD_PARTY'
 }
 
 function uniqueValues(values: string[]) {
@@ -35,6 +36,7 @@ export function warehouseZoneOptions(locations: Location[]): WarehouseZoneOption
       value,
       warehouseName: item.warehouseName,
       zoneName: item.zoneName,
+      warehouseType: item.warehouseType,
     })
   })
   return Array.from(optionMap.values())

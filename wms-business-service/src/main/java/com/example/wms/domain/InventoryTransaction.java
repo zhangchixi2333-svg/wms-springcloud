@@ -37,6 +37,9 @@ public class InventoryTransaction {
     @Column(nullable = false, length = 64)
     private String businessNo;
 
+    @Column(nullable = false, length = 64)
+    private String operationNo;
+
     @Column(length = 255)
     private String remark;
 
@@ -101,6 +104,14 @@ public class InventoryTransaction {
 
     public void setBusinessNo(String businessNo) {
         this.businessNo = businessNo;
+    }
+
+    public String getOperationNo() {
+        return operationNo;
+    }
+
+    public void setOperationNo(String operationNo) {
+        this.operationNo = operationNo;
     }
 
     public String getRemark() {

@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotBlank;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.List;
 
 @RestController
@@ -26,6 +27,7 @@ public class ConfigController {
 
     @GetMapping
     public ApiResponse<List<ConfigItemView>> list(@RequestParam String moduleKey) {
+        ensureDefaultItems(moduleKey);
         return ApiResponse.ok(configItemRepository.findByModuleKeyOrderByCreatedAtDescIdDesc(moduleKey).stream()
                 .map(this::toView)
                 .toList());
@@ -34,7 +36,7 @@ public class ConfigController {
     @PostMapping
     public ApiResponse<ConfigItemView> create(@Valid @RequestBody ConfigItemRequest request) {
         configItemRepository.findByModuleKeyAndItemCode(request.moduleKey(), request.itemCode()).ifPresent(existing -> {
-            throw new BusinessException("????????????");
+            throw new BusinessException("配置项编码已存在");
         });
         ConfigItem item = new ConfigItem();
         item.setModuleKey(request.moduleKey());
@@ -49,10 +51,10 @@ public class ConfigController {
     @PutMapping("/{id}")
     public ApiResponse<ConfigItemView> update(@PathVariable Long id, @Valid @RequestBody ConfigItemRequest request) {
         ConfigItem item = configItemRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("??????"));
+                .orElseThrow(() -> new BusinessException("配置项不存在"));
         configItemRepository.findByModuleKeyAndItemCode(request.moduleKey(), request.itemCode()).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
-                throw new BusinessException("????????????");
+                throw new BusinessException("配置项编码已存在");
             }
         });
         item.setModuleKey(request.moduleKey());
@@ -66,7 +68,7 @@ public class ConfigController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         configItemRepository.deleteById(id);
-        return ApiResponse.okMessage("Config item deleted");
+        return ApiResponse.okMessage("配置项已删除");
     }
 
     private ConfigItemView toView(ConfigItem item) {
@@ -78,6 +80,31 @@ public class ConfigController {
                 item.getStatus(),
                 item.getRemark(),
                 item.getCreatedAt()
+        );
+    }
+
+    private void ensureDefaultItems(String moduleKey) {
+        if (!"categoryManagement".equals(moduleKey)) {
+            return;
+        }
+        Map<String, String> defaults = Map.of(
+                "DEFAULT", "默认分类",
+                "MECHANICAL", "机械件",
+                "ELECTRONIC", "电子件",
+                "PACKAGING", "包装辅料",
+                "OUTSOURCED", "外协件"
+        );
+        defaults.forEach((code, name) ->
+                configItemRepository.findByModuleKeyAndItemCode(moduleKey, code).orElseGet(() -> {
+                    ConfigItem item = new ConfigItem();
+                    item.setModuleKey(moduleKey);
+                    item.setItemCode(code);
+                    item.setItemName(name);
+                    item.setStatus("ENABLED");
+                    item.setRemark("系统默认零件分类");
+                    item.setCreatedAt(LocalDateTime.now());
+                    return configItemRepository.save(item);
+                })
         );
     }
 

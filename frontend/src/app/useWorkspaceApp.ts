@@ -41,7 +41,6 @@ export function useWorkspaceApp() {
   const activeMenuKey = ref('home')
   const BUSINESS_SYNC_INTERVAL_MS = 6000
   let businessSyncTimer: number | undefined
-  let businessRefreshInFlight: Promise<void> | null = null
   let lastTransactionSignature = ''
 
   function setNotice(message: string) {
@@ -57,38 +56,7 @@ export function useWorkspaceApp() {
         ...item,
       })
     })
-    kanbans
-      .filter((item) => item.parentKanbanId)
-      .forEach((child) => {
-        const parent = existing.get(child.parentKanbanId as number)
-        if (!parent) return
-        const children = new Map((parent.children ?? []).map((item) => [item.id, item]))
-        children.set(child.id, { ...(children.get(child.id) ?? {}), ...child })
-        existing.set(parent.id, {
-          ...parent,
-          children: Array.from(children.values()).sort((a, b) => (a.boxIndex ?? 0) - (b.boxIndex ?? 0) || a.id - b.id),
-        })
-      })
     state.kanbans = Array.from(existing.values())
-  }
-
-  async function loadKanbanChildren(parentId: number) {
-    const parent = state.kanbans.find((item) => item.id === parentId)
-    if (parent?.children?.length) return parent.children
-    const children = await api.listKanbanChildren(parentId)
-    mergeKanbans(children)
-    return children
-  }
-
-  function replaceKanbanParents(kanbans: Kanban[]) {
-    const cachedChildren = new Map<number, Kanban[]>()
-    state.kanbans
-      .filter((item) => item.parentKanban && item.children?.length)
-      .forEach((item) => cachedChildren.set(item.id, item.children))
-    state.kanbans = kanbans.map((item) => ({
-      ...item,
-      children: item.parentKanban ? cachedChildren.get(item.id) ?? item.children ?? [] : item.children ?? [],
-    }))
   }
 
   function isLoginExpired(error: unknown) {
@@ -237,17 +205,8 @@ export function useWorkspaceApp() {
     state.roles = roles
   }
 
-  function transactionSignature(transactions: AppState['transactions']) {
-    const latest = transactions[0]
-    return `${transactions.length}:${latest?.id ?? ''}:${latest?.createdAt ?? ''}:${latest?.transactionNo ?? ''}`
-  }
-
   function transactionVersionSignature(version: TransactionVersion) {
-    return `${version.total}:${version.latestId ?? ''}:${version.latestCreatedAt ?? ''}:${version.latestTransactionNo ?? ''}`
-  }
-
-  function rememberTransactionSignature(transactions: AppState['transactions']) {
-    lastTransactionSignature = transactionSignature(transactions)
+    return `${version.latestId ?? ''}:${version.latestCreatedAt ?? ''}:${version.latestTransactionNo ?? ''}`
   }
 
   async function refreshReferenceData(silent = false) {
@@ -271,106 +230,20 @@ export function useWorkspaceApp() {
     }
   }
 
-  async function refreshInboundData(silent = false) {
-    try {
-      const [inboundOrders, kanbans, inventory, transactions] = await Promise.all([
-        api.listInboundOrders(),
-        api.listKanbans(),
-        api.listInventory(),
-        api.listTransactions(),
-      ])
-      state.inboundOrders = inboundOrders
-      replaceKanbanParents(kanbans)
-      state.inventory = inventory
-      state.transactions = transactions
-      rememberTransactionSignature(transactions)
-      if (!silent) setNotice('入库数据已刷新')
-    } catch (error) {
-      handleRefreshError(error, '入库数据刷新失败', silent)
-      if (!silent) throw error
-    }
-  }
-
-  async function refreshOutboundData(silent = false) {
-    try {
-      const [outboundOrders, kanbans, inventory, transactions] = await Promise.all([
-        api.listOutboundOrders(),
-        api.listKanbans(),
-        api.listInventory(),
-        api.listTransactions(),
-      ])
-      state.outboundOrders = outboundOrders
-      replaceKanbanParents(kanbans)
-      state.inventory = inventory
-      state.transactions = transactions
-      rememberTransactionSignature(transactions)
-      if (!silent) setNotice('出库数据已刷新')
-    } catch (error) {
-      handleRefreshError(error, '出库数据刷新失败', silent)
-      if (!silent) throw error
-    }
-  }
-
-  async function refreshInventoryData(silent = false) {
-    try {
-      const [kanbans, inventory, transactions] = await Promise.all([
-        api.listKanbans(),
-        api.listInventory(),
-        api.listTransactions(),
-      ])
-      replaceKanbanParents(kanbans)
-      state.inventory = inventory
-      state.transactions = transactions
-      rememberTransactionSignature(transactions)
-      if (!silent) setNotice('库存数据已刷新')
-    } catch (error) {
-      handleRefreshError(error, '库存数据刷新失败', silent)
-      if (!silent) throw error
-    }
-  }
-
-  async function refreshBusinessData(silent = false) {
-    if (businessRefreshInFlight) return businessRefreshInFlight
-    businessRefreshInFlight = (async () => {
-      try {
-        const [inboundOrders, outboundOrders, kanbans, inventory, transactions] = await Promise.all([
-          api.listInboundOrders(),
-          api.listOutboundOrders(),
-          api.listKanbans(),
-          api.listInventory(),
-          api.listTransactions(),
-        ])
-        state.inboundOrders = inboundOrders
-        state.outboundOrders = outboundOrders
-        replaceKanbanParents(kanbans)
-        state.inventory = inventory
-        state.transactions = transactions
-        rememberTransactionSignature(transactions)
-        if (!silent) setNotice('业务数据已刷新')
-      } catch (error) {
-        handleRefreshError(error, '业务数据刷新失败', silent)
-        if (!silent) throw error
-      } finally {
-        businessRefreshInFlight = null
-      }
-    })()
-    return businessRefreshInFlight
-  }
-
   function refreshBusinessDataInBackground() {
-    if (!getAuthToken() || !state.authenticated) return
-    void refreshBusinessData(true).catch(() => undefined)
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('wms-business-changed'))
   }
 
   async function pollBusinessChanges() {
-    if (!getAuthToken() || !state.authenticated || state.loading || businessRefreshInFlight) return
+    if (!getAuthToken() || !state.authenticated || state.loading) return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     try {
       const version = await api.transactionVersion()
       const nextSignature = transactionVersionSignature(version)
       if (nextSignature !== lastTransactionSignature) {
         lastTransactionSignature = nextSignature
-        await refreshBusinessData(true)
+        refreshBusinessDataInBackground()
       }
     } catch (error) {
       handleRefreshError(error, '自动同步业务数据失败', true)
@@ -422,11 +295,6 @@ export function useWorkspaceApp() {
         parts,
         equipment,
         locations,
-        inboundOrders,
-        outboundOrders,
-        kanbans,
-        inventory,
-        transactions,
       ] = await Promise.all([
         api.currentUser(),
         api.menuTree(),
@@ -438,11 +306,6 @@ export function useWorkspaceApp() {
         api.listParts(),
         api.listEquipment(),
         api.listLocations(),
-        api.listInboundOrders(),
-        api.listOutboundOrders(),
-        api.listKanbans(),
-        api.listInventory(),
-        api.listTransactions(),
       ])
 
       state.user = user
@@ -455,12 +318,12 @@ export function useWorkspaceApp() {
       state.parts = parts
       state.equipment = equipment
       state.locations = locations
-      state.inboundOrders = inboundOrders
-      state.outboundOrders = outboundOrders
-      replaceKanbanParents(kanbans)
-      state.inventory = inventory
-      state.transactions = transactions
-      rememberTransactionSignature(transactions)
+      state.inboundOrders = []
+      state.outboundOrders = []
+      state.kanbans = []
+      state.inventory = []
+      state.transactions = []
+      lastTransactionSignature = ''
 
       if (tabs.value.length === 0) {
         openLeaf(findLeaf('home') ?? findFirstLeaf(state.menuTree))
@@ -503,7 +366,6 @@ export function useWorkspaceApp() {
     refreshAll,
     refreshMenus,
     refreshSystemSecurity,
-    loadKanbanChildren,
     createUser: async (payload) => {
       await api.createUser(payload)
       await refreshSystemSecurity()
@@ -544,15 +406,30 @@ export function useWorkspaceApp() {
       await refreshReferenceData()
       setNotice('供应商已保存')
     },
+    deleteSupplier: async (id) => {
+      await api.deleteSupplier(id)
+      await refreshReferenceData()
+      setNotice('供应商已删除')
+    },
     createCustomer: async (payload) => {
       await api.createCustomer(payload)
       await refreshReferenceData()
       setNotice('客户已保存')
     },
+    deleteCustomer: async (id) => {
+      await api.deleteCustomer(id)
+      await refreshReferenceData()
+      setNotice('客户已删除')
+    },
     createPart: async (payload) => {
       await api.createPart(payload)
       await refreshReferenceData()
       setNotice('零件已保存')
+    },
+    deletePart: async (id) => {
+      await api.deletePart(id)
+      await refreshReferenceData()
+      setNotice('零件已删除')
     },
     createEquipment: async (payload) => {
       await api.createEquipment(payload)
@@ -564,30 +441,54 @@ export function useWorkspaceApp() {
       await refreshReferenceData()
       setNotice('仓库库区已保存')
     },
+    deleteLocation: async (id) => {
+      await api.deleteLocation(id)
+      await refreshReferenceData()
+      setNotice('仓库库区已删除')
+    },
     createInboundOrder: async (payload) => {
-      await api.createInboundOrder(payload)
-      await refreshInboundData()
+      const order = await api.createInboundOrder(payload)
+      state.inboundOrders = [order, ...state.inboundOrders.filter((item) => item.id !== order.id)]
+      const kanbans = await api.listKanbansPage({ inboundNo: order.inboundNo, page: 1, size: 500 })
+      mergeKanbans(kanbans.records)
+      refreshBusinessDataInBackground()
       setNotice('入库单已创建')
+    },
+    returnInboundOrder: async (orderId) => {
+      await api.returnInboundOrder(orderId)
+      refreshBusinessDataInBackground()
+      setNotice('入库单已退回')
     },
     createOutboundOrder: async (payload) => {
       await api.createOutboundOrder(payload)
-      await refreshOutboundData()
+      refreshBusinessDataInBackground()
       setNotice('出库单已创建')
+    },
+    cancelOutboundOrder: async (orderId) => {
+      await api.cancelOutboundOrder(orderId)
+      refreshBusinessDataInBackground()
+      setNotice('出库单已取消，锁定库存已释放')
     },
     manualInventoryEntry: async (payload) => {
       await api.manualInventoryEntry(payload)
-      await refreshInventoryData()
+      refreshBusinessDataInBackground()
       setNotice('手工入账已完成')
     },
     generateKanbans: async (orderId) => {
       await api.generateKanbans(orderId)
-      await refreshInboundData()
+      refreshBusinessDataInBackground()
       setNotice('看板已生成')
     },
     scanInbound: async (payload) => {
       const result = await api.scanInbound(payload)
       refreshBusinessDataInBackground()
       setNotice(result.message || `扫码入库成功：${payload.barcode}`)
+      return result
+    },
+    scanInboundBatch: async (payload) => {
+      const result = await api.scanInboundBatch(payload)
+      refreshBusinessDataInBackground()
+      setNotice(result.message || `扫码入库成功：${payload.scanCode}`)
       return result
     },
     scanOutbound: async (payload) => {
@@ -597,29 +498,52 @@ export function useWorkspaceApp() {
       return result
     },
     transferKanban: async (payload) => {
-      await api.transferKanban(payload)
-      await refreshInventoryData()
+      const kanban = await api.transferKanban(payload)
+      mergeKanbans([kanban])
+      refreshBusinessDataInBackground()
       setNotice(`移库完成：${payload.barcode}`)
     },
+    transferKanbans: async (payload) => {
+      const kanbans = await api.transferKanbans(payload)
+      mergeKanbans(kanbans)
+      refreshBusinessDataInBackground()
+      setNotice(`批量移库完成：${kanbans.length} 个看板`)
+    },
     freezeKanban: async (payload) => {
-      await api.freezeKanban(payload)
-      await refreshInventoryData()
+      const kanban = await api.freezeKanban(payload)
+      mergeKanbans([kanban])
+      refreshBusinessDataInBackground()
       setNotice(payload.frozen ? `看板已封存：${payload.barcode}` : `看板已解封：${payload.barcode}`)
     },
+    freezeKanbans: async (payload) => {
+      const kanbans = await api.freezeKanbans(payload)
+      mergeKanbans(kanbans)
+      refreshBusinessDataInBackground()
+      setNotice(payload.frozen ? `批量封存完成：${kanbans.length} 个看板` : `批量解封完成：${kanbans.length} 个看板`)
+    },
     repackOutbound: async (payload) => {
-      await api.repackOutbound(payload)
-      await refreshInventoryData()
-      setNotice(`转包出库完成：${payload.barcode}`)
+      const kanban = await api.repackOutbound(payload)
+      mergeKanbans([kanban])
+      refreshBusinessDataInBackground()
+      setNotice(`转包到第三方完成：${payload.barcode}`)
+    },
+    repackOutboundBatch: async (payload) => {
+      const kanbans = await api.repackOutboundBatch(payload)
+      mergeKanbans(kanbans)
+      refreshBusinessDataInBackground()
+      setNotice(`批量转包完成：${kanbans.length} 个看板`)
     },
     repackInbound: async (payload) => {
-      await api.repackInbound(payload)
-      await refreshInventoryData()
-      setNotice(`转包入库完成：${payload.barcode}`)
+      const kanban = await api.repackInbound(payload)
+      mergeKanbans([kanban])
+      refreshBusinessDataInBackground()
+      setNotice(`第三方返还完成：${payload.barcode}`)
     },
-    adjustKanbanBalance: async (payload) => {
-      await api.adjustKanbanBalance(payload)
-      await refreshInventoryData()
-      setNotice(`结余调整完成：${payload.barcode}`)
+    repackInboundBatch: async (payload) => {
+      const kanbans = await api.repackInboundBatch(payload)
+      mergeKanbans(kanbans)
+      refreshBusinessDataInBackground()
+      setNotice(`批量返还完成：${kanbans.length} 个看板`)
     },
     createMenu: async (payload) => {
       await api.createMenu(payload)

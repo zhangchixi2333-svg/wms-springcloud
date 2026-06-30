@@ -15,6 +15,7 @@ spring:
         webflux:
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials,RETAIN_FIRST
+            - SetResponseHeader=Content-Type, application/json;charset=UTF-8
           globalcors:
             cors-configurations:
               '[/**]':

@@ -68,9 +68,9 @@ public class SystemService {
 
     public AuthSessionView login(LoginRequest request) {
         AppUser user = appUserRepository.findByUsername(request.username())
-                .orElseThrow(() -> new BusinessException("????????"));
+                .orElseThrow(() -> new BusinessException("用户名或密码错误"));
         if (!hashPassword(request.password()).equals(user.getPasswordHash())) {
-            throw new BusinessException("????????");
+            throw new BusinessException("用户名或密码错误");
         }
         user.setAuthToken(UUID.randomUUID().toString().replace("-", ""));
         user = appUserRepository.save(user);
@@ -79,11 +79,11 @@ public class SystemService {
 
     public AuthSessionView register(RegisterRequest request) {
         appUserRepository.findByUsername(request.username()).ifPresent(existing -> {
-            throw new BusinessException("??????");
+            throw new BusinessException("用户名已存在");
         });
         String roleName = normalizeRole(request.roleName(), "WAREHOUSE_OPERATOR");
         if ("SUPER_ADMIN".equals(roleName)) {
-            throw new BusinessException("????????????");
+            throw new BusinessException("不能注册超级管理员角色");
         }
         AppUser user = new AppUser();
         user.setUsername(request.username());
@@ -114,7 +114,7 @@ public class SystemService {
     public UserView createUser(UserSaveRequest request) {
         requireAdmin();
         appUserRepository.findByUsername(request.username()).ifPresent(existing -> {
-            throw new BusinessException("??????");
+            throw new BusinessException("用户名已存在");
         });
         AppUser user = new AppUser();
         user.setUsername(request.username());
@@ -125,10 +125,10 @@ public class SystemService {
     public UserView updateUser(Long id, UserSaveRequest request) {
         requireAdmin();
         AppUser user = appUserRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("?????"));
+                .orElseThrow(() -> new NotFoundException("用户不存在"));
         appUserRepository.findByUsername(request.username()).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
-                throw new BusinessException("??????");
+                throw new BusinessException("用户名已存在");
             }
         });
         user.setUsername(request.username());
@@ -140,10 +140,10 @@ public class SystemService {
         requireAdmin();
         AppUser currentUser = AuthContext.getUser();
         if (currentUser.getId().equals(id)) {
-            throw new BusinessException("??????????");
+            throw new BusinessException("不能删除当前登录用户");
         }
         if (!appUserRepository.existsById(id)) {
-            throw new NotFoundException("?????");
+            throw new NotFoundException("用户不存在");
         }
         appUserRepository.deleteById(id);
     }
@@ -157,7 +157,7 @@ public class SystemService {
         requireAdmin();
         String roleCode = normalizeCode(request.roleCode());
         appRoleRepository.findByRoleCode(roleCode).ifPresent(existing -> {
-            throw new BusinessException("???????");
+            throw new BusinessException("角色编码已存在");
         });
         AppRole role = new AppRole();
         role.setRoleCode(roleCode);
@@ -170,11 +170,11 @@ public class SystemService {
     public RoleView updateRole(Long id, RoleSaveRequest request) {
         requireAdmin();
         AppRole role = appRoleRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("?????"));
+                .orElseThrow(() -> new NotFoundException("角色不存在"));
         String roleCode = normalizeCode(request.roleCode());
         appRoleRepository.findByRoleCode(roleCode).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
-                throw new BusinessException("???????");
+                throw new BusinessException("角色编码已存在");
             }
         });
         String oldCode = role.getRoleCode();
@@ -202,12 +202,12 @@ public class SystemService {
     public void deleteRole(Long id) {
         requireAdmin();
         AppRole role = appRoleRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("?????"));
+                .orElseThrow(() -> new NotFoundException("角色不存在"));
         if ("SUPER_ADMIN".equals(role.getRoleCode())) {
-            throw new BusinessException("?????????????");
+            throw new BusinessException("不能删除超级管理员角色");
         }
         if (appUserRepository.countByRoleName(role.getRoleCode()) > 0) {
-            throw new BusinessException("??????????????");
+            throw new BusinessException("该角色已绑定用户，不能删除");
         }
         roleMenuRepository.deleteByRoleCode(role.getRoleCode());
         appRoleRepository.deleteById(id);
@@ -216,7 +216,7 @@ public class SystemService {
     public RoleView assignRoleMenus(String roleCode, RoleMenuAssignRequest request) {
         requireAdmin();
         AppRole role = appRoleRepository.findByRoleCode(normalizeCode(roleCode))
-                .orElseThrow(() -> new NotFoundException("?????"));
+                .orElseThrow(() -> new NotFoundException("角色不存在"));
         saveRoleMenus(role.getRoleCode(), request.menuIds());
         return toRoleView(role);
     }
@@ -268,7 +268,7 @@ public class SystemService {
     public MenuView createMenu(MenuSaveRequest request) {
         requireAdmin();
         menuItemRepository.findByMenuKey(request.menuKey()).ifPresent(existing -> {
-            throw new BusinessException("???????");
+            throw new BusinessException("菜单编码已存在");
         });
         MenuItem menu = menuItemRepository.save(fromRequest(new MenuItem(), request));
         grantMenuToAdmins(menu.getId());
@@ -278,10 +278,10 @@ public class SystemService {
     public MenuView updateMenu(Long id, MenuSaveRequest request) {
         requireAdmin();
         MenuItem menuItem = menuItemRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("?????"));
+                .orElseThrow(() -> new NotFoundException("菜单不存在"));
         menuItemRepository.findByMenuKey(request.menuKey()).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
-                throw new BusinessException("???????");
+                throw new BusinessException("菜单编码已存在");
             }
         });
         return toView(menuItemRepository.save(fromRequest(menuItem, request)));
@@ -291,7 +291,7 @@ public class SystemService {
         requireAdmin();
         boolean hasChildren = menuItemRepository.findAll().stream().anyMatch(item -> id.equals(item.getParentId()));
         if (hasChildren) {
-            throw new BusinessException("???????");
+            throw new BusinessException("请先删除子菜单");
         }
         roleMenuRepository.deleteByMenuId(id);
         menuItemRepository.deleteById(id);
@@ -360,23 +360,23 @@ public class SystemService {
 
     private void requireAdmin() {
         if (!isAdmin(AuthContext.getUser().getRoleName())) {
-            throw new BusinessException("Permission denied");
+            throw new BusinessException("没有权限执行该操作");
         }
     }
 
     private String normalizeRole(String value, String fallback) {
         String role = normalizeCode(value == null || value.isBlank() ? fallback : value);
         AppRole appRole = appRoleRepository.findByRoleCode(role)
-                .orElseThrow(() -> new BusinessException("Role is not supported"));
+                .orElseThrow(() -> new BusinessException("角色不存在或不支持"));
         if (!appRole.isEnabled()) {
-            throw new BusinessException("Role is disabled");
+            throw new BusinessException("角色已停用");
         }
         return role;
     }
 
     private String normalizeCode(String value) {
         if (value == null || value.isBlank()) {
-            throw new BusinessException("Code is required");
+            throw new BusinessException("编码不能为空");
         }
         return value.trim().toUpperCase();
     }
@@ -386,7 +386,7 @@ public class SystemService {
         user.setRoleName(normalizeRole(request.roleName(), "WAREHOUSE_OPERATOR"));
         String password = request.password() == null ? "" : request.password().trim();
         if (creating && password.isEmpty()) {
-            throw new BusinessException("Password is required");
+            throw new BusinessException("密码不能为空");
         }
         if (!password.isEmpty()) {
             user.setPasswordHash(hashPassword(password));
@@ -400,7 +400,7 @@ public class SystemService {
     private void applyRoleRequest(AppRole role, RoleSaveRequest request) {
         String permissionLevel = normalizeCode(request.permissionLevel());
         if (!PERMISSION_LEVELS.contains(permissionLevel)) {
-            throw new BusinessException("Permission level is not supported");
+            throw new BusinessException("权限级别不支持");
         }
         role.setRoleName(request.roleName());
         role.setPermissionLevel(permissionLevel);
@@ -499,7 +499,7 @@ public class SystemService {
             }
             return builder.toString();
         } catch (NoSuchAlgorithmException ex) {
-            throw new BusinessException("Password hashing failed");
+            throw new BusinessException("密码加密失败");
         }
     }
 }

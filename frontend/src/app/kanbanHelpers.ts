@@ -10,11 +10,18 @@ export function normalizeScanCode(value: string) {
 export function findKanbanByScanCode(kanbans: Kanban[], scanCode: string) {
   const normalized = normalizeScanCode(scanCode)
   if (!normalized) return null
-  const direct = kanbans.find((item) => item.barcode === normalized || item.qrContent === normalized)
+  const direct = kanbans.find((item) =>
+    item.barcode === normalized
+    || item.qrContent === normalized
+    || item.kanbanNo.toLowerCase() === normalized.toLowerCase(),
+  )
   if (direct) return direct
   const parts = normalized.split('|')
   if (parts.length === 3 && parts[0] === 'WMS-KANBAN') {
-    return kanbans.find((item) => item.barcode === parts[2]) ?? null
+    return kanbans.find((item) =>
+      item.barcode === parts[2]
+      || item.kanbanNo.toLowerCase() === parts[1].toLowerCase(),
+    ) ?? null
   }
   return null
 }
@@ -25,8 +32,8 @@ export function findLocationForKanban(locations: Location[], kanban: Kanban | nu
 }
 
 export function compareKanbanFifo(left: Kanban, right: Kanban) {
-  return `${left.inboundTime ?? left.createdAt}-${left.parentKanbanId ?? 0}-${left.boxIndex}-${left.id}`
-    .localeCompare(`${right.inboundTime ?? right.createdAt}-${right.parentKanbanId ?? 0}-${right.boxIndex}-${right.id}`)
+  return `${left.inboundTime ?? left.createdAt}-${left.boxIndex}-${left.id}`
+    .localeCompare(`${right.inboundTime ?? right.createdAt}-${right.boxIndex}-${right.id}`)
 }
 
 export function formatDateTime(value: string | null | undefined) {

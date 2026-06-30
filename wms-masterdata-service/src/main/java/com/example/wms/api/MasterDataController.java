@@ -8,7 +8,9 @@ import com.example.wms.service.CatalogService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +39,12 @@ public class MasterDataController {
         return ApiResponse.ok(catalogService.createSupplier(request));
     }
 
+    @DeleteMapping("/suppliers/{id}")
+    public ApiResponse<Void> deleteSupplier(@PathVariable Long id) {
+        catalogService.deleteSupplier(id);
+        return ApiResponse.okMessage("供应商已删除");
+    }
+
     @GetMapping("/customers")
     public ApiResponse<List<CustomerView>> listCustomers() {
         return ApiResponse.ok(catalogService.listCustomers());
@@ -45,6 +53,12 @@ public class MasterDataController {
     @PostMapping("/customers")
     public ApiResponse<CustomerView> createCustomer(@Valid @RequestBody CustomerRequest request) {
         return ApiResponse.ok(catalogService.createCustomer(request));
+    }
+
+    @DeleteMapping("/customers/{id}")
+    public ApiResponse<Void> deleteCustomer(@PathVariable Long id) {
+        catalogService.deleteCustomer(id);
+        return ApiResponse.okMessage("客户已删除");
     }
 
     @GetMapping("/equipment")
@@ -67,6 +81,12 @@ public class MasterDataController {
         return ApiResponse.ok(catalogService.createPart(request));
     }
 
+    @DeleteMapping("/parts/{id}")
+    public ApiResponse<Void> deletePart(@PathVariable Long id) {
+        catalogService.deletePart(id);
+        return ApiResponse.okMessage("零件已删除");
+    }
+
     @GetMapping("/locations")
     public ApiResponse<List<LocationView>> listLocations() {
         return ApiResponse.ok(catalogService.listLocations());
@@ -75,6 +95,12 @@ public class MasterDataController {
     @PostMapping("/locations")
     public ApiResponse<LocationView> createLocation(@Valid @RequestBody LocationRequest request) {
         return ApiResponse.ok(catalogService.createLocation(request));
+    }
+
+    @DeleteMapping("/locations/{id}")
+    public ApiResponse<Void> deleteLocation(@PathVariable Long id) {
+        catalogService.deleteLocation(id);
+        return ApiResponse.okMessage("仓库库区已删除");
     }
 
     public record SupplierRequest(@NotBlank String supplierCode, @NotBlank String supplierName) {
@@ -113,6 +139,7 @@ public class MasterDataController {
     public record PartRequest(@NotBlank String partCode,
                               @NotBlank String partName,
                               @NotBlank String unit,
+                              String categoryCode,
                               Long supplierId,
                               String defaultEquipmentCode,
                               @DecimalMin("0.001") BigDecimal defaultUnitPerBox) {
@@ -122,6 +149,7 @@ public class MasterDataController {
                            String partCode,
                            String partName,
                            String unit,
+                           String categoryCode,
                            Long supplierId,
                            String defaultEquipmentCode,
                            BigDecimal defaultUnitPerBox) {

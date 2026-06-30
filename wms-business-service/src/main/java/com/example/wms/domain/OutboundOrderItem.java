@@ -32,6 +32,18 @@ public class OutboundOrderItem {
     @Column(nullable = false, precision = 18, scale = 3)
     private BigDecimal scannedQty;
 
+    @Column(nullable = false)
+    private Integer boxCount;
+
+    @Column(length = 64)
+    private String equipmentCode;
+
+    @Column(nullable = false, precision = 18, scale = 3)
+    private BigDecimal unitPerBox;
+
+    @Column(length = 64)
+    private String locationCode;
+
     @Column(length = 128)
     private String warehouseName;
 
@@ -88,6 +100,38 @@ public class OutboundOrderItem {
 
     public void setScannedQty(BigDecimal scannedQty) {
         this.scannedQty = scannedQty;
+    }
+
+    public Integer getBoxCount() {
+        return boxCount;
+    }
+
+    public void setBoxCount(Integer boxCount) {
+        this.boxCount = boxCount;
+    }
+
+    public String getEquipmentCode() {
+        return equipmentCode;
+    }
+
+    public void setEquipmentCode(String equipmentCode) {
+        this.equipmentCode = equipmentCode;
+    }
+
+    public BigDecimal getUnitPerBox() {
+        return unitPerBox;
+    }
+
+    public void setUnitPerBox(BigDecimal unitPerBox) {
+        this.unitPerBox = unitPerBox;
+    }
+
+    public String getLocationCode() {
+        return locationCode;
+    }
+
+    public void setLocationCode(String locationCode) {
+        this.locationCode = locationCode;
     }
 
     public String getWarehouseName() {

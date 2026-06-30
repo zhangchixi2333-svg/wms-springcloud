@@ -23,7 +23,7 @@ async function renderQr() {
     : ''
 }
 
-watch(() => props.text, renderQr, { immediate: true })
+watch(() => [props.text, props.size] as const, renderQr, { immediate: true })
 onMounted(renderQr)
 </script>
 

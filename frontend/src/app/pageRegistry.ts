@@ -67,10 +67,10 @@ export function resolvePage(tab: WorkspaceTab | undefined, flatMenus: FlatMenu[]
       return { component: EquipmentPage, props: { model, mode: 'repack' } }
     case 'repack':
       return { component: InventoryOpsPage, props: { model, mode: 'repack' } }
-    case 'repackBalance':
-      return { component: InventoryOpsPage, props: { model, mode: 'balance' } }
-    case 'transferFreeze':
-      return { component: InventoryOpsPage, props: { model, mode: 'transferFreeze' } }
+    case 'transfer':
+      return { component: InventoryOpsPage, props: { model, mode: 'transfer' } }
+    case 'freeze':
+      return { component: InventoryOpsPage, props: { model, mode: 'freeze' } }
     case 'departmentManagement':
     case 'postManagement':
     case 'dictionaryManagement':

@@ -1,11 +1,13 @@
 <!-- 本文件实现 MenuManagementPage 页面组件。 -->
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import PageModal from '../../shared/PageModal.vue'
 import type { FlatMenu, PageModel } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
 
 const selectedMenuId = ref<number | null>(null)
+const editorOpen = ref(false)
 
 const emptyForm = () => ({
   id: 0,
@@ -37,9 +39,9 @@ const pageOptions = [
   { value: 'home', label: '首页' },
   { value: 'inbound', label: '入库' },
   { value: 'outbound', label: '出库' },
-  { value: 'repack', label: '转包' },
-  { value: 'repackBalance', label: '转包结余' },
-  { value: 'transferFreeze', label: '移库/封存' },
+  { value: 'repack', label: '库存迁移/转包' },
+  { value: 'transfer', label: '移库' },
+  { value: 'freeze', label: '封存' },
   { value: 'inventoryBoard', label: '库存看板' },
   { value: 'kanbanInfo', label: '看板信息' },
   { value: 'records', label: '出入记录' },
@@ -63,7 +65,6 @@ const iconOptions = [
   'inbound',
   'outbound',
   'repack',
-  'balance',
   'transfer',
   'board',
   'kanban',
@@ -137,6 +138,7 @@ function startCreateRoot() {
     sortOrder: nextSort(rootMenus.value),
   })
   selectedRoleCodes.splice(0, selectedRoleCodes.length, ...adminRoleCodes())
+  editorOpen.value = true
 }
 
 function startCreateChild(parent: FlatMenu | null = selectedMenu.value) {
@@ -158,6 +160,7 @@ function startCreateChild(parent: FlatMenu | null = selectedMenu.value) {
     visible: true,
   })
   selectedRoleCodes.splice(0, selectedRoleCodes.length, ...rolesForMenu(parent.id))
+  editorOpen.value = true
 }
 
 function editMenu(menu: FlatMenu) {
@@ -175,11 +178,17 @@ function editMenu(menu: FlatMenu) {
     visible: menu.visible,
   })
   setRolesForMenu(menu.id)
+  editorOpen.value = true
 }
 
 function resetForm() {
   Object.assign(form, emptyForm())
   selectedRoleCodes.splice(0, selectedRoleCodes.length)
+}
+
+function closeEditor() {
+  editorOpen.value = false
+  resetForm()
 }
 
 function rolesForMenu(menuId: number) {
@@ -230,7 +239,7 @@ async function submit() {
   await syncRoleAssignments(form.menuKey)
   const saved = props.model.state.flatMenus.find((item) => item.menuKey === form.menuKey)
   selectedMenuId.value = saved?.id ?? selectedMenuId.value
-  resetForm()
+  closeEditor()
 }
 
 async function syncRoleAssignments(menuKey: string) {
@@ -351,7 +360,8 @@ async function removeMenu(menu: FlatMenu) {
       </div>
     </section>
 
-    <section class="panel">
+    <PageModal :open="editorOpen" wide @close="closeEditor">
+      <section class="panel">
       <div class="section-head">
         <div>
           <h3>{{ form.id ? '编辑菜单' : '新增菜单' }}</h3>
@@ -446,9 +456,10 @@ async function removeMenu(menu: FlatMenu) {
       </div>
       <div class="button-row">
         <button @click="submit">{{ form.id ? '更新菜单' : '保存新增菜单' }}</button>
-        <button class="secondary-button" @click="resetForm">清空表单</button>
+        <button class="secondary-button" @click="closeEditor">返回列表</button>
       </div>
-    </section>
+      </section>
+    </PageModal>
   </section>
 </template>
 

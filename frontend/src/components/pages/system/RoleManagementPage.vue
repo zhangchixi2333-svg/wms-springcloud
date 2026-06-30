@@ -1,9 +1,11 @@
 <!-- 本文件实现 RoleManagementPage 页面组件。 -->
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import PageModal from '../../shared/PageModal.vue'
 import type { FlatMenu, PageModel, SystemRole } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
+const editorOpen = ref(false)
 
 const form = reactive({
   id: 0,
@@ -31,6 +33,16 @@ function resetForm() {
   form.menuIds = []
 }
 
+function openCreateRole() {
+  resetForm()
+  editorOpen.value = true
+}
+
+function closeEditor() {
+  editorOpen.value = false
+  resetForm()
+}
+
 function editRole(role: SystemRole) {
   form.id = role.id
   form.roleCode = role.roleCode
@@ -39,6 +51,7 @@ function editRole(role: SystemRole) {
   form.description = role.description
   form.enabled = role.enabled
   form.menuIds = [...role.menuIds]
+  editorOpen.value = true
 }
 
 function toggleMenu(menuId: number, checked: boolean) {
@@ -78,7 +91,7 @@ async function submit() {
   } else {
     await props.model.actions.createRole(payload)
   }
-  resetForm()
+  closeEditor()
 }
 
 async function removeRole(id: number) {
@@ -89,7 +102,8 @@ async function removeRole(id: number) {
 
 <template>
   <section class="stack">
-    <section class="panel">
+    <PageModal :open="editorOpen" wide @close="closeEditor">
+      <section class="panel">
       <div class="section-head">
         <div>
           <h3>角色管理</h3>
@@ -139,11 +153,21 @@ async function removeRole(id: number) {
 
       <div class="button-row">
         <button @click="submit">{{ form.id ? '更新角色' : '新增角色' }}</button>
-        <button class="secondary-button" @click="resetForm">清空表单</button>
+        <button class="secondary-button" @click="closeEditor">返回列表</button>
       </div>
-    </section>
+      </section>
+    </PageModal>
 
     <section class="panel">
+      <div class="section-head">
+        <div>
+          <h3>角色列表</h3>
+          <p>新增或编辑角色会在当前页面浮窗中完成。</p>
+        </div>
+        <div class="actions">
+          <button @click="openCreateRole">新增角色</button>
+        </div>
+      </div>
       <table class="table">
         <thead>
           <tr>

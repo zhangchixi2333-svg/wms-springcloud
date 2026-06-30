@@ -12,11 +12,14 @@ import type {
   FlatMenu,
   InboundDraftItem,
   InboundOrder,
+  InventoryPartSummary,
+  InventoryOperationOrderRow,
   InventoryRow,
   Kanban,
   Location,
   MenuNode,
   OutboundOrder,
+  PageResult,
   Part,
   ScanResult,
   SystemRole,
@@ -98,10 +101,14 @@ export const api = {
   createSupplier: (payload: { supplierCode: string; supplierName: string }) =>
     request<Supplier>('/suppliers', { method: 'POST', body: JSON.stringify(payload) }),
 
+  deleteSupplier: (id: number) => request<void>(`/suppliers/${id}`, { method: 'DELETE' }),
+
   listCustomers: () => request<Customer[]>('/customers'),
 
   createCustomer: (payload: { customerCode: string; customerName: string }) =>
     request<Customer>('/customers', { method: 'POST', body: JSON.stringify(payload) }),
+
+  deleteCustomer: (id: number) => request<void>(`/customers/${id}`, { method: 'DELETE' }),
 
   listParts: () => request<Part[]>('/parts'),
 
@@ -109,11 +116,14 @@ export const api = {
     partCode: string
     partName: string
     unit: string
+    categoryCode?: string | null
     supplierId?: number | null
     defaultEquipmentCode?: string | null
     defaultUnitPerBox?: number | null
   }) =>
     request<Part>('/parts', { method: 'POST', body: JSON.stringify(payload) }),
+
+  deletePart: (id: number) => request<void>(`/parts/${id}`, { method: 'DELETE' }),
 
   listEquipment: () => request<Equipment[]>('/equipment'),
 
@@ -138,14 +148,22 @@ export const api = {
     warehouseType: 'OWN' | 'THIRD_PARTY'
   }) => request<Location>('/locations', { method: 'POST', body: JSON.stringify(payload) }),
 
+  deleteLocation: (id: number) => request<void>(`/locations/${id}`, { method: 'DELETE' }),
+
   listInboundOrders: (filters?: { status?: string; supplierId?: number; inboundNo?: string }) =>
     request<InboundOrder[]>(`/inbound-orders${buildQuery(filters ?? {})}`),
+
+  listInboundOrdersPage: (filters?: { status?: string; supplierId?: number; inboundNo?: string; page?: number; size?: number }) =>
+    request<PageResult<InboundOrder>>(`/inbound-orders/page${buildQuery(filters ?? {})}`),
 
   createInboundOrder: (payload: { supplierId: number; items: InboundDraftItem[] }) =>
     request<InboundOrder>('/inbound-orders', { method: 'POST', body: JSON.stringify(payload) }),
 
   generateKanbans: (orderId: number) =>
     request<Kanban[]>(`/inbound-orders/${orderId}/kanbans`, { method: 'POST' }),
+
+  returnInboundOrder: (orderId: number) =>
+    request<InboundOrder>(`/inbound-orders/${orderId}/return`, { method: 'POST' }),
 
   listKanbans: (filters?: {
     status?: string
@@ -154,17 +172,38 @@ export const api = {
     kanbanNo?: string
     supplierId?: number
     partCode?: string
+    warehouseName?: string
+    zoneName?: string
+    warehouseType?: 'OWN' | 'THIRD_PARTY' | ''
     includeChildren?: boolean
   }) => request<Kanban[]>(`/kanbans${buildQuery(filters ?? {})}`),
 
-  listKanbanChildren: (parentId: number) =>
-    request<Kanban[]>(`/kanbans/${parentId}/children`),
+  listKanbansPage: (filters?: {
+    status?: string
+    inboundNo?: string
+    outboundNo?: string
+    kanbanNo?: string
+    supplierId?: number
+    partCode?: string
+    warehouseName?: string
+    zoneName?: string
+    warehouseType?: 'OWN' | 'THIRD_PARTY' | ''
+    includeChildren?: boolean
+    page?: number
+    size?: number
+  }) => request<PageResult<Kanban>>(`/kanbans/page${buildQuery(filters ?? {})}`),
 
   listOutboundOrders: (filters?: { status?: string; customerId?: number; outboundNo?: string }) =>
     request<OutboundOrder[]>(`/outbound-orders${buildQuery(filters ?? {})}`),
 
-  createOutboundOrder: (payload: { customerId: number | null; items: Array<{ partId: number; boxCount: number; locationCode: string }> }) =>
+  listOutboundOrdersPage: (filters?: { status?: string; customerId?: number; outboundNo?: string; page?: number; size?: number }) =>
+    request<PageResult<OutboundOrder>>(`/outbound-orders/page${buildQuery(filters ?? {})}`),
+
+  createOutboundOrder: (payload: { customerId: number | null; items: Array<{ partId: number; plannedQty: number; boxCount: number; equipmentCode?: string | null; unitPerBox: number; locationCode: string }> }) =>
     request<OutboundOrder>('/outbound-orders', { method: 'POST', body: JSON.stringify(payload) }),
+
+  cancelOutboundOrder: (orderId: number) =>
+    request<OutboundOrder>(`/outbound-orders/${orderId}/cancel`, { method: 'POST' }),
 
   listInventory: (filters?: {
     warehouseName?: string
@@ -173,33 +212,95 @@ export const api = {
     supplierId?: number
   }) => request<InventoryRow[]>(`/inventory${buildQuery(filters ?? {})}`),
 
+  listInventoryPage: (filters?: {
+    warehouseName?: string
+    zoneName?: string
+    materialKeyword?: string
+    supplierId?: number
+    page?: number
+    size?: number
+  }) => request<PageResult<InventoryPartSummary>>(`/inventory/page${buildQuery(filters ?? {})}`),
+
+  listInventoryDetailsPage: (filters?: {
+    partCode?: string
+    warehouseName?: string
+    zoneName?: string
+    materialKeyword?: string
+    supplierId?: number
+    page?: number
+    size?: number
+  }) => request<PageResult<InventoryRow>>(`/inventory/details/page${buildQuery(filters ?? {})}`),
+
+  listInventoryKanbansPage: (filters?: {
+    partCode?: string
+    warehouseName?: string
+    zoneName?: string
+    kanbanNo?: string
+    supplierId?: number
+    page?: number
+    size?: number
+  }) => request<PageResult<Kanban>>(`/inventory/kanbans/page${buildQuery(filters ?? {})}`),
+
   manualInventoryEntry: (payload: { partId: number; locationId: number; qty: number; remark: string }) =>
     request<InventoryRow>('/inventory/manual-entries', { method: 'POST', body: JSON.stringify(payload) }),
 
   listTransactions: () => request<TransactionRow[]>('/inventory/transactions'),
+
+  listTransactionsPage: (filters?: {
+    partCode?: string
+    businessType?: string
+    businessNo?: string
+    operationNo?: string
+    barcode?: string
+    locationCode?: string
+    page?: number
+    size?: number
+  }) => request<PageResult<TransactionRow>>(`/inventory/transactions/page${buildQuery(filters ?? {})}`),
+
+  listInventoryOperationOrders: (operationNo: string, barcode?: string) =>
+    request<InventoryOperationOrderRow[]>(`/inventory/operation-orders${buildQuery({ operationNo, barcode })}`),
 
   transactionVersion: () => request<TransactionVersion>('/inventory/transactions/version'),
 
   scanInbound: (payload: { barcode: string; locationCode: string }) =>
     request<ScanResult>('/mobile/scan/inbound', { method: 'POST', body: JSON.stringify(payload) }),
 
+  scanInboundBatch: (payload: { scanCode: string; locationCode: string; kanbanIds: number[] }) =>
+    request<ScanResult>('/mobile/scan/inbound-batch', {
+      method: 'POST',
+      body: JSON.stringify({
+        scanCode: payload.scanCode,
+        locationCode: payload.locationCode,
+        childKanbanIds: payload.kanbanIds,
+      }),
+    }),
+
   scanOutbound: (payload: { barcode: string; outboundOrderNo: string }) =>
     request<ScanResult>('/mobile/scan/outbound', { method: 'POST', body: JSON.stringify(payload) }),
 
-  transferKanban: (payload: { barcode: string; inboundOrderNo: string; locationCode: string; remark?: string }) =>
+  transferKanban: (payload: { barcode: string; inboundOrderNo: string; locationCode: string; qty?: number | null; remark?: string }) =>
     request<Kanban>('/inventory/kanbans/transfer', { method: 'POST', body: JSON.stringify(payload) }),
+
+  transferKanbans: (payload: { barcodes: string[]; locationCode: string; remark?: string }) =>
+    request<Kanban[]>('/inventory/kanbans/transfer-batch', { method: 'POST', body: JSON.stringify(payload) }),
 
   freezeKanban: (payload: { barcode: string; frozen: boolean; remark?: string }) =>
     request<Kanban>('/inventory/kanbans/freeze', { method: 'POST', body: JSON.stringify(payload) }),
 
-  repackOutbound: (payload: { barcode: string; locationCode: string; remark?: string }) =>
+  freezeKanbans: (payload: { barcodes: string[]; frozen: boolean; remark?: string }) =>
+    request<Kanban[]>('/inventory/kanbans/freeze-batch', { method: 'POST', body: JSON.stringify(payload) }),
+
+  repackOutbound: (payload: { barcode: string; locationCode: string; qty?: number | null; remark?: string }) =>
     request<Kanban>('/inventory/kanbans/repack-outbound', { method: 'POST', body: JSON.stringify(payload) }),
+
+  repackOutboundBatch: (payload: { barcodes: string[]; locationCode: string; remark?: string }) =>
+    request<Kanban[]>('/inventory/kanbans/repack-outbound-batch', { method: 'POST', body: JSON.stringify(payload) }),
 
   repackInbound: (payload: { barcode: string; locationCode: string; qty: number; remark?: string }) =>
     request<Kanban>('/inventory/kanbans/repack-inbound', { method: 'POST', body: JSON.stringify(payload) }),
 
-  adjustKanbanBalance: (payload: { barcode: string; qty: number; remark?: string }) =>
-    request<Kanban>('/inventory/kanbans/balance', { method: 'POST', body: JSON.stringify(payload) }),
+  repackInboundBatch: (payload: { barcodes: string[]; locationCode: string; remark?: string }) =>
+    request<Kanban[]>('/inventory/kanbans/repack-inbound-batch', { method: 'POST', body: JSON.stringify(payload) }),
 
   listConfigItems: (moduleKey: string) =>
     request<ConfigItem[]>(`/config-items${buildQuery({ moduleKey })}`),

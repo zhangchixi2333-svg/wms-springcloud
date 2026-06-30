@@ -1,0 +1,327 @@
+/* 本文件定义库存操作浮窗的紧凑通用样式。 */
+.ops-modal-panel {
+  padding: 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+}
+
+.ops-modal-panel .compact-head {
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ops-modal-panel .compact-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.batch-ops-panel .compact-head {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.batch-ops-panel .action-row {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ops-target-select {
+  width: min(320px, 32vw);
+  min-width: 200px;
+  min-height: 32px;
+}
+
+.ops-action-select {
+  width: 110px;
+}
+
+.ops-remark-input {
+  width: min(260px, 24vw);
+  min-width: 140px;
+  min-height: 32px;
+}
+
+.batch-ops-panel .action-row button {
+  min-height: 32px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.ops-modal-grid {
+  display: grid;
+  grid-template-columns: minmax(760px, 1fr) minmax(260px, 300px);
+  gap: 10px;
+  min-width: 0;
+  align-items: start;
+  overflow-x: auto;
+}
+
+.compact-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(360px, 1fr));
+  gap: 6px;
+  min-width: 760px;
+}
+
+.compact-form-grid label {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.compact-form-grid label span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.compact-form-grid input,
+.compact-form-grid select {
+  min-width: 0;
+  width: 100%;
+  min-height: 32px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-form-grid input::placeholder {
+  text-overflow: ellipsis;
+}
+
+.wide-field {
+  grid-column: span 2;
+}
+
+.ops-summary {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ops-summary svg,
+.ops-summary canvas,
+.ops-summary img {
+  max-width: 100%;
+}
+
+.mini-info-table {
+  width: 100%;
+  min-width: 220px;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+
+.mini-info-table th,
+.mini-info-table td {
+  padding: 4px 5px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.mini-info-table th {
+  width: 58px;
+  background: #f8fafc;
+  color: var(--text-secondary);
+}
+
+.mini-info-table td {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.kanban-picker {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.picker-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) repeat(4, minmax(96px, 138px)) 52px;
+  gap: 6px;
+  align-items: center;
+}
+
+.picker-toolbar input,
+.picker-toolbar button {
+  min-width: 0;
+  min-height: 30px;
+}
+
+.picker-toolbar button {
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.rule-chip {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-table-wrap {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.picker-table {
+  min-width: 1280px;
+  table-layout: fixed;
+}
+
+.picker-table th,
+.picker-table td {
+  padding: 6px 7px;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-table .select-col {
+  width: 36px;
+  padding-inline: 6px;
+  text-align: center;
+}
+
+.picker-table input[type='checkbox'] {
+  width: 13px;
+  height: 13px;
+  min-width: 13px;
+  min-height: 13px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+  vertical-align: middle;
+}
+
+.picker-table input[type='checkbox']:hover {
+  filter: brightness(0.92);
+}
+
+.picker-table th:nth-child(2),
+.picker-table td:nth-child(2) {
+  width: 172px;
+}
+
+.picker-table th:nth-child(3),
+.picker-table td:nth-child(3) {
+  width: 220px;
+}
+
+.picker-table th:nth-child(4),
+.picker-table td:nth-child(4) {
+  width: 86px;
+}
+
+.picker-table th:nth-child(5),
+.picker-table td:nth-child(5) {
+  width: 120px;
+}
+
+.picker-table th:nth-child(6),
+.picker-table td:nth-child(6) {
+  width: 190px;
+}
+
+.picker-table th:nth-child(7),
+.picker-table td:nth-child(7) {
+  width: 100px;
+}
+
+.picker-table th:nth-child(8),
+.picker-table td:nth-child(8) {
+  width: 116px;
+}
+
+.picker-table th:nth-child(9),
+.picker-table td:nth-child(9) {
+  width: 180px;
+}
+
+.picker-table th:nth-child(10),
+.picker-table td:nth-child(10) {
+  width: 176px;
+}
+
+.picker-table tbody tr {
+  cursor: pointer;
+}
+
+.picker-table tbody tr:nth-child(even) {
+  background: #fbfdff;
+}
+
+.picker-table tbody tr:hover {
+  background: rgba(37, 99, 235, 0.11);
+}
+
+.picker-table tbody tr.selected {
+  background: rgba(20, 184, 166, 0.16);
+  box-shadow: inset 3px 0 0 rgba(20, 184, 166, 0.78);
+}
+
+.picker-table tbody tr.selected:hover {
+  background: rgba(20, 184, 166, 0.24);
+}
+
+.picker-table tbody tr.disabled {
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+@media (max-width: 900px) {
+  .batch-ops-panel .compact-head,
+  .picker-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-ops-panel .action-row {
+    justify-content: flex-start;
+  }
+
+  .ops-target-select,
+  .ops-remark-input {
+    width: 100%;
+  }
+
+  .ops-modal-grid,
+  .compact-form-grid,
+  .compact-form-grid label,
+  .wide-field {
+    grid-template-columns: 1fr;
+    grid-column: span 1;
+  }
+
+  .ops-modal-grid,
+  .compact-form-grid {
+    min-width: 0;
+  }
+}

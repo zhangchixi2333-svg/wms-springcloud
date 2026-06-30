@@ -1,11 +1,14 @@
-<!-- 本文件实现库存看板，支持多级库存预警、父子看板展开以及库存流水折线图。 -->
+<!-- 本文件实现库存看板，支持多级库存预警、箱级看板查看以及库存流水折线图。 -->
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '../../../api/wms'
-import { formatBusinessType, formatStatus } from '../../../app/displayText'
+import { formatBusinessType } from '../../../app/displayText'
 import { warehouseOptions, zoneOptions } from '../../../app/optionHelpers'
-import QrCodeImage from '../../shared/QrCodeImage.vue'
-import type { ConfigItem, InventoryRow, Kanban, PageModel } from '../../../types/app'
+import CompactPager from '../../shared/CompactPager.vue'
+import PageModal from '../../shared/PageModal.vue'
+import TransactionDetailModal from '../../shared/TransactionDetailModal.vue'
+import InventoryDetailModal from './modals/InventoryDetailModal.vue'
+import type { ConfigItem, InventoryPartSummary, InventoryRow, Kanban, PageModel, TransactionRow } from '../../../types/app'
 
 const props = defineProps<{ model: PageModel }>()
 
@@ -25,6 +28,28 @@ const filters = reactive({
   materialKeyword: '',
   supplierId: 0,
 })
+const rows = ref<InventoryPartSummary[]>([])
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+const loading = ref(false)
+const errorMessage = ref('')
+const detailLocationRows = ref<InventoryRow[]>([])
+const detailKanbans = ref<Kanban[]>([])
+const detailLocationPage = ref(1)
+const detailLocationPageSize = ref(10)
+const detailLocationTotal = ref(0)
+const detailKanbanPage = ref(1)
+const detailKanbanPageSize = ref(10)
+const detailKanbanTotal = ref(0)
+const detailLoading = ref(false)
+const detailErrorMessage = ref('')
+const transactionRows = ref<TransactionRow[]>([])
+const transactionPage = ref(1)
+const transactionPageSize = ref(20)
+const transactionTotal = ref(0)
+const transactionLoading = ref(false)
+const transactionErrorMessage = ref('')
 
 const thresholdItems = ref<ConfigItem[]>([])
 const thresholdDrafts = reactive<Record<string, WarningThresholdConfig>>({})
@@ -34,14 +59,15 @@ const batchThresholdDraft = reactive<WarningThresholdConfig>({
   attention: 0,
 })
 const selectedPartCodes = reactive<Record<string, boolean>>({})
-const expandedPartCodes = reactive<Record<string, boolean>>({})
-const expandedKanbanIds = reactive<Record<number, boolean>>({})
 const activePartCode = ref('')
+const inventoryDetailPartCode = ref('')
 const activeTransactionId = ref<number | null>(null)
+const transactionDetail = ref<TransactionRow | null>(null)
 const thresholdSaving = ref(false)
 const showSummaryBoard = ref(false)
-const showAdvancedFilters = ref(false)
+const inventoryDetailModalOpen = ref(false)
 const thresholdEditorOpen = ref(false)
+const transactionModalOpen = ref(false)
 const thresholdEditorMode = ref<'single' | 'batch'>('single')
 const activeThresholdPart = ref<{ partCode: string; partName: string } | null>(null)
 const thresholdEditorDraft = reactive<WarningThresholdConfig>({
@@ -53,52 +79,7 @@ const thresholdEditorDraft = reactive<WarningThresholdConfig>({
 const inventoryWarehouseOptions = computed(() => warehouseOptions(props.model.state.locations))
 const inventoryZoneOptions = computed(() => zoneOptions(props.model.state.locations, filters.warehouseName))
 
-const filteredInventoryRows = computed(() =>
-  props.model.state.inventory.filter((row) => {
-    const warehouseMatch = !filters.warehouseName || row.warehouseName === filters.warehouseName
-    const zoneMatch = !filters.zoneName || row.zoneName === filters.zoneName
-    const materialMatch =
-      !filters.materialKeyword ||
-      `${row.partCode} ${row.partName}`.toLowerCase().includes(filters.materialKeyword.toLowerCase())
-    const supplierMatch =
-      !filters.supplierId ||
-      props.model.state.suppliers.find((item) => item.id === filters.supplierId)?.supplierName === row.supplierName
-    return warehouseMatch && zoneMatch && materialMatch && supplierMatch
-  }),
-)
-
-const partRows = computed(() => {
-  const grouped = new Map<string, {
-    partCode: string
-    partName: string
-    supplierName: string
-    totalQty: number
-    locations: InventoryRow[]
-    latestUpdatedAt: string
-  }>()
-
-  filteredInventoryRows.value.forEach((row) => {
-    const current = grouped.get(row.partCode)
-    if (!current) {
-      grouped.set(row.partCode, {
-        partCode: row.partCode,
-        partName: row.partName,
-        supplierName: row.supplierName,
-        totalQty: Number(row.qty),
-        locations: [row],
-        latestUpdatedAt: row.updatedAt,
-      })
-      return
-    }
-    current.totalQty += Number(row.qty)
-    current.locations.push(row)
-    if (new Date(row.updatedAt).getTime() > new Date(current.latestUpdatedAt).getTime()) {
-      current.latestUpdatedAt = row.updatedAt
-    }
-  })
-
-  return Array.from(grouped.values()).sort((a, b) => a.partCode.localeCompare(b.partCode))
-})
+const partRows = computed(() => rows.value)
 
 const thresholdMap = computed(() => {
   const map = new Map<string, ConfigItem>()
@@ -106,28 +87,17 @@ const thresholdMap = computed(() => {
   return map
 })
 
-const partKanbanMap = computed(() => {
-  const map = new Map<string, Kanban[]>()
-  props.model.state.kanbans
-    .filter((item) => item.parentKanban)
-    .filter((item) => item.locationCode)
-    .filter((item) => ['INBOUND', 'FROZEN', 'REPACK_OUTBOUND', 'REPACK_INBOUND', 'PARTIAL'].includes(item.status))
-    .forEach((item) => {
-      const rows = map.get(item.partCode) ?? []
-      rows.push(item)
-      map.set(item.partCode, rows)
-    })
-  Array.from(map.values()).forEach((rows) =>
-    rows.sort((a, b) => (b.inboundTime ?? b.createdAt).localeCompare(a.inboundTime ?? a.createdAt)),
-  )
-  return map
-})
-
 const activePartTransactions = computed(() =>
-  props.model.state.transactions
+  transactionRows.value
     .filter((row) => !activePartCode.value || row.partCode === activePartCode.value)
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
 )
+
+const activeInventoryDetailRow = computed(() =>
+  partRows.value.find((row) => row.partCode === inventoryDetailPartCode.value) ?? null,
+)
+
+const activeInventoryKanbans = computed(() => detailKanbans.value)
 
 function emptyThresholdConfig(): WarningThresholdConfig {
   return { critical: 0, low: 0, attention: 0 }
@@ -146,21 +116,33 @@ function parseThresholdConfig(raw: string | null | undefined): WarningThresholdC
   try {
     return normalizeThresholdConfig(JSON.parse(raw))
   } catch {
-    const legacy = Number(raw)
-    if (Number.isFinite(legacy) && legacy > 0) {
-      return { critical: legacy, low: legacy, attention: legacy }
-    }
     return emptyThresholdConfig()
   }
 }
 
+function isEmptyThresholdConfig(config: WarningThresholdConfig) {
+  return Object.values(config).every((value) => value <= 0)
+}
+
+function configuredThresholdConfig(partCode: string) {
+  const item = thresholdMap.value.get(partCode)
+  return item ? parseThresholdConfig(item.remark) : null
+}
+
+function defaultThresholdConfig() {
+  return parseThresholdConfig(thresholdMap.value.get('DEFAULT')?.remark)
+}
+
 function thresholdConfig(partCode: string) {
-  return thresholdDrafts[partCode] ?? parseThresholdConfig(thresholdMap.value.get(partCode)?.remark)
+  if (thresholdDrafts[partCode]) return thresholdDrafts[partCode]
+  const configured = configuredThresholdConfig(partCode)
+  if (configured && !isEmptyThresholdConfig(configured)) return configured
+  return defaultThresholdConfig()
 }
 
 function ensureThresholdDraft(partCode: string) {
   if (!thresholdDrafts[partCode]) {
-    thresholdDrafts[partCode] = parseThresholdConfig(thresholdMap.value.get(partCode)?.remark)
+    thresholdDrafts[partCode] = thresholdConfig(partCode)
   }
   return thresholdDrafts[partCode]
 }
@@ -180,9 +162,9 @@ function warningLevelLabel(level: string) {
 const allSelected = computed(() => partRows.value.length > 0 && partRows.value.every((row) => selectedPartCodes[row.partCode]))
 const selectedRows = computed(() => partRows.value.filter((row) => selectedPartCodes[row.partCode]))
 const summary = computed(() => ({
-  rowCount: filteredInventoryRows.value.length,
+  rowCount: total.value,
   totalQty: partRows.value.reduce((total, item) => total + Number(item.totalQty), 0),
-  partCount: partRows.value.length,
+  partCount: total.value,
   warningCount: partRows.value.filter((item) => Boolean(warningLevel(item.partCode, item.totalQty))).length,
   criticalCount: partRows.value.filter((item) => warningLevel(item.partCode, item.totalQty) === 'critical').length,
   lowCount: partRows.value.filter((item) => warningLevel(item.partCode, item.totalQty) === 'low').length,
@@ -303,14 +285,11 @@ function resetFilters() {
   filters.zoneName = ''
   filters.materialKeyword = ''
   filters.supplierId = 0
+  void goFirstAndLoadInventory()
 }
 
 function toggleSummaryBoard() {
   showSummaryBoard.value = !showSummaryBoard.value
-}
-
-function toggleAdvancedFilters() {
-  showAdvancedFilters.value = !showAdvancedFilters.value
 }
 
 async function loadThresholds() {
@@ -321,10 +300,139 @@ async function loadThresholds() {
   })
 }
 
+function mergeKanbanCache(kanbans: Kanban[]) {
+  if (!kanbans.length) return
+  const map = new Map(props.model.state.kanbans.map((item) => [item.id, item]))
+  kanbans.forEach((item) => map.set(item.id, item))
+  props.model.state.kanbans = Array.from(map.values()).sort((left, right) => {
+    const leftTime = new Date(left.createdAt).getTime() || 0
+    const rightTime = new Date(right.createdAt).getTime() || 0
+    if (rightTime !== leftTime) return rightTime - leftTime
+    return Number(right.id) - Number(left.id)
+  })
+}
+
+async function loadInventory(nextPage = page.value) {
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    const result = await api.listInventoryPage({
+      warehouseName: filters.warehouseName,
+      zoneName: filters.zoneName,
+      materialKeyword: filters.materialKeyword.trim(),
+      supplierId: filters.supplierId,
+      page: nextPage,
+      size: pageSize.value,
+    })
+    rows.value = result.records
+    page.value = result.page
+    total.value = result.total
+    if (!result.records.length && result.total > 0 && result.page > 1) {
+      await loadInventory(Math.max(1, result.totalPages))
+    }
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '库存查询失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function goFirstAndLoadInventory() {
+  if (page.value === 1) {
+    await loadInventory(1)
+    return
+  }
+  page.value = 1
+}
+
+async function searchInventory() {
+  await goFirstAndLoadInventory()
+}
+
+async function loadInventoryDetailLocations(nextPage = detailLocationPage.value) {
+  if (!inventoryDetailPartCode.value) return
+  detailLoading.value = true
+  detailErrorMessage.value = ''
+  try {
+    const result = await api.listInventoryDetailsPage({
+      partCode: inventoryDetailPartCode.value,
+      warehouseName: filters.warehouseName,
+      zoneName: filters.zoneName,
+      materialKeyword: '',
+      supplierId: filters.supplierId,
+      page: nextPage,
+      size: detailLocationPageSize.value,
+    })
+    detailLocationRows.value = result.records
+    detailLocationPage.value = result.page
+    detailLocationTotal.value = result.total
+  } catch (error) {
+    detailErrorMessage.value = error instanceof Error ? error.message : '库位明细查询失败'
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+async function loadInventoryDetailKanbans(nextPage = detailKanbanPage.value) {
+  if (!inventoryDetailPartCode.value) return
+  detailLoading.value = true
+  detailErrorMessage.value = ''
+  try {
+    const result = await api.listInventoryKanbansPage({
+      partCode: inventoryDetailPartCode.value,
+      warehouseName: filters.warehouseName,
+      zoneName: filters.zoneName,
+      supplierId: filters.supplierId,
+      page: nextPage,
+      size: detailKanbanPageSize.value,
+    })
+    detailKanbans.value = result.records
+    detailKanbanPage.value = result.page
+    detailKanbanTotal.value = result.total
+    mergeKanbanCache(result.records)
+  } catch (error) {
+    detailErrorMessage.value = error instanceof Error ? error.message : '看板明细查询失败'
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+async function loadInventoryDetails() {
+  await Promise.all([loadInventoryDetailLocations(1), loadInventoryDetailKanbans(1)])
+}
+
+async function loadTransactions(nextPage = transactionPage.value) {
+  if (!activePartCode.value) return
+  transactionLoading.value = true
+  transactionErrorMessage.value = ''
+  try {
+    const result = await api.listTransactionsPage({
+      partCode: activePartCode.value,
+      page: nextPage,
+      size: transactionPageSize.value,
+    })
+    transactionRows.value = result.records
+    transactionPage.value = result.page
+    transactionTotal.value = result.total
+  } catch (error) {
+    transactionErrorMessage.value = error instanceof Error ? error.message : '库存流水查询失败'
+  } finally {
+    transactionLoading.value = false
+  }
+}
+
 function toggleSelectAll(checked: boolean) {
   partRows.value.forEach((row) => {
     selectedPartCodes[row.partCode] = checked
   })
+}
+
+function setPartSelected(partCode: string, checked: boolean) {
+  selectedPartCodes[partCode] = checked
+}
+
+function togglePartSelected(partCode: string) {
+  selectedPartCodes[partCode] = !selectedPartCodes[partCode]
 }
 
 function thresholdSummaryText(partCode: string) {
@@ -334,7 +442,8 @@ function thresholdSummaryText(partCode: string) {
     config.low > 0 ? `低库存≤${config.low}` : '',
     config.attention > 0 ? `关注≤${config.attention}` : '',
   ].filter(Boolean)
-  return values.length ? values.join(' / ') : '未设置'
+  const source = thresholdMap.value.has(partCode) ? '' : '默认：'
+  return values.length ? `${source}${values.join(' / ')}` : '未设置'
 }
 
 function copyThresholdConfigToEditor(config: WarningThresholdConfig) {
@@ -439,21 +548,40 @@ async function saveThresholdEditor() {
   closeThresholdEditor()
 }
 
-function togglePartExpand(partCode: string) {
-  expandedPartCodes[partCode] = !expandedPartCodes[partCode]
+async function openInventoryDetail(partCode: string) {
+  inventoryDetailPartCode.value = partCode
+  detailLocationPage.value = 1
+  detailKanbanPage.value = 1
+  detailLocationRows.value = []
+  detailKanbans.value = []
+  inventoryDetailModalOpen.value = true
+  await loadInventoryDetails()
 }
 
-async function toggleKanbanExpand(id: number) {
-  const nextExpanded = !expandedKanbanIds[id]
-  expandedKanbanIds[id] = nextExpanded
-  if (nextExpanded) {
-    await props.model.actions.loadKanbanChildren(id)
-  }
+function closeInventoryDetail() {
+  inventoryDetailModalOpen.value = false
+  inventoryDetailPartCode.value = ''
+  detailLocationRows.value = []
+  detailKanbans.value = []
+  detailErrorMessage.value = ''
 }
 
-function openTransactions(partCode: string) {
+async function openTransactions(partCode: string) {
   activePartCode.value = partCode
   activeTransactionId.value = null
+  transactionDetail.value = null
+  transactionPage.value = 1
+  transactionRows.value = []
+  transactionModalOpen.value = true
+  await loadTransactions(1)
+}
+
+function closeTransactionModal() {
+  transactionModalOpen.value = false
+  activeTransactionId.value = null
+  transactionDetail.value = null
+  transactionRows.value = []
+  transactionErrorMessage.value = ''
 }
 
 async function jumpToTransaction(id: number) {
@@ -462,284 +590,583 @@ async function jumpToTransaction(id: number) {
   document.getElementById(`tx-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
+function openTransactionDetail(row: TransactionRow) {
+  activeTransactionId.value = row.id
+  transactionDetail.value = row
+}
+
+function closeTransactionDetail() {
+  transactionDetail.value = null
+}
+
 function pointTitle(point: { businessType: string; qtyChange: number; runningQty: number; createdAt: string; remark: string }) {
   return `${formatBusinessType(point.businessType)} | 变化 ${point.qtyChange} | 库存 ${point.runningQty} | ${new Date(point.createdAt).toLocaleString('zh-CN', { hour12: false })}${point.remark ? ` | ${point.remark}` : ''}`
 }
 
+watch(page, async (value) => {
+  await loadInventory(value)
+})
+
+watch(pageSize, async () => {
+  await goFirstAndLoadInventory()
+})
+
+watch(detailLocationPage, async (value) => {
+  if (inventoryDetailModalOpen.value) await loadInventoryDetailLocations(value)
+})
+
+watch(detailLocationPageSize, async () => {
+  detailLocationPage.value = 1
+  if (inventoryDetailModalOpen.value) await loadInventoryDetailLocations(1)
+})
+
+watch(detailKanbanPage, async (value) => {
+  if (inventoryDetailModalOpen.value) await loadInventoryDetailKanbans(value)
+})
+
+watch(detailKanbanPageSize, async () => {
+  detailKanbanPage.value = 1
+  if (inventoryDetailModalOpen.value) await loadInventoryDetailKanbans(1)
+})
+
+watch(transactionPage, async (value) => {
+  if (transactionModalOpen.value) await loadTransactions(value)
+})
+
+watch(transactionPageSize, async () => {
+  transactionPage.value = 1
+  if (transactionModalOpen.value) await loadTransactions(1)
+})
+
+watch(activePartCode, async (value, oldValue) => {
+  if (!transactionModalOpen.value || value === oldValue) return
+  transactionPage.value = 1
+  await loadTransactions(1)
+})
+
+function handleBusinessChanged() {
+  void loadInventory(page.value)
+  if (inventoryDetailModalOpen.value) void loadInventoryDetails()
+  if (transactionModalOpen.value) void loadTransactions(transactionPage.value)
+}
+
 onMounted(async () => {
-  await loadThresholds()
+  window.addEventListener('wms-business-changed', handleBusinessChanged)
+  await Promise.all([loadThresholds(), loadInventory(1)])
   if (partRows.value[0]) activePartCode.value = partRows.value[0].partCode
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('wms-business-changed', handleBusinessChanged)
 })
 </script>
 
 <template>
-  <section class="stack">
-    <section class="panel">
-      <div class="section-head">
-        <div>
-          <h3>库存看板</h3>
-          <p>按零件聚合库存，支持多级预警、看板展开和库存流水图。</p>
+  <section class="stack inventory-board-page">
+    <section class="panel inventory-filter-panel">
+      <div class="inventory-filter-line">
+        <h3>库存看板</h3>
+        <div class="inventory-filter-row">
+          <input v-model="filters.materialKeyword" placeholder="物料 / 零件号" />
+          <select v-model="filters.warehouseName" @change="filters.zoneName = ''">
+            <option value="">全部仓库</option>
+            <option v-for="warehouse in inventoryWarehouseOptions" :key="warehouse" :value="warehouse">{{ warehouse }}</option>
+          </select>
+          <select v-model="filters.zoneName">
+            <option value="">全部库区</option>
+            <option v-for="zone in inventoryZoneOptions" :key="zone" :value="zone">{{ zone }}</option>
+          </select>
+          <select v-model.number="filters.supplierId">
+            <option :value="0">全部供应商</option>
+            <option v-for="item in model.state.suppliers" :key="item.id" :value="item.id">{{ item.supplierCode }} | {{ item.supplierName }}</option>
+          </select>
+          <button class="secondary-button compact-filter-button" :disabled="loading" @click="searchInventory">查询</button>
+          <button class="secondary-button compact-filter-button" @click="resetFilters">重置</button>
         </div>
-        <div class="action-row">
+        <div class="action-row inventory-filter-actions">
+          <span class="summary-pill">零件 {{ summary.partCount }} / 预警 {{ summary.warningCount }}</span>
           <button class="secondary-button" @click="toggleSummaryBoard">{{ showSummaryBoard ? '隐藏总看板' : '查看总看板' }}</button>
-          <button class="secondary-button" @click="toggleAdvancedFilters">{{ showAdvancedFilters ? '收起筛选' : '更多筛选' }}</button>
-          <button class="secondary-button" @click="resetFilters">重置筛选</button>
+          <button :disabled="!selectedRows.length || thresholdSaving" @click="openBatchThresholdEditor">批量设置阈值</button>
         </div>
-      </div>
-      <div class="compact-filter-row">
-        <input v-model="filters.materialKeyword" placeholder="物料 / 零件号" />
-        <span class="filter-summary">零件 {{ summary.partCount }} 个，预警 {{ summary.warningCount }} 个</span>
-      </div>
-      <div v-if="showAdvancedFilters" class="form-grid three advanced-filter-grid">
-        <select v-model="filters.warehouseName" @change="filters.zoneName = ''">
-          <option value="">全部仓库</option>
-          <option v-for="warehouse in inventoryWarehouseOptions" :key="warehouse" :value="warehouse">{{ warehouse }}</option>
-        </select>
-        <select v-model="filters.zoneName">
-          <option value="">全部库区</option>
-          <option v-for="zone in inventoryZoneOptions" :key="zone" :value="zone">{{ zone }}</option>
-        </select>
-        <select v-model.number="filters.supplierId">
-          <option :value="0">全部供应商</option>
-          <option v-for="item in model.state.suppliers" :key="item.id" :value="item.id">{{ item.supplierCode }} | {{ item.supplierName }}</option>
-        </select>
       </div>
     </section>
 
-    <section v-if="showSummaryBoard" class="summary-grid">
-      <div class="panel summary-card"><span class="summary-label">库存记录数</span><strong>{{ summary.rowCount }}</strong></div>
-      <div class="panel summary-card"><span class="summary-label">库存总量</span><strong>{{ summary.totalQty }}</strong></div>
-      <div class="panel summary-card"><span class="summary-label">涉及零件</span><strong>{{ summary.partCount }}</strong></div>
-      <div class="panel summary-card warning-card"><span class="summary-label">预警零件</span><strong>{{ summary.warningCount }}</strong></div>
+    <section v-if="showSummaryBoard" class="summary-grid compact-summary-grid">
+      <div class="panel summary-card"><span class="summary-label">记录</span><strong>{{ summary.rowCount }}</strong></div>
+      <div class="panel summary-card"><span class="summary-label">总量</span><strong>{{ summary.totalQty }}</strong></div>
+      <div class="panel summary-card"><span class="summary-label">零件</span><strong>{{ summary.partCount }}</strong></div>
+      <div class="panel summary-card warning-card"><span class="summary-label">预警</span><strong>{{ summary.warningCount }}</strong></div>
       <div class="panel summary-card critical-card"><span class="summary-label">严重不足</span><strong>{{ summary.criticalCount }}</strong></div>
       <div class="panel summary-card low-card"><span class="summary-label">低库存</span><strong>{{ summary.lowCount }}</strong></div>
       <div class="panel summary-card attention-card"><span class="summary-label">关注</span><strong>{{ summary.attentionCount }}</strong></div>
     </section>
 
-    <section class="panel">
-      <div class="section-head">
-        <div>
-          <h3>零件库存</h3>
-          <p>勾选零件后可在操作区批量设置阈值；点击行内按钮可展开库位和看板。</p>
-        </div>
-        <div class="action-row">
-          <span class="selected-count">已选 {{ selectedRows.length }} 个</span>
-          <button :disabled="!selectedRows.length || thresholdSaving" @click="openBatchThresholdEditor">批量设置阈值</button>
-        </div>
+    <section class="panel inventory-table-panel">
+      <div class="table-toolbar">
+        <span>{{ loading ? '正在查询库存...' : `已选 ${selectedRows.length} 个，本页 ${partRows.length} 个，库存零件 ${total} 个` }}</span>
+        <span v-if="thresholdSaving" class="selected-count">正在保存阈值...</span>
+        <span v-if="errorMessage" class="form-error">{{ errorMessage }}</span>
+        <CompactPager v-model:page="page" v-model:page-size="pageSize" :total="total" :selected="selectedRows.length" />
       </div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th><input type="checkbox" :checked="allSelected" @change="toggleSelectAll(($event.target as HTMLInputElement).checked)" /></th>
-            <th>零件编码</th>
-            <th>零件名称</th>
-            <th>供应商</th>
-            <th>库存总量</th>
-            <th>预警阈值</th>
-            <th>预警状态</th>
-            <th>最近更新时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="row in partRows" :key="row.partCode">
-            <tr :class="warningLevel(row.partCode, row.totalQty) ? [`warning-${warningLevel(row.partCode, row.totalQty)}`] : []">
-              <td><input v-model="selectedPartCodes[row.partCode]" type="checkbox" /></td>
-              <td>{{ row.partCode }}</td>
-              <td>{{ row.partName }}</td>
-              <td>{{ row.supplierName }}</td>
-              <td>{{ row.totalQty }}</td>
-              <td class="threshold-summary">{{ thresholdSummaryText(row.partCode) }}</td>
-              <td><span :class="['warning-badge', warningLevel(row.partCode, row.totalQty) || 'normal']">{{ warningLevelLabel(warningLevel(row.partCode, row.totalQty)) }}</span></td>
-              <td>{{ new Date(row.latestUpdatedAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
-              <td class="action-row">
-                <button class="secondary-button" @click="togglePartExpand(row.partCode)">{{ expandedPartCodes[row.partCode] ? '收起库存' : '展开库存' }}</button>
-                <button class="secondary-button" :disabled="thresholdSaving" @click="openSingleThresholdEditor(row)">设置阈值</button>
-                <button class="secondary-button" @click="openTransactions(row.partCode)">库存流水</button>
-              </td>
+      <div class="table-scroll aligned-table-shell">
+        <table class="table inventory-part-table">
+          <thead>
+            <tr>
+              <th class="select-col"><input class="compact-check" type="checkbox" :checked="allSelected" @change="toggleSelectAll(($event.target as HTMLInputElement).checked)" /></th>
+              <th>零件编码</th>
+              <th>零件名称</th>
+              <th>供应商</th>
+              <th>库存总量</th>
+              <th>预警阈值</th>
+              <th>预警状态</th>
+              <th>最近更新时间</th>
+              <th class="action-col">操作</th>
             </tr>
-            <tr v-if="expandedPartCodes[row.partCode]">
-              <td colspan="9">
-                <div class="expand-stack">
-                  <section class="sub-panel">
-                    <h4>库位明细</h4>
-                    <div class="location-grid">
-                      <article v-for="location in row.locations" :key="location.id" class="location-card">
-                        <strong>{{ location.locationCode }}</strong>
-                        <span>{{ location.warehouseName }} / {{ location.zoneName }}</span>
-                        <span>数量 {{ location.qty }}</span>
-                        <span>{{ new Date(location.updatedAt).toLocaleString('zh-CN', { hour12: false }) }}</span>
-                      </article>
-                    </div>
-                  </section>
-                  <section class="sub-panel">
-                    <h4>对应看板</h4>
-                    <div class="kanban-grid">
-                      <article v-for="kanban in partKanbanMap.get(row.partCode) ?? []" :key="kanban.id" class="kanban-card">
-                        <div class="kanban-head">
-                          <div>
-                            <strong>{{ kanban.kanbanNo }}</strong>
-                            <p>{{ kanban.warehouseName }} / {{ kanban.zoneName }}</p>
-                          </div>
-                          <QrCodeImage :text="kanban.qrContent || kanban.barcode" :size="80" />
-                        </div>
-                        <div class="kanban-meta">
-                          <span>状态 {{ formatStatus(kanban.status) }}</span>
-                          <span>箱数 {{ kanban.boxCount }} / 每箱 {{ kanban.unitPerBox }}</span>
-                          <span>数量 {{ kanban.qty }}</span>
-                        </div>
-                        <div class="action-row">
-                          <button class="secondary-button" @click="toggleKanbanExpand(kanban.id)">{{ expandedKanbanIds[kanban.id] ? '收起子看板' : `展开子看板(${(kanban.children ?? []).length})` }}</button>
-                        </div>
-                        <div v-if="expandedKanbanIds[kanban.id]" class="child-grid">
-                          <div v-for="child in kanban.children ?? []" :key="child.id" class="child-card">
-                            <QrCodeImage :text="child.qrContent || child.barcode" :size="72" />
-                            <strong>{{ child.kanbanNo }}</strong>
-                            <span>第 {{ child.boxIndex }} 箱</span>
-                            <span>数量 {{ child.qty }}</span>
-                            <span>{{ formatStatus(child.status) }}</span>
-                          </div>
-                        </div>
-                      </article>
-                    </div>
-                  </section>
-                </div>
-              </td>
+          </thead>
+          <tbody>
+            <template v-for="(row, index) in partRows" :key="row.partCode">
+              <tr
+                class="inventory-part-row"
+                :class="[
+                  warningLevel(row.partCode, row.totalQty) ? `warning-${warningLevel(row.partCode, row.totalQty)}` : '',
+                  selectedPartCodes[row.partCode] ? 'selected' : '',
+                  Math.floor(index / 2) % 2 === 0 ? 'tone-a' : 'tone-b',
+                ]"
+                @click="togglePartSelected(row.partCode)"
+              >
+                <td class="select-cell"><input class="compact-check" type="checkbox" :checked="!!selectedPartCodes[row.partCode]" @click.stop @change.stop="setPartSelected(row.partCode, ($event.target as HTMLInputElement).checked)" /></td>
+                <td class="mono">{{ row.partCode }}</td>
+                <td>{{ row.partName }}</td>
+                <td>{{ row.supplierName }}</td>
+                <td>{{ row.totalQty }}</td>
+                <td class="threshold-summary" :title="thresholdSummaryText(row.partCode)">
+                  <span class="cell-ellipsis">{{ thresholdSummaryText(row.partCode) }}</span>
+                </td>
+                <td><span :class="['warning-badge', warningLevel(row.partCode, row.totalQty) || 'normal']">{{ warningLevelLabel(warningLevel(row.partCode, row.totalQty)) }}</span></td>
+                <td>{{ new Date(row.latestUpdatedAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
+                <td class="action-cell" @click.stop>
+                  <div class="row-actions">
+                    <button class="secondary-button" @click="openInventoryDetail(row.partCode)">明细</button>
+                    <button class="secondary-button" :disabled="thresholdSaving" @click="openSingleThresholdEditor(row)">阈值</button>
+                    <button class="secondary-button" @click="openTransactions(row.partCode)">流水</button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+            <tr v-if="!partRows.length">
+              <td colspan="9" class="empty-cell">没有匹配的库存零件</td>
             </tr>
-          </template>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <section class="panel">
-      <div class="section-head">
-        <div>
-          <h3>零件库存流水</h3>
-          <p>点击折线图上的事件点可跳转到下方对应流水记录。</p>
-        </div>
-        <div class="action-row">
-          <select v-model="activePartCode">
-            <option value="">选择零件</option>
-            <option v-for="row in partRows" :key="row.partCode" :value="row.partCode">{{ row.partCode }} | {{ row.partName }}</option>
-          </select>
-        </div>
-      </div>
+    <InventoryDetailModal
+      v-model:location-page="detailLocationPage"
+      v-model:location-page-size="detailLocationPageSize"
+      v-model:kanban-page="detailKanbanPage"
+      v-model:kanban-page-size="detailKanbanPageSize"
+      :open="inventoryDetailModalOpen"
+      :active-row="activeInventoryDetailRow"
+      :location-rows="detailLocationRows"
+      :kanbans="activeInventoryKanbans"
+      :location-total="detailLocationTotal"
+      :kanban-total="detailKanbanTotal"
+      :loading="detailLoading"
+      :error-message="detailErrorMessage"
+      @close="closeInventoryDetail"
+    />
 
-      <div v-if="chartGeometry.points.length" class="chart-wrap">
-        <svg :viewBox="`0 0 ${chartGeometry.width} ${chartGeometry.height}`" class="flow-chart" role="img" aria-label="库存流水折线图">
-          <line v-for="tick in chartGeometry.horizontalGridLines" :key="`y-${tick.value}`" :x1="chartGeometry.paddingLeft" :y1="tick.y" :x2="chartGeometry.width - chartGeometry.paddingRight" :y2="tick.y" class="grid-line" />
-          <line v-for="tick in chartGeometry.verticalGridLines" :key="`x-${tick.index}`" :x1="tick.x" :y1="chartGeometry.paddingTop" :x2="tick.x" :y2="chartGeometry.height - chartGeometry.paddingBottom" class="grid-line vertical" />
-          <line :x1="chartGeometry.paddingLeft" :y1="chartGeometry.height - chartGeometry.paddingBottom" :x2="chartGeometry.width - chartGeometry.paddingRight" :y2="chartGeometry.height - chartGeometry.paddingBottom" class="axis" />
-          <line :x1="chartGeometry.paddingLeft" :y1="chartGeometry.paddingTop" :x2="chartGeometry.paddingLeft" :y2="chartGeometry.height - chartGeometry.paddingBottom" class="axis" />
-          <path :d="chartGeometry.path" class="flow-line" />
-          <text v-for="tick in chartGeometry.yTicks" :key="`yt-${tick.value}`" :x="chartGeometry.paddingLeft - 10" :y="tick.y + 4" class="axis-label axis-label-y">{{ tick.label }}</text>
-          <text v-for="tick in chartGeometry.xTicks" :key="`xt-${tick.index}`" :x="tick.x" :y="chartGeometry.height - 18" class="axis-label axis-label-x">{{ tick.label }}</text>
-          <circle v-for="point in chartGeometry.points" :key="point.id" :cx="point.x" :cy="point.y" r="5" class="flow-point" @click="jumpToTransaction(point.id)">
-            <title>{{ pointTitle(point) }}</title>
-          </circle>
-        </svg>
-      </div>
-      <p v-else class="empty-hint">当前零件还没有可展示的库存流水。</p>
-
-      <table class="table">
-        <thead>
-          <tr>
-            <th>流水号</th>
-            <th>类型</th>
-            <th>业务单号</th>
-            <th>条码</th>
-            <th>库位</th>
-            <th>数量变化</th>
-            <th>备注</th>
-            <th>时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in activePartTransactions" :id="`tx-${row.id}`" :key="row.id" :class="{ active: activeTransactionId === row.id }">
-            <td class="mono">{{ row.transactionNo }}</td>
-            <td>{{ formatBusinessType(row.businessType) }}</td>
-            <td>{{ row.businessNo }}</td>
-            <td class="mono">{{ row.barcode }}</td>
-            <td>{{ row.locationCode }}</td>
-            <td :class="{ outbound: Number(row.qtyChange) < 0, inbound: Number(row.qtyChange) > 0 }">{{ row.qtyChange }}</td>
-            <td>{{ row.remark }}</td>
-            <td>{{ new Date(row.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <teleport to="body">
-      <div v-if="thresholdEditorOpen" class="modal-backdrop">
-        <section class="modal-panel threshold-modal">
-          <div class="section-head">
-            <div>
-              <h3>{{ thresholdEditorMode === 'batch' ? '批量设置预警阈值' : `设置阈值：${activeThresholdPart?.partCode}` }}</h3>
-              <p>{{ thresholdEditorMode === 'batch' ? `将统一应用到已选 ${selectedRows.length} 个零件。` : '阈值会保存到系统配置，下次进入页面仍然生效。' }}</p>
-            </div>
-            <div class="action-row">
-              <button :disabled="thresholdSaving" @click="saveThresholdEditor">保存</button>
-              <button class="secondary-button" @click="closeThresholdEditor">关闭</button>
-            </div>
+    <PageModal :open="transactionModalOpen" wide @close="closeTransactionModal">
+      <section class="panel flow-panel transaction-flow-modal">
+        <div class="section-head compact-flow-head">
+          <div>
+            <h3>零件库存流水</h3>
           </div>
-          <div class="threshold-editor-grid">
-            <label class="threshold-field critical">
-              <span>严重不足阈值</span>
-              <input v-model.number="thresholdEditorDraft.critical" type="number" min="0" step="0.001" />
-            </label>
-            <label class="threshold-field low">
-              <span>低库存阈值</span>
-              <input v-model.number="thresholdEditorDraft.low" type="number" min="0" step="0.001" />
-            </label>
-            <label class="threshold-field attention">
-              <span>关注阈值</span>
-              <input v-model.number="thresholdEditorDraft.attention" type="number" min="0" step="0.001" />
-            </label>
+          <div class="action-row flow-actions">
+            <select v-model="activePartCode">
+              <option value="">选择零件</option>
+              <option v-for="row in partRows" :key="row.partCode" :value="row.partCode">{{ row.partCode }} | {{ row.partName }}</option>
+            </select>
+            <CompactPager v-model:page="transactionPage" v-model:page-size="transactionPageSize" :total="transactionTotal" :page-size-options="[10, 20, 50, 100]" />
           </div>
-        </section>
-      </div>
-    </teleport>
+        </div>
+        <p v-if="transactionErrorMessage" class="form-error compact-modal-error">{{ transactionErrorMessage }}</p>
+
+        <div v-if="chartGeometry.points.length" class="chart-wrap">
+          <svg :viewBox="`0 0 ${chartGeometry.width} ${chartGeometry.height}`" class="flow-chart" role="img" aria-label="库存流水折线图">
+            <line v-for="tick in chartGeometry.horizontalGridLines" :key="`y-${tick.value}`" :x1="chartGeometry.paddingLeft" :y1="tick.y" :x2="chartGeometry.width - chartGeometry.paddingRight" :y2="tick.y" class="grid-line" />
+            <line v-for="tick in chartGeometry.verticalGridLines" :key="`x-${tick.index}`" :x1="tick.x" :y1="chartGeometry.paddingTop" :x2="tick.x" :y2="chartGeometry.height - chartGeometry.paddingBottom" class="grid-line vertical" />
+            <line :x1="chartGeometry.paddingLeft" :y1="chartGeometry.height - chartGeometry.paddingBottom" :x2="chartGeometry.width - chartGeometry.paddingRight" :y2="chartGeometry.height - chartGeometry.paddingBottom" class="axis" />
+            <line :x1="chartGeometry.paddingLeft" :y1="chartGeometry.paddingTop" :x2="chartGeometry.paddingLeft" :y2="chartGeometry.height - chartGeometry.paddingBottom" class="axis" />
+            <path :d="chartGeometry.path" class="flow-line" />
+            <text v-for="tick in chartGeometry.yTicks" :key="`yt-${tick.value}`" :x="chartGeometry.paddingLeft - 10" :y="tick.y + 4" class="axis-label axis-label-y">{{ tick.label }}</text>
+            <text v-for="tick in chartGeometry.xTicks" :key="`xt-${tick.index}`" :x="tick.x" :y="chartGeometry.height - 18" class="axis-label axis-label-x">{{ tick.label }}</text>
+            <circle v-for="point in chartGeometry.points" :key="point.id" :cx="point.x" :cy="point.y" r="5" class="flow-point" @click="jumpToTransaction(point.id)">
+              <title>{{ pointTitle(point) }}</title>
+            </circle>
+          </svg>
+        </div>
+        <p v-else class="empty-hint">{{ transactionLoading ? '正在查询库存流水...' : '当前零件还没有可展示的库存流水。' }}</p>
+
+        <div class="table-scroll modal-table-shell">
+          <table class="table transaction-table">
+            <thead>
+              <tr>
+                <th>流水号</th>
+                <th>类型</th>
+                <th>业务单号</th>
+                <th>库位</th>
+                <th>数量变化</th>
+                <th>时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in activePartTransactions" :id="`tx-${row.id}`" :key="row.id" :class="{ active: activeTransactionId === row.id }" @dblclick="openTransactionDetail(row)">
+                <td class="mono">{{ row.transactionNo }}</td>
+                <td>{{ formatBusinessType(row.businessType) }}</td>
+                <td class="mono compact-text">{{ row.businessNo || '-' }}</td>
+                <td>{{ row.locationCode }}</td>
+                <td :class="{ outbound: Number(row.qtyChange) < 0, inbound: Number(row.qtyChange) > 0 }">{{ row.qtyChange }}</td>
+                <td>{{ new Date(row.createdAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
+                <td><button class="secondary-button compact-row-button" @click="openTransactionDetail(row)">详情</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </PageModal>
+
+    <TransactionDetailModal :transaction="transactionDetail" @close="closeTransactionDetail" />
+
+    <PageModal :open="thresholdEditorOpen" @close="closeThresholdEditor">
+      <section class="panel threshold-modal">
+        <div class="section-head compact-modal-head">
+          <div>
+            <h3>{{ thresholdEditorMode === 'batch' ? '批量设置预警阈值' : `设置阈值：${activeThresholdPart?.partCode}` }}</h3>
+          </div>
+          <div class="action-row">
+            <button :disabled="thresholdSaving" @click="saveThresholdEditor">保存</button>
+          </div>
+        </div>
+        <div class="threshold-editor-grid">
+          <label class="threshold-field critical">
+            <span>严重不足阈值</span>
+            <input v-model.number="thresholdEditorDraft.critical" type="number" min="0" step="0.001" />
+          </label>
+          <label class="threshold-field low">
+            <span>低库存阈值</span>
+            <input v-model.number="thresholdEditorDraft.low" type="number" min="0" step="0.001" />
+          </label>
+          <label class="threshold-field attention">
+            <span>关注阈值</span>
+            <input v-model.number="thresholdEditorDraft.attention" type="number" min="0" step="0.001" />
+          </label>
+        </div>
+      </section>
+    </PageModal>
   </section>
 </template>
-
 <style scoped>
-.compact-filter-row {
-  display: grid;
-  grid-template-columns: minmax(220px, 360px) auto;
+.inventory-filter-panel {
+  padding: 10px 12px;
+}
+
+.inventory-board-page,
+.inventory-board-page > .panel,
+.inventory-board-page > .summary-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.inventory-board-page {
   gap: 12px;
+}
+
+.inventory-filter-line {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) max-content;
+  gap: 10px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
-.advanced-filter-grid {
-  margin-top: 12px;
+.inventory-filter-line h3,
+.compact-flow-head h3,
+.compact-modal-head h3 {
+  margin: 0;
+  white-space: nowrap;
 }
 
-.filter-summary,
+.inventory-filter-line > h3 {
+  width: 96px;
+}
+
+.inventory-filter-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(138px, 0.8fr) minmax(138px, 0.8fr) minmax(180px, 1.05fr) 58px 58px;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.inventory-filter-row input,
+.inventory-filter-row select,
+.compact-filter-button {
+  min-height: 34px;
+}
+
+.inventory-filter-actions {
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.inventory-filter-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.summary-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.compact-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(92px, 1fr));
+  gap: 8px;
+}
+
+.summary-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.summary-card strong {
+  text-align: right;
+}
+
+.summary-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.warning-card strong { color: #dc2626; }
+.critical-card strong { color: #dc2626; }
+.low-card strong { color: #ea580c; }
+.attention-card strong { color: #d97706; }
+
+.table-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.aligned-table-shell {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.inventory-table-panel {
+  padding: 10px 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .selected-count {
   color: var(--text-secondary);
   font-size: 13px;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+.inventory-part-table {
+  min-width: 1220px;
+  table-layout: fixed;
 }
 
-.summary-card {
-  display: grid;
-  gap: 8px;
+.inventory-part-table th {
+  background: rgba(148, 163, 184, 0.08);
 }
 
-.summary-label {
-  color: var(--text-secondary);
-  font-size: 13px;
+.inventory-part-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.warning-card strong { color: #dc2626; }
-.critical-card strong, tr.warning-critical td { color: #dc2626; }
-.low-card strong, tr.warning-low td { color: #ea580c; }
-.attention-card strong, tr.warning-attention td { color: #d97706; }
+.inventory-part-table th,
+.inventory-part-table td,
+.transaction-table th,
+.transaction-table td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.inventory-part-table th,
+.inventory-part-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-part-table .select-col,
+.inventory-part-table .select-cell {
+  width: 38px;
+  padding-inline: 6px;
+  text-align: center;
+}
+
+.inventory-part-table th:nth-child(2),
+.inventory-part-table td:nth-child(2) {
+  width: 132px;
+}
+
+.inventory-part-table th:nth-child(4),
+.inventory-part-table td:nth-child(4) {
+  width: 150px;
+}
+
+.inventory-part-table th:nth-child(5),
+.inventory-part-table td:nth-child(5) {
+  width: 88px;
+}
+
+.inventory-part-table th:nth-child(6),
+.inventory-part-table td:nth-child(6) {
+  width: 230px;
+}
+
+.inventory-part-table th:nth-child(7),
+.inventory-part-table td:nth-child(7) {
+  width: 110px;
+}
+
+.inventory-part-table th:nth-child(8),
+.inventory-part-table td:nth-child(8) {
+  width: 170px;
+}
+
+.inventory-part-table .action-col,
+.inventory-part-table td:last-child {
+  width: 176px;
+}
+
+.compact-check {
+  width: 13px;
+  height: 13px;
+  min-height: 13px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+.inventory-part-row {
+  cursor: pointer;
+  transition:
+    background-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.inventory-part-row.tone-a {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.inventory-part-row.tone-b {
+  background: rgba(148, 163, 184, 0.07);
+}
+
+.inventory-part-row:hover {
+  background: rgba(37, 99, 235, 0.11);
+}
+
+.inventory-part-row.selected {
+  background: rgba(20, 184, 166, 0.16);
+  box-shadow: inset 3px 0 0 rgba(20, 184, 166, 0.78);
+}
+
+.inventory-part-row.warning-critical td {
+  color: #b91c1c;
+}
+
+.inventory-part-row.warning-low td {
+  color: #c2410c;
+}
+
+.inventory-part-row.warning-attention td {
+  color: #a16207;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+}
+
+.row-actions button {
+  min-height: 28px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.inventory-part-table td.action-cell {
+  overflow: visible;
+  text-align: right;
+}
+
+.cell-ellipsis {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-table-shell {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+  overflow: auto;
+}
+
+.compact-modal-error {
+  margin: 0;
+}
 
 .threshold-field {
   display: grid;
@@ -760,6 +1187,7 @@ onMounted(async () => {
 
 .threshold-field input {
   min-width: 0;
+  width: 100%;
 }
 
 .threshold-summary {
@@ -769,10 +1197,31 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
+.threshold-modal {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  min-width: 0;
+}
+
+.compact-modal-head {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.compact-modal-head > div {
+  min-width: 0;
+}
+
+.compact-modal-head h3,
+.compact-flow-head h3 {
+  overflow-wrap: anywhere;
+}
+
 .threshold-editor-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .warning-badge {
@@ -791,54 +1240,13 @@ onMounted(async () => {
 .warning-badge.low { background: rgba(234, 88, 12, 0.12); color: #ea580c; }
 .warning-badge.attention { background: rgba(217, 119, 6, 0.12); color: #d97706; }
 
-.expand-stack,
-.location-grid,
-.kanban-grid,
-.child-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.sub-panel {
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-
-.location-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.kanban-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.child-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-
-.location-card,
-.kanban-card,
-.child-card {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 10px;
-  display: grid;
-  gap: 4px;
-}
-
-.kanban-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
-}
-
-.kanban-meta {
-  display: grid;
-  gap: 4px;
-}
-
-.child-card {
-  justify-items: center;
-  text-align: center;
-}
-
 .chart-wrap {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
+  max-width: 100%;
   overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
 }
 
 .flow-chart {
@@ -881,6 +1289,7 @@ onMounted(async () => {
 .axis-label-x { text-anchor: middle; }
 
 .empty-hint {
+  margin: 0 0 8px;
   color: var(--text-secondary);
 }
 
@@ -888,39 +1297,125 @@ tr.active td {
   background: rgba(37, 99, 235, 0.08);
 }
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
+.flow-panel {
   display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(15, 23, 42, 0.42);
+  gap: 8px;
+  padding: 10px;
+  min-width: 0;
 }
 
-.modal-panel {
-  width: min(680px, 94vw);
-  max-height: 88vh;
-  overflow: auto;
-  background: var(--panel-bg, #fff);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
+.transaction-flow-modal {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.compact-flow-head {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.flow-actions select {
+  min-height: 32px;
+  width: min(360px, 100%);
+  min-width: 0;
+}
+
+.transaction-table {
+  min-width: 860px;
+  table-layout: fixed;
+}
+
+.transaction-table th:nth-child(1),
+.transaction-table td:nth-child(1) {
+  width: 150px;
+}
+
+.transaction-table th:nth-child(2),
+.transaction-table td:nth-child(2) {
+  width: 112px;
+}
+
+.transaction-table th:nth-child(3),
+.transaction-table td:nth-child(3) {
+  width: 180px;
+}
+
+.transaction-table th:nth-child(4),
+.transaction-table td:nth-child(4),
+.transaction-table th:nth-child(5),
+.transaction-table td:nth-child(5) {
+  width: 100px;
+}
+
+.transaction-table th:nth-child(6),
+.transaction-table td:nth-child(6) {
+  width: 170px;
+}
+
+.transaction-table th:nth-child(7),
+.transaction-table td:nth-child(7) {
+  width: 78px;
+  text-align: right;
+}
+
+.transaction-table tbody tr {
+  cursor: pointer;
+}
+
+.compact-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-row-button {
+  min-height: 28px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.transaction-table .outbound {
+  color: #dc2626;
+}
+
+.transaction-table .inbound {
+  color: #15803d;
+}
+
+.empty-cell {
+  color: var(--text-secondary);
+  text-align: center;
 }
 
 @media (max-width: 1100px) {
-  .summary-grid {
-    grid-template-columns: 1fr 1fr;
+  .inventory-filter-line {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
-  .compact-filter-row {
+  .compact-modal-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .threshold-editor-grid {
     grid-template-columns: 1fr;
+  }
+
+  .inventory-filter-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .compact-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 700px) {
-  .summary-grid {
+  .inventory-filter-row,
+  .compact-summary-grid {
     grid-template-columns: 1fr;
   }
 
@@ -929,3 +1424,4 @@ tr.active td {
   }
 }
 </style>
+

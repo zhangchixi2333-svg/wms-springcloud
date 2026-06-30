@@ -37,3 +37,14 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Local runtime and verification artifacts ###
+.logs/
+logs/
+.vs/
+frontend/dist/
+frontend/node_modules/
+*.log
+*.tmp
+*.bak
+*.old

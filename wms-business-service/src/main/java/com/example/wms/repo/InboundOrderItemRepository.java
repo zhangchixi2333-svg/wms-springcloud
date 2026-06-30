@@ -11,4 +11,6 @@ import java.util.List;
 public interface InboundOrderItemRepository extends JpaRepository<InboundOrderItem, Long> {
 
     List<InboundOrderItem> findByInboundOrderId(Long inboundOrderId);
+
+    List<InboundOrderItem> findByInboundOrderIdIn(List<Long> inboundOrderIds);
 }

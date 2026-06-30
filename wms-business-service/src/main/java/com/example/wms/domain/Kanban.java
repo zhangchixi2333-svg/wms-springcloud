@@ -1,5 +1,5 @@
 /**
- * 本文件定义看板实体，支持父看板与箱级子看板的层级关系。
+ * 本文件定义箱级看板实体；每条看板对应一个实际包装箱，旧层级字段仅保留兼容历史数据。
  */
 package com.example.wms.domain;
 
@@ -45,7 +45,7 @@ public class Kanban {
     @Column(nullable = false)
     private Long supplierId;
 
-    @Column(length = 64)
+    @Column(length = 512)
     private String outboundOrderNo;
 
     @Column(length = 64)
@@ -54,11 +54,31 @@ public class Kanban {
     @Column(nullable = false, precision = 18, scale = 3)
     private BigDecimal qty;
 
+    @Column(precision = 18, scale = 3)
+    private BigDecimal availableQty;
+
+    @Column(precision = 18, scale = 3)
+    private BigDecimal reservedQty;
+
+    @Column(precision = 18, scale = 3)
+    private BigDecimal reservedTransferQty;
+
+    @Column(precision = 18, scale = 3)
+    private BigDecimal outboundQty;
+
+    private Long sourceKanbanId;
+
+    @Column(length = 512)
+    private String transferOrderNo;
+
     @Column(nullable = false, length = 32)
     private String status;
 
     @Column(nullable = false)
     private boolean frozen;
+
+    @Column(length = 32)
+    private String frozenPreviousStatus;
 
     private Long locationId;
 
@@ -177,6 +197,54 @@ public class Kanban {
         this.qty = qty;
     }
 
+    public BigDecimal getAvailableQty() {
+        return availableQty;
+    }
+
+    public void setAvailableQty(BigDecimal availableQty) {
+        this.availableQty = availableQty;
+    }
+
+    public BigDecimal getReservedQty() {
+        return reservedQty;
+    }
+
+    public void setReservedQty(BigDecimal reservedQty) {
+        this.reservedQty = reservedQty;
+    }
+
+    public BigDecimal getReservedTransferQty() {
+        return reservedTransferQty;
+    }
+
+    public void setReservedTransferQty(BigDecimal reservedTransferQty) {
+        this.reservedTransferQty = reservedTransferQty;
+    }
+
+    public BigDecimal getOutboundQty() {
+        return outboundQty;
+    }
+
+    public void setOutboundQty(BigDecimal outboundQty) {
+        this.outboundQty = outboundQty;
+    }
+
+    public Long getSourceKanbanId() {
+        return sourceKanbanId;
+    }
+
+    public void setSourceKanbanId(Long sourceKanbanId) {
+        this.sourceKanbanId = sourceKanbanId;
+    }
+
+    public String getTransferOrderNo() {
+        return transferOrderNo;
+    }
+
+    public void setTransferOrderNo(String transferOrderNo) {
+        this.transferOrderNo = transferOrderNo;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -191,6 +259,14 @@ public class Kanban {
 
     public void setFrozen(boolean frozen) {
         this.frozen = frozen;
+    }
+
+    public String getFrozenPreviousStatus() {
+        return frozenPreviousStatus;
+    }
+
+    public void setFrozenPreviousStatus(String frozenPreviousStatus) {
+        this.frozenPreviousStatus = frozenPreviousStatus;
     }
 
     public Long getLocationId() {
