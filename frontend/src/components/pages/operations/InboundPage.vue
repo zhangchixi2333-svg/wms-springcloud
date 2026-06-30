@@ -1437,16 +1437,6 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
-.scan-assist-row {
-  display: grid;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.two-col {
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
 .scan-hint {
   margin: 8px 0 0;
   color: var(--text-secondary);
@@ -1984,16 +1974,6 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 10px;
-}
-
-.tag-pill {
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  padding: 2px 8px;
-  background: rgba(148, 163, 184, 0.12);
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.6;
 }
 
 .empty-cell {

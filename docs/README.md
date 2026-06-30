@@ -9,6 +9,7 @@
 | 文档 | 适合什么时候看 |
 | --- | --- |
 | [../README.md](../README.md) | 第一次打开项目，了解项目定位、目录和本地启动方式 |
+| [wms-user-guide.md](wms-user-guide.md) | 面向使用者的入库、出库、库存、看板、移库、转包、封存操作说明，不含 Agent |
 | [microservice-design.md](microservice-design.md) | 需要理解 Spring Cloud 微服务拆分、网关、Kubernetes Service 通信方式 |
 | [wms-business-flow.md](wms-business-flow.md) | 需要理解入库、出库、打印、扫码、库存扣减和状态变化 |
 | [kanban-transfer-design.md](kanban-transfer-design.md) | 需要理解一个看板为什么只代表一个箱子，以及移库、转包、封存如何建模 |

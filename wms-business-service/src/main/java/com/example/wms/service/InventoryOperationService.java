@@ -4,9 +4,6 @@
 package com.example.wms.service;
 
 import com.example.wms.api.InventoryController.InventorySummaryView;
-import com.example.wms.api.InventoryController.InventoryPartSummaryView;
-import com.example.wms.api.InventoryController.InventoryTransactionView;
-import com.example.wms.api.InventoryController.InventoryTransactionVersionView;
 import com.example.wms.api.InventoryController.BatchFreezeKanbanRequest;
 import com.example.wms.api.InventoryController.BatchRepackInboundRequest;
 import com.example.wms.api.InventoryController.BatchRepackOutboundRequest;
@@ -16,71 +13,20 @@ import com.example.wms.api.InventoryController.ManualInventoryEntryRequest;
 import com.example.wms.api.InventoryController.RepackInboundRequest;
 import com.example.wms.api.InventoryController.RepackOutboundRequest;
 import com.example.wms.api.InventoryController.TransferKanbanRequest;
-import com.example.wms.api.OrderController.InboundOrderCreateRequest;
-import com.example.wms.api.OrderController.InboundOrderItemRequest;
-import com.example.wms.api.OrderController.InboundOrderView;
 import com.example.wms.api.OrderController.KanbanView;
-import com.example.wms.api.OrderController.OutboundOrderCreateRequest;
-import com.example.wms.api.OrderController.OutboundOrderItemRequest;
-import com.example.wms.api.OrderController.OutboundOrderView;
-import com.example.wms.api.OrderController.PageView;
-import com.example.wms.api.ScanController.ScanInboundRequest;
-import com.example.wms.api.ScanController.ScanInboundBatchRequest;
-import com.example.wms.api.ScanController.ScanOutboundRequest;
-import com.example.wms.api.ScanController.ScanResultView;
 import com.example.wms.common.BusinessException;
 import com.example.wms.common.NotFoundException;
-import com.example.wms.domain.Customer;
-import com.example.wms.domain.Equipment;
-import com.example.wms.domain.InboundOrder;
-import com.example.wms.domain.InboundOrderItem;
 import com.example.wms.domain.Inventory;
-import com.example.wms.domain.InventoryTransaction;
 import com.example.wms.domain.Kanban;
 import com.example.wms.domain.Location;
-import com.example.wms.domain.OutboundAllocation;
-import com.example.wms.domain.OutboundOrder;
-import com.example.wms.domain.OutboundOrderItem;
 import com.example.wms.domain.Part;
-import com.example.wms.domain.Supplier;
-import com.example.wms.repo.CustomerRepository;
-import com.example.wms.repo.EquipmentRepository;
-import com.example.wms.repo.InboundOrderItemRepository;
-import com.example.wms.repo.InboundOrderRepository;
-import com.example.wms.repo.InventoryRepository;
-import com.example.wms.repo.InventoryTransactionRepository;
-import com.example.wms.repo.KanbanRepository;
-import com.example.wms.repo.LocationRepository;
-import com.example.wms.repo.OutboundAllocationRepository;
-import com.example.wms.repo.OutboundOrderItemRepository;
-import com.example.wms.repo.OutboundOrderRepository;
-import com.example.wms.repo.PartRepository;
-import com.example.wms.repo.SupplierRepository;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
-import jakarta.persistence.criteria.Subquery;
 import jakarta.transaction.Transactional;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 public class InventoryOperationService extends WmsServiceSupport {
@@ -240,7 +186,7 @@ public class InventoryOperationService extends WmsServiceSupport {
                 .orElseThrow(() -> new NotFoundException("库位不存在"));
         requireWarehouseType(location, "OWN", "转包返还目标必须是自有仓库");
 
-        requireThirdPartyStockKanban(kanban, "转包返还");
+        requireThirdPartyStockKanban(kanban);
 
         String transferNo = nextBusinessNo("TF");
         return toKanbanView(moveOrSplitKanban(kanban, location, request.qty(), STATUS_INBOUND, "OUTSOURCE_RETURN_OUT", "OUTSOURCE_RETURN_IN", transferNo, defaultRemark(request.remark(), "第三方返还")));
@@ -252,7 +198,7 @@ public class InventoryOperationService extends WmsServiceSupport {
         Location targetLocation = locationRepository.findByLocationCode(request.locationCode())
                 .orElseThrow(() -> new NotFoundException("库位不存在"));
         requireWarehouseType(targetLocation, "OWN", "转包返还目标必须是自有仓库");
-        kanbans.forEach(kanban -> requireThirdPartyStockKanban(kanban, "转包返还"));
+        kanbans.forEach(this::requireThirdPartyStockKanban);
 
         String transferNo = nextBusinessNo("TF");
         String remark = defaultRemark(request.remark(), "批量第三方返还");

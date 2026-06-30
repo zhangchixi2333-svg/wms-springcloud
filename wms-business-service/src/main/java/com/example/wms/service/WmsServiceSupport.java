@@ -3,31 +3,11 @@
  */
 package com.example.wms.service;
 
-import com.example.wms.api.InventoryController.InventorySummaryView;
-import com.example.wms.api.InventoryController.InventoryPartSummaryView;
-import com.example.wms.api.InventoryController.InventoryTransactionView;
-import com.example.wms.api.InventoryController.InventoryTransactionVersionView;
-import com.example.wms.api.InventoryController.BatchFreezeKanbanRequest;
-import com.example.wms.api.InventoryController.BatchRepackInboundRequest;
-import com.example.wms.api.InventoryController.BatchRepackOutboundRequest;
-import com.example.wms.api.InventoryController.BatchTransferKanbanRequest;
-import com.example.wms.api.InventoryController.FreezeKanbanRequest;
-import com.example.wms.api.InventoryController.ManualInventoryEntryRequest;
-import com.example.wms.api.InventoryController.RepackInboundRequest;
-import com.example.wms.api.InventoryController.RepackOutboundRequest;
-import com.example.wms.api.InventoryController.TransferKanbanRequest;
-import com.example.wms.api.OrderController.InboundOrderCreateRequest;
 import com.example.wms.api.OrderController.InboundOrderItemRequest;
 import com.example.wms.api.OrderController.InboundOrderView;
 import com.example.wms.api.OrderController.KanbanView;
-import com.example.wms.api.OrderController.OutboundOrderCreateRequest;
 import com.example.wms.api.OrderController.OutboundOrderItemRequest;
 import com.example.wms.api.OrderController.OutboundOrderView;
-import com.example.wms.api.OrderController.PageView;
-import com.example.wms.api.ScanController.ScanInboundRequest;
-import com.example.wms.api.ScanController.ScanInboundBatchRequest;
-import com.example.wms.api.ScanController.ScanOutboundRequest;
-import com.example.wms.api.ScanController.ScanResultView;
 import com.example.wms.common.BusinessException;
 import com.example.wms.common.NotFoundException;
 import com.example.wms.domain.Customer;
@@ -58,16 +38,11 @@ import com.example.wms.repo.OutboundOrderItemRepository;
 import com.example.wms.repo.OutboundOrderRepository;
 import com.example.wms.repo.PartRepository;
 import com.example.wms.repo.SupplierRepository;
+import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
-import jakarta.transaction.Transactional;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -75,7 +50,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,7 +80,6 @@ public abstract class WmsServiceSupport {
     protected static final Set<String> INBOUND_PENDING_STATUSES = Set.of(STATUS_WAIT_SCAN, STATUS_CREATED);
     protected static final Set<String> OUTBOUND_PENDING_STATUSES = Set.of(STATUS_ALLOCATED, STATUS_INBOUND, STATUS_PARTIAL_OUTBOUND);
     protected static final Set<String> NOT_FULLY_INBOUND_STATUSES = Set.of(STATUS_WAIT_SCAN, STATUS_CREATED, STATUS_PARTIAL, STATUS_PARTIAL_INBOUND);
-    protected static final Set<String> INBOUND_LIKE_STATUSES = Set.of(STATUS_INBOUND, STATUS_FROZEN, STATUS_REPACK_OUTBOUND, STATUS_REPACK_INBOUND, STATUS_THIRD_PARTY_STOCK);
     protected static final Set<String> OWN_STOCK_OPERABLE_STATUSES = Set.of(STATUS_INBOUND, STATUS_PARTIAL_OUTBOUND);
     protected static final Set<String> FREEZABLE_STATUSES = Set.of(STATUS_INBOUND, STATUS_PARTIAL_OUTBOUND, STATUS_THIRD_PARTY_STOCK);
 
@@ -192,7 +165,8 @@ public abstract class WmsServiceSupport {
         }
     }
 
-    protected void requireThirdPartyStockKanban(Kanban kanban, String actionName) {
+    protected void requireThirdPartyStockKanban(Kanban kanban) {
+        String actionName = "转包返还";
         if (kanban.isFrozen()) {
             throw new BusinessException("看板 " + kanban.getKanbanNo() + " 已封存，不能执行" + actionName);
         }
@@ -543,27 +517,6 @@ public abstract class WmsServiceSupport {
                 + "，已出库 " + outboundQty.toPlainString();
     }
 
-    protected Location resolveInboundLocation(String locationCode, Kanban scannedKanban, List<Kanban> targets) {
-        String normalizedLocationCode = normalize(locationCode);
-        if (normalizedLocationCode != null) {
-            return locationRepository.findByLocationCode(normalizedLocationCode)
-                    .orElseThrow(() -> new NotFoundException("入库库位不存在：" + normalizedLocationCode));
-        }
-
-        Kanban reference = targets.isEmpty() ? scannedKanban : targets.get(0);
-        InboundOrderItem item = inboundOrderItemRepository.findById(reference.getInboundOrderItemId())
-                .orElseThrow(() -> new NotFoundException("入库明细不存在：" + reference.getInboundOrderItemId()));
-        String[] plannedZone = splitWarehouseZone(item.getWarehouseZone());
-        List<Location> matchedLocations = locationRepository.findAll().stream()
-                .filter(location -> plannedZone[0].equals(location.getWarehouseName()) && plannedZone[1].equals(location.getZoneName()))
-                .sorted(Comparator.comparing(Location::getLocationCode, Comparator.nullsLast(String::compareToIgnoreCase)))
-                .toList();
-        if (!matchedLocations.isEmpty()) {
-            return matchedLocations.get(0);
-        }
-        throw new BusinessException("未找到看板计划库区对应的库位：" + plannedZone[0] + " / " + plannedZone[1]);
-    }
-
     protected Location resolveInboundLocationForKanban(String locationCode, Kanban kanban) {
         String normalizedLocationCode = normalize(locationCode);
         if (normalizedLocationCode != null) {
@@ -768,7 +721,7 @@ public abstract class WmsServiceSupport {
             kanban.setReservedQty(defaultBigDecimal(kanban.getReservedQty()).add(allocatedQty));
             appendOutboundOrderNo(kanban, order.getOutboundNo());
             kanbanRepository.save(kanban);
-            saveOutboundLockTransaction(kanban, order.getOutboundNo(), allocatedQty, "出库单创建锁定库存");
+            saveOutboundLockTransaction(kanban, order.getOutboundNo(), allocatedQty);
 
             OutboundAllocation allocation = new OutboundAllocation();
             allocation.setOutboundOrderId(order.getId());
@@ -790,68 +743,6 @@ public abstract class WmsServiceSupport {
         return allocations;
     }
 
-    protected List<Kanban> allocateOutboundBoxes(List<OutboundOrderItemRequest> requests) {
-        List<Kanban> allocated = new ArrayList<>();
-        Set<Long> allocatedIds = new java.util.HashSet<>();
-
-        for (OutboundOrderItemRequest request : requests) {
-            if (request.boxCount() == null || request.boxCount() <= 0) {
-                throw new BusinessException("出库箱数必须大于 0");
-            }
-            Part part = partRepository.findById(request.partId())
-                    .orElseThrow(() -> new NotFoundException("零件不存在：" + request.partId()));
-            String locationCode = normalize(request.locationCode());
-            Long locationId = null;
-            if (locationCode != null) {
-                Location location = locationRepository.findByLocationCode(locationCode)
-                        .orElseThrow(() -> new NotFoundException("出库库位不存在：" + locationCode));
-                locationId = location.getId();
-            }
-
-            Long selectedLocationId = locationId;
-            List<Kanban> candidates = kanbanRepository.findAll().stream()
-                    .filter(kanban -> !kanban.isParentKanban())
-                    .filter(kanban -> Objects.equals(kanban.getPartId(), request.partId()))
-                    .filter(kanban -> selectedLocationId == null || Objects.equals(kanban.getLocationId(), selectedLocationId))
-                    .filter(kanban -> !allocatedIds.contains(kanban.getId()))
-                    .filter(this::isOutboundAllocatable)
-                    .sorted(this::compareKanbanFifo)
-                    .toList();
-
-            if (candidates.size() < request.boxCount()) {
-                String locationText = locationCode == null ? "全部库位" : locationCode;
-                throw new BusinessException("零件 " + part.getPartCode() + " 可出库箱数不足：需要 "
-                        + request.boxCount() + " 箱，" + locationText + " 当前可用 " + candidates.size() + " 箱");
-            }
-
-            List<Kanban> picked = candidates.stream().limit(request.boxCount()).toList();
-            allocated.addAll(picked);
-            picked.forEach(kanban -> allocatedIds.add(kanban.getId()));
-        }
-
-        if (allocated.isEmpty()) {
-            throw new BusinessException("没有可分配的出库箱级看板");
-        }
-        return allocated;
-    }
-
-    protected boolean isOutboundAllocatable(Kanban kanban) {
-        if (!STATUS_INBOUND.equals(kanban.getStatus())) {
-            return false;
-        }
-        return !kanban.isFrozen() && kanban.getLocationId() != null && isBlank(kanban.getOutboundOrderNo());
-    }
-
-    protected boolean isOutboundQtyAllocatable(Kanban kanban) {
-        if (kanban.isFrozen() || kanban.getLocationId() == null) {
-            return false;
-        }
-        if (!Set.of(STATUS_INBOUND, STATUS_ALLOCATED, STATUS_PARTIAL_OUTBOUND).contains(kanban.getStatus())) {
-            return false;
-        }
-        return kanbanFreeQty(kanban).compareTo(BigDecimal.ZERO) > 0;
-    }
-
     protected BigDecimal kanbanAvailableQty(Kanban kanban) {
         BigDecimal available = kanban.getAvailableQty();
         if (available != null) {
@@ -864,6 +755,16 @@ public abstract class WmsServiceSupport {
         return nonNegative(kanbanAvailableQty(kanban)
                 .subtract(defaultBigDecimal(kanban.getReservedQty()))
                 .subtract(defaultBigDecimal(kanban.getReservedTransferQty())));
+    }
+
+    protected boolean isOutboundQtyAllocatable(Kanban kanban) {
+        if (kanban.isFrozen() || kanban.getLocationId() == null) {
+            return false;
+        }
+        if (!Set.of(STATUS_INBOUND, STATUS_ALLOCATED, STATUS_PARTIAL_OUTBOUND).contains(kanban.getStatus())) {
+            return false;
+        }
+        return kanbanFreeQty(kanban).compareTo(BigDecimal.ZERO) > 0;
     }
 
     protected void refreshKanbanQuantityState(Kanban kanban) {
@@ -899,17 +800,10 @@ public abstract class WmsServiceSupport {
         touched.forEach(this::refreshKanbanQuantityState);
     }
 
-    protected boolean isParentOutboundReady(Long parentKanbanId) {
-        List<Kanban> children = kanbanRepository.findByParentKanbanIdOrderByBoxIndexAscIdAsc(parentKanbanId);
-        return !children.isEmpty()
-                && children.stream().noneMatch(item -> NOT_FULLY_INBOUND_STATUSES.contains(item.getStatus()));
-    }
-
     protected int compareKanbanFifo(Kanban left, Kanban right) {
         return Comparator
                 .comparing(Kanban::getInboundTime, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(Kanban::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(Kanban::getParentKanbanId, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(Kanban::getBoxIndex, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(Kanban::getId, Comparator.nullsLast(Comparator.naturalOrder()))
                 .compare(left, right);
@@ -981,103 +875,6 @@ public abstract class WmsServiceSupport {
         String resolvedOperationNo = defaultOperationNo(operationNo, resolveInboundNo(kanban));
         saveTransaction(kanban, location.getId(), kanban.getQty(), "INBOUND_SCAN", resolveInboundNo(kanban), resolvedOperationNo, "扫码入库");
         saveOperationOrder(resolvedOperationNo, "INBOUND", resolveInboundNo(kanban), null, kanban, null, location.getId(), kanban.getPartId(), kanban.getQty(), sourceStatus, kanban.getStatus(), "扫码入库");
-    }
-
-    protected void applyOutboundForSingleKanban(OutboundOrder order, Kanban kanban) {
-        String sourceStatus = kanban.getStatus();
-        kanban.setOutboundOrderNo(order.getOutboundNo());
-        Inventory inventory = inventoryRepository.findByPartIdAndLocationId(kanban.getPartId(), kanban.getLocationId())
-                .orElseThrow(() -> new BusinessException("看板 " + kanban.getKanbanNo() + " 没有对应库存，不能出库"));
-        if (inventory.getQty().compareTo(kanban.getQty()) < 0) {
-            throw new BusinessException("看板 " + kanban.getKanbanNo() + " 库存不足，不能出库");
-        }
-
-        inventory.setQty(inventory.getQty().subtract(kanban.getQty()));
-        inventory.setUpdatedAt(LocalDateTime.now());
-        inventoryRepository.save(inventory);
-
-        kanban.setStatus(STATUS_OUTBOUND);
-        kanban.setOutboundTime(LocalDateTime.now());
-        kanbanRepository.save(kanban);
-
-        saveInventoryTransaction(
-                kanban.getPartId(),
-                kanban.getLocationId(),
-                kanban.getBarcode(),
-                kanban.getQty().negate(),
-                "OUTBOUND_SCAN",
-                order.getOutboundNo(),
-                order.getOutboundNo(),
-                "扫码出库完成"
-        );
-        saveOperationOrder(order.getOutboundNo(), "OUTBOUND", order.getOutboundNo(), kanban, null, kanban.getLocationId(), null, kanban.getPartId(), kanban.getQty(), sourceStatus, kanban.getStatus(), "扫码出库完成");
-    }
-
-    protected void refreshParentKanbanState(Kanban scannedKanban) {
-        Kanban parent = scannedKanban.isParentKanban()
-                ? scannedKanban
-                : scannedKanban.getParentKanbanId() == null ? null : kanbanRepository.findById(scannedKanban.getParentKanbanId()).orElse(null);
-        if (parent == null || !parent.isParentKanban()) {
-            return;
-        }
-
-        List<Kanban> children = kanbanRepository.findByParentKanbanIdOrderByBoxIndexAscIdAsc(parent.getId());
-        if (children.isEmpty()) {
-            return;
-        }
-
-        parent.setOutboundOrderNo(aggregateChildOutboundOrderNos(children));
-        boolean allInbound = children.stream().allMatch(item -> STATUS_INBOUND.equals(item.getStatus()));
-        boolean allOutbound = children.stream().allMatch(item -> STATUS_OUTBOUND.equals(item.getStatus()));
-        boolean anyOutbound = children.stream().anyMatch(item -> STATUS_OUTBOUND.equals(item.getStatus()));
-        boolean anyAllocated = children.stream().anyMatch(item -> STATUS_ALLOCATED.equals(item.getStatus()));
-        boolean anyPartialOutbound = children.stream().anyMatch(item -> STATUS_PARTIAL_OUTBOUND.equals(item.getStatus()));
-        boolean anyInboundLike = children.stream().anyMatch(item -> INBOUND_LIKE_STATUSES.contains(item.getStatus()));
-
-        if (allOutbound) {
-            parent.setStatus(STATUS_OUTBOUND);
-            parent.setOutboundTime(children.stream().map(Kanban::getOutboundTime).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(LocalDateTime.now()));
-        } else if (allInbound) {
-            parent.setStatus(STATUS_INBOUND);
-            parent.setInboundTime(children.stream().map(Kanban::getInboundTime).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(LocalDateTime.now()));
-            parent.setLocationId(children.get(0).getLocationId());
-        } else if (anyOutbound || anyAllocated || anyPartialOutbound) {
-            parent.setStatus(STATUS_PARTIAL_OUTBOUND);
-            parent.setOutboundTime(children.stream().map(Kanban::getOutboundTime).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(LocalDateTime.now()));
-        } else if (anyInboundLike) {
-            parent.setStatus(STATUS_PARTIAL_INBOUND);
-            parent.setInboundTime(children.stream().map(Kanban::getInboundTime).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(LocalDateTime.now()));
-        } else {
-            parent.setStatus(STATUS_WAIT_SCAN);
-        }
-        kanbanRepository.save(parent);
-    }
-
-    protected String aggregateChildOutboundOrderNos(List<Kanban> children) {
-        String outboundNos = children.stream()
-                .map(Kanban::getOutboundOrderNo)
-                .map(this::normalize)
-                .filter(Objects::nonNull)
-                .filter(value -> !"-".equals(value))
-                .distinct()
-                .collect(Collectors.joining(","));
-        return isBlank(outboundNos) ? null : outboundNos;
-    }
-
-    protected void refreshParentKanbanStates(List<Kanban> children) {
-        children.stream()
-                .map(Kanban::getParentKanbanId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .map(parentId -> kanbanRepository.findById(parentId).orElse(null))
-                .filter(Objects::nonNull)
-                .forEach(this::refreshParentKanbanState);
-    }
-
-    protected void repairParentKanbanStates() {
-        kanbanRepository.findAll().stream()
-                .filter(Kanban::isParentKanban)
-                .forEach(this::refreshParentKanbanState);
     }
 
     protected Kanban findKanbanByScanCode(String scanCode) {
@@ -1263,18 +1060,6 @@ public abstract class WmsServiceSupport {
     protected record PackagePlan(String equipmentCode, BigDecimal unitPerBox, Integer boxCount) {
     }
 
-    protected void applyOutboundScanToOrder(OutboundOrder order, Kanban kanban) {
-        OutboundOrderItem target = outboundOrderItemRepository.findByOutboundOrderIdAndKanbanId(order.getId(), kanban.getId())
-                .orElseThrow(() -> new BusinessException("箱级看板 " + kanban.getKanbanNo() + " 未绑定到出库单 " + order.getOutboundNo()));
-        if (target.getScannedQty().compareTo(target.getPlannedQty()) >= 0) {
-            throw new BusinessException("箱级看板 " + kanban.getKanbanNo() + " 已完成出库，不能重复扫码");
-        }
-        target.setScannedQty(target.getPlannedQty());
-        outboundOrderItemRepository.save(target);
-
-        syncOutboundOrderStatus(order.getId());
-    }
-
     protected void applyOutboundAllocationScan(OutboundOrder order, Kanban kanban) {
         String sourceStatus = kanban.getStatus();
         List<OutboundAllocation> allocations = outboundAllocationRepository.findByOutboundOrderIdAndKanbanIdIn(order.getId(), List.of(kanban.getId())).stream()
@@ -1334,19 +1119,6 @@ public abstract class WmsServiceSupport {
         syncOutboundOrderStatus(order.getId());
     }
 
-    protected void requireKanbanMatchesOutboundSource(OutboundOrder order, Kanban kanban) {
-        InboundOrder inboundOrder = inboundOrderRepository.findById(kanban.getInboundOrderId())
-                .orElseThrow(() -> new NotFoundException("入库单不存在"));
-        List<String> sources = splitCsv(order.getInboundOrderNos());
-        if (sources.isEmpty()) {
-            throw new BusinessException("出库单没有绑定来源入库单");
-        }
-        boolean matched = sources.stream().anyMatch(item -> item.equalsIgnoreCase(inboundOrder.getInboundNo()));
-        if (!matched) {
-            throw new BusinessException("看板来源入库单与出库单绑定来源不一致");
-        }
-    }
-
     protected void requireKanbanMatchesInboundNo(Kanban kanban, String inboundOrderNo) {
         String sourceInboundNo = normalize(inboundOrderNo);
         if (sourceInboundNo == null) {
@@ -1357,17 +1129,6 @@ public abstract class WmsServiceSupport {
         if (!sourceInboundNo.equalsIgnoreCase(inboundOrder.getInboundNo())) {
             throw new BusinessException("看板来源入库单与当前入库单不一致");
         }
-    }
-
-    protected List<String> normalizeInboundOrderNos(List<String> values) {
-        if (values == null) {
-            return List.of();
-        }
-        return values.stream()
-                .map(this::normalize)
-                .filter(value -> value != null)
-                .distinct()
-                .toList();
     }
 
     protected List<String> splitCsv(String value) {
@@ -1407,10 +1168,6 @@ public abstract class WmsServiceSupport {
         outboundOrderRepository.save(order);
     }
 
-    protected void saveTransaction(Kanban kanban, Long locationId, BigDecimal qtyChange, String businessType, String remark) {
-        saveTransaction(kanban, locationId, qtyChange, businessType, kanban.getKanbanNo(), remark);
-    }
-
     protected void saveTransaction(Kanban kanban, Long locationId, BigDecimal qtyChange, String businessType, String operationNo, String remark) {
         saveTransaction(kanban, locationId, qtyChange, businessType, kanban.getKanbanNo(), operationNo, remark);
     }
@@ -1426,16 +1183,6 @@ public abstract class WmsServiceSupport {
                 operationNo,
                 remark
         );
-    }
-
-    protected void saveInventoryTransaction(Long partId,
-                                          Long locationId,
-                                          String barcode,
-                                          BigDecimal qtyChange,
-                                          String businessType,
-                                          String businessNo,
-                                          String remark) {
-        saveInventoryTransaction(partId, locationId, barcode, qtyChange, businessType, businessNo, businessNo, remark);
     }
 
     protected void saveInventoryTransaction(Long partId,
@@ -1460,20 +1207,12 @@ public abstract class WmsServiceSupport {
         inventoryTransactionRepository.save(transaction);
     }
 
-    protected void saveOutboundLockTransaction(Kanban kanban, String outboundNo, BigDecimal lockedQty, String remark) {
-        saveLockTransaction(kanban, outboundNo, "OUTBOUND_LOCK", lockedQty, remark);
+    protected void saveOutboundLockTransaction(Kanban kanban, String outboundNo, BigDecimal lockedQty) {
+        saveLockTransaction(kanban, outboundNo, "OUTBOUND_LOCK", lockedQty, "出库单创建锁定库存");
     }
 
-    protected void saveOutboundUnlockTransaction(Kanban kanban, String outboundNo, BigDecimal unlockedQty, String remark) {
-        saveLockTransaction(kanban, outboundNo, "OUTBOUND_UNLOCK", unlockedQty, remark);
-    }
-
-    protected void saveTransferLockTransaction(Kanban kanban, String transferNo, BigDecimal lockedQty, String remark) {
-        saveLockTransaction(kanban, transferNo, "TRANSFER_LOCK", lockedQty, remark);
-    }
-
-    protected void saveTransferUnlockTransaction(Kanban kanban, String transferNo, BigDecimal unlockedQty, String remark) {
-        saveLockTransaction(kanban, transferNo, "TRANSFER_UNLOCK", unlockedQty, remark);
+    protected void saveOutboundUnlockTransaction(Kanban kanban, String outboundNo, BigDecimal unlockedQty) {
+        saveLockTransaction(kanban, outboundNo, "OUTBOUND_UNLOCK", unlockedQty, "出库单取消释放锁定库存");
     }
 
     protected void saveLockTransaction(Kanban kanban, String operationNo, String businessType, BigDecimal lockQty, String remark) {
@@ -1481,7 +1220,7 @@ public abstract class WmsServiceSupport {
         saveTransaction(kanban, kanban.getLocationId(), BigDecimal.ZERO, businessType, operationNo, operationNo, normalizedRemark);
     }
 
-    protected InventoryOperationOrder saveOperationOrder(String operationNo,
+    protected void saveOperationOrder(String operationNo,
                                                        String operationType,
                                                        String businessNo,
                                                        Kanban source,
@@ -1493,7 +1232,7 @@ public abstract class WmsServiceSupport {
                                                        String sourceStatus,
                                                        String targetStatus,
                                                        String remark) {
-        return saveOperationOrder(
+        saveOperationOrder(
                 operationNo,
                 operationType,
                 businessNo,
@@ -1511,7 +1250,7 @@ public abstract class WmsServiceSupport {
         );
     }
 
-    protected InventoryOperationOrder saveOperationOrder(String operationNo,
+    protected void saveOperationOrder(String operationNo,
                                                        String operationType,
                                                        String businessNo,
                                                        String sourceKanbanNo,
@@ -1541,7 +1280,7 @@ public abstract class WmsServiceSupport {
         order.setTargetStatus(targetStatus);
         order.setRemark(remark);
         order.setCreatedAt(LocalDateTime.now());
-        return inventoryOperationOrderRepository.save(order);
+        inventoryOperationOrderRepository.save(order);
     }
 
     protected String defaultOperationNo(String operationNo, String fallback) {
@@ -1580,6 +1319,10 @@ public abstract class WmsServiceSupport {
             return "OUTBOUND";
         }
         return normalized;
+    }
+
+    protected Subquery<Long> longSubquery(CriteriaQuery<?> query) {
+        return Objects.requireNonNull(query, "JPA CriteriaQuery must not be null").subquery(Long.class);
     }
 
     protected Specification<InboundOrder> inboundOrderSpecification(String status, Long supplierId, String inboundNo) {
@@ -1652,21 +1395,21 @@ public abstract class WmsServiceSupport {
                 predicates.add(criteriaBuilder.equal(root.get("supplierId"), supplierId));
             }
             if (!isBlank(inboundNo)) {
-                Subquery<Long> inboundSubquery = query.subquery(Long.class);
+                Subquery<Long> inboundSubquery = longSubquery(query);
                 Root<InboundOrder> inboundRoot = inboundSubquery.from(InboundOrder.class);
                 inboundSubquery.select(inboundRoot.get("id"))
                         .where(criteriaBuilder.like(criteriaBuilder.lower(inboundRoot.get("inboundNo")), likePattern(inboundNo)));
                 predicates.add(root.get("inboundOrderId").in(inboundSubquery));
             }
             if (!isBlank(partCode)) {
-                Subquery<Long> partSubquery = query.subquery(Long.class);
+                Subquery<Long> partSubquery = longSubquery(query);
                 Root<Part> partRoot = partSubquery.from(Part.class);
                 partSubquery.select(partRoot.get("id"))
                         .where(criteriaBuilder.like(criteriaBuilder.lower(partRoot.get("partCode")), likePattern(partCode)));
                 predicates.add(root.get("partId").in(partSubquery));
             }
             if (!isBlank(warehouseName) || !isBlank(zoneName) || !isBlank(warehouseType)) {
-                Subquery<Long> locationSubquery = query.subquery(Long.class);
+                Subquery<Long> locationSubquery = longSubquery(query);
                 Root<Location> locationRoot = locationSubquery.from(Location.class);
                 List<Predicate> locationPredicates = new ArrayList<>();
                 if (!isBlank(warehouseName)) {
@@ -1715,14 +1458,14 @@ public abstract class WmsServiceSupport {
                 ));
             }
             if (!isBlank(partCode)) {
-                Subquery<Long> partSubquery = query.subquery(Long.class);
+                Subquery<Long> partSubquery = longSubquery(query);
                 Root<Part> partRoot = partSubquery.from(Part.class);
                 partSubquery.select(partRoot.get("id"))
                         .where(criteriaBuilder.like(criteriaBuilder.lower(partRoot.get("partCode")), likePattern(partCode)));
                 predicates.add(root.get("partId").in(partSubquery));
             }
             if (!isBlank(warehouseName) || !isBlank(zoneName)) {
-                Subquery<Long> locationSubquery = query.subquery(Long.class);
+                Subquery<Long> locationSubquery = longSubquery(query);
                 Root<Location> locationRoot = locationSubquery.from(Location.class);
                 List<Predicate> locationPredicates = new ArrayList<>();
                 if (!isBlank(warehouseName)) {
@@ -2088,10 +1831,6 @@ public abstract class WmsServiceSupport {
         ));
     }
 
-    protected String inventoryKey(Long partId, Long locationId) {
-        return partId + ":" + locationId;
-    }
-
     protected String[] splitWarehouseZone(String text) {
         if (isBlank(text)) {
             return new String[]{"-", "-"};
@@ -2119,13 +1858,6 @@ public abstract class WmsServiceSupport {
 
     protected boolean isBlank(String value) {
         return value == null || value.isBlank();
-    }
-
-    protected boolean containsIgnoreCase(String text, String query) {
-        if (isBlank(query)) {
-            return true;
-        }
-        return defaultString(text).toLowerCase().contains(query.trim().toLowerCase());
     }
 
     protected String likePattern(String query) {
