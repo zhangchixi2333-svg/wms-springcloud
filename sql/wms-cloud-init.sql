@@ -1,10 +1,11 @@
-﻿-- WMS Spring Cloud MySQL 完整初始化脚本。
--- 适用场景：本地 Docker Compose 手动重置和开发环境初始化。
--- 重置原则：创建或补齐表结构后，清空入库、出库、看板、库存、流水、Agent 运行记录等生产数据。
+-- WMS Spring Cloud MySQL 重置初始化脚本。
+-- 适用场景：本地和云端演示环境重新初始化。
+-- 重置原则：每次执行都会删除并重建 wms_cloud 数据库。
 -- 数据原则：初始化后只保留系统账号、角色、菜单、配置，以及固定供应商、客户、库位、器具和零件基础资料。
--- 部署边界：云端 deploy 目录暂不同步本次业务重置脚本，避免误清云端生产数据。
+-- 注意事项：该脚本会清空入库、出库、看板、库存、流水和 Agent 运行记录等全部业务数据。
 
 -- 一、数据库和字符集。
+DROP DATABASE IF EXISTS `wms_cloud`;
 CREATE DATABASE IF NOT EXISTS `wms_cloud`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
@@ -342,7 +343,7 @@ SET @sql = (
         AND COLUMN_NAME = 'reserved_transfer_qty'
     ),
     'SELECT 1',
-    'ALTER TABLE `kanban` ADD COLUMN `reserved_transfer_qty` DECIMAL(18,3) DEFAULT 0.000 AFTER `reserved_qty`'
+    'ALTER TABLE `kanban` ADD COLUMN `reserved_transfer_qty` DECIMAL(18,3) DEFAULT 0.000'
   )
 );
 PREPARE stmt FROM @sql;
@@ -376,7 +377,7 @@ SET @sql = (
         AND COLUMN_NAME = 'source_kanban_id'
     ),
     'SELECT 1',
-    'ALTER TABLE `kanban` ADD COLUMN `source_kanban_id` BIGINT DEFAULT NULL AFTER `outbound_qty`'
+    'ALTER TABLE `kanban` ADD COLUMN `source_kanban_id` BIGINT DEFAULT NULL'
   )
 );
 PREPARE stmt FROM @sql;
